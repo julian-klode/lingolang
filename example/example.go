@@ -96,7 +96,10 @@ type InterfaceWithMutableMethods interface {
 // Or just in the fields themselves (that looks ugly)?
 func Examples(x interface{} /*@cap oc */) (interface{} /*@cap c*/, interface{} /*@cap m*/) {
 	switch t := x.(type) {
-	case int /*@cap(xw)*/ : // Erasure hole. Capabilitities are compile-time only
+	// Erasure hole. Capabilitities are compile-time only. Don't specify the
+	// cap inline, as that binds to the identifier rather than the case ...
+	// @cap m
+	case int:
 		return x, t
 	}
 
