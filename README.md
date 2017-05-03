@@ -38,6 +38,13 @@ an interface with constant capabilities is requested. As our checker runs after
 the Go type checker and does not affect the Go code at all, though, that is
 not possible.
 
+The capabilities model is defined for a reference-based type system. Go uses
+values and pointers. Maps, Arrays, and Slices can be considered references,
+though - or: they are basically structs containing pointers. In any case, it
+seems there is no need to have an "identity" permission, although it might
+make sense to have some permission for the operation of taking the address of
+something (the & operator).
+
 ## Legal
 Linear Typing for Go is licensed under the 2 clause BSD license; basically the
 same license as Go, just with the third clause removed.
