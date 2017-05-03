@@ -1,40 +1,40 @@
 // (C) 2017 Julian Andres Klode <jak@jak-linux.org>
 // Licensed under the 2-Clause BSD license, see LICENSE for more information.
 
-// Package example provides examples for the lingolang project.
-//
-// At the current state, these examples do not have a concrete syntax for the
-// annotations, as this is still being figured out.
-package example
-
 /*
+Package example provides examples for the lingolang project.
+
+At the current state, these examples do not have a concrete syntax for the
+annotations, as this is still being figured out.
+
 Capability specification - Here be dragons
 
-// Entry point.
-<spec>  ::= <cspec> <rspec> | <rspec>
+	// Entry point.
+	<spec>  ::= <cspec> <rspec> | <rspec>
 
-// Value modifiers
-<rspec> ::= func (<rec spec>)(<par spec>)<ret spec>
-	     | map [<rspec>] <rspec>
-		 | chan <rspec>
-		 | interface <rspec>
-		 | * <rspec>
-		 | [] <rspec>
-		 | <cspec>
+	// Value modifiers
+	<rspec> ::= func (<rec spec>)(<par spec>)<ret spec>
+		     | map [<rspec>] <rspec>
+			 | chan <rspec>
+			 | interface <rspec>
+			 | * <rspec>
+			 | [] <rspec>
+			 | <cspec>
 
-// Access modifiers: Capabilities + Ownership
-<cspec> ::=
-		 | [o](r|w|i|R|W|I)+        - caps: own,read,write,id,excl. read,...
-		 | [o|u](m|l|c|v|a)         - Short cuts for below
-		 | [[un]owned] mutable		- [o]rwiRW
-		 | [[un]owned] linear		- [o]riRW
-		 | [[un]owned] const		- [o]ri
-		 | [[un]owned] value		- [o]riW
-		 | [[un]owned] any          - [o]rwi
+	// Access modifiers: Capabilities + Ownership
+
+	<cspec> ::=
+			 | [o](r|w|i|R|W|I)+        - caps: own,read,write,id,excl. read,...
+			 | [o|u](m|l|c|v|a)         - Short cuts for below
+			 | [[un]owned] mutable		- [o]rwiRW
+			 | [[un]owned] linear		- [o]riRW
+			 | [[un]owned] const		- [o]ri
+			 | [[un]owned] value		- [o]riW
+			 | [[un]owned] any          - [o]rwi
 
 // TODO: What does identity permission mean in a language that has no refs?
-
 */
+package example
 
 // Foo is a bastard
 // Do we want to allow annotating fields in the annotation for the type?
