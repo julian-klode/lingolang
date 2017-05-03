@@ -38,6 +38,7 @@ Capability specification - Here be dragons
 
 // Foo is a bastard
 // Do we want to allow annotating fields in the annotation for the type?
+//
 // @cap(c, Value=c, Function=cap(c, x=c, ret=c), Fun2=c fun(c)c)
 type Foo struct {
 	Value    int             // @cap c
@@ -46,23 +47,29 @@ type Foo struct {
 }
 
 // ChannelOfMutableFoo is a channel of mutable Foo objects.
-// @cap chan *m
+//
 // TODO: Same as: @cap m chan *m or what?
+//
+// @cap chan *m
 var ChannelOfMutableFoo = make(chan *Foo, 0)
 
 // Constant is a constant variable. You can't write to it, and nobody else
 // can (it has the exclusive write right, but no write right). Either of the
 // following annotations works:
+//
 // @cap orW
 // @cap ov
 var Constant = 5
 
 // MutableState is a linear mutable state. I don't think that works.
+//
 // @cap orwRW
 var MutableState int
 
 // ObjectCache caches a read-only object (value).
+//
 // The following reads as: This is a mutable pointer to a value.
+//
 // @cap m *v
 // @cap rwRW*rWo
 var ObjectCache *interface{}
