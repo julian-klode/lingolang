@@ -58,7 +58,7 @@ func (p *Parser) parseInner() permission.Permission {
 	basePerm := p.parseBasePermission()
 
 	switch tok := p.sc.Peek(); tok.Type {
-	case Func, Left:
+	case Func, ParenLeft:
 		return p.parseFunc(basePerm)
 	case Map:
 		return p.parseMap(basePerm)
@@ -66,9 +66,11 @@ func (p *Parser) parseInner() permission.Permission {
 		return p.parseChan(basePerm)
 	case Star:
 		return p.parsePointer(basePerm)
-	case SliceOpen:
+	case BracketLeft:
 		return p.parseSliceOrArray(basePerm)
 	default:
+		// We are searching the longest match here. If inside somethig else,
+		// there might be syntax for the parent node after this - ignore that.
 		return basePerm
 	}
 }
@@ -117,22 +119,23 @@ func (p *Parser) parseFunc(bp permission.BasePermission) permission.Permission {
 	var results []permission.Permission
 
 	// Try to parse the receiver
-	if tok, _ := p.sc.TryAccept(Left, Func); tok.Type == Left {
+	if tok, _ := p.sc.TryAccept(ParenLeft, Func); tok.Type == ParenLeft {
 		receiver = p.parseParamList()
-		p.sc.Accept(Right)
+		p.sc.Accept(ParenRight)
 		p.sc.Accept(Func)
 	}
 
 	// Pararameters
-	p.sc.Accept(Left)
+	p.sc.Accept(ParenLeft)
 	params = p.parseParamList()
-	p.sc.Accept(Right)
+	p.sc.Accept(ParenRight)
 
 	// Results
-	if tok, _ := p.sc.TryAccept(Left); tok.Type == Left {
+	if tok, _ := p.sc.TryAccept(ParenLeft); tok.Type == ParenLeft {
 		results = p.parseParamList()
-		p.sc.Accept(Right)
+		p.sc.Accept(ParenRight)
 	} else if tok := p.sc.Peek(); tok.Type == Word {
+		// permission starts with word. We peek()ed first, so we can backtrack.
 		results = []permission.Permission{p.parseInner()}
 	}
 
@@ -143,9 +146,10 @@ func (p *Parser) parseFunc(bp permission.BasePermission) permission.Permission {
 func (p *Parser) parseParamList() []permission.Permission {
 	var tok Token
 	var perms []permission.Permission
-	perm := p.parseInner()
 
+	perm := p.parseInner()
 	perms = append(perms, perm)
+
 	for tok = p.sc.Peek(); tok.Type == Comma; tok = p.sc.Peek() {
 		p.sc.Scan()
 		perms = append(perms, p.parseInner())
@@ -156,9 +160,9 @@ func (p *Parser) parseParamList() []permission.Permission {
 
 // @syntax sliceOrArray <- '[' [NUMBER] ']' inner
 func (p *Parser) parseSliceOrArray(bp permission.BasePermission) permission.Permission {
-	p.sc.Accept(SliceOpen)
+	p.sc.Accept(BracketLeft)
 	p.sc.TryAccept(Number)
-	p.sc.Accept(SliceClose)
+	p.sc.Accept(BracketRight)
 
 	rhs := p.parseInner()
 
@@ -169,17 +173,16 @@ func (p *Parser) parseSliceOrArray(bp permission.BasePermission) permission.Perm
 func (p *Parser) parseChan(bp permission.BasePermission) permission.Permission {
 	p.sc.Accept(Chan)
 	rhs := p.parseInner()
-
 	return &permission.ChanPermission{BasePermission: bp, ElementPermission: rhs}
 }
 
 // @syntax map <- 'map' '[' inner ']' inner
 func (p *Parser) parseMap(bp permission.BasePermission) permission.Permission {
 	p.sc.Accept(Map) // Map keyword
-	p.sc.Accept(SliceOpen)
 
+	p.sc.Accept(BracketLeft)
 	key := p.parseInner()
-	p.sc.Accept(SliceClose)
+	p.sc.Accept(BracketRight)
 
 	val := p.parseInner()
 
@@ -188,7 +191,7 @@ func (p *Parser) parseMap(bp permission.BasePermission) permission.Permission {
 
 // @syntax pointer <- '*' inner
 func (p *Parser) parsePointer(bp permission.BasePermission) permission.Permission {
-	p.sc.Scan()
+	p.sc.Accept(Star)
 	rhs := p.parseInner()
 	return &permission.PointerPermission{BasePermission: bp, Target: rhs}
 }

@@ -17,28 +17,28 @@ type TokenType int
 
 // Token types. These shall become private at some point.
 const (
-	EndOfFile  TokenType = iota // End of file or error
-	Left                        // Opening parenthesis.
-	Right                       // Closing parenthesis.
-	Comma                       // A Comma
-	Word                        // A word (string of letters)
-	Func                        // The word "func"
-	Map                         // The word "map"
-	Chan                        // The word "chan"
-	Error                       // The word "error" (for testing)
-	Number                      // A number (string of digits)
-	Star                        // The character "*"
-	SliceOpen                   // The character "["
-	SliceClose                  // The character "]"
+	EndOfFile    TokenType = iota // End of file or error
+	ParenLeft                     // Opening parenthesis.
+	ParenRight                    // Closing parenthesis.
+	Comma                         // A Comma
+	Word                          // A word (string of letters)
+	Func                          // The word "func"
+	Map                           // The word "map"
+	Chan                          // The word "chan"
+	Error                         // The word "error" (for testing)
+	Number                        // A number (string of digits)
+	Star                          // The character "*"
+	BracketLeft                   // The character "["
+	BracketRight                  // The character "]"
 )
 
 func (typ TokenType) String() string {
 	switch typ {
 	case EndOfFile:
 		return "end of file"
-	case Left:
+	case ParenLeft:
 		return "opening paren"
-	case Right:
+	case ParenRight:
 		return "closing paren"
 	case Comma:
 		return "comma"
@@ -56,9 +56,9 @@ func (typ TokenType) String() string {
 		return "number"
 	case Star:
 		return "operator '*'"
-	case SliceOpen:
+	case BracketLeft:
 		return "operator '['"
-	case SliceClose:
+	case BracketRight:
 		return "operator ']'"
 	default:
 		return fmt.Sprintf("<unknown token type %d>", typ)
@@ -92,7 +92,7 @@ type scannerError struct {
 }
 
 func (err scannerError) Error() string {
-	return fmt.Sprintf("At element ending at %d before %v: %s", err.offset, err.error.Error())
+	return fmt.Sprintf("At element ending at %d: %s", err.offset, err.error.Error())
 }
 
 // NewScanner creates a new scanner
@@ -102,6 +102,7 @@ func NewScanner(rd io.Reader) *Scanner {
 
 // Scan the next token.
 func (sc *Scanner) Scan() Token {
+	// We put a token back, so let's give that out again.
 	if sc.buffer != nil {
 		tok := *sc.buffer
 		sc.buffer = nil
@@ -111,15 +112,15 @@ func (sc *Scanner) Scan() Token {
 	case ch == 0:
 		return Token{}
 	case ch == '(':
-		return Token{Left, "("}
+		return Token{ParenLeft, "("}
 	case ch == ')':
-		return Token{Right, ")"}
+		return Token{ParenRight, ")"}
 	case ch == '*':
 		return Token{Star, "*"}
 	case ch == '[':
-		return Token{SliceOpen, "["}
+		return Token{BracketLeft, "["}
 	case ch == ']':
-		return Token{SliceClose, "]"}
+		return Token{BracketRight, "]"}
 	case ch == ',':
 		return Token{Comma, ","}
 	case unicode.IsLetter(ch):
