@@ -181,7 +181,7 @@ func (sc *Scanner) Accept(types ...TokenType) Token {
 }
 
 // readRune calls ReadRune() on the reader and panics if it errors.
-func (sc *Scanner) readRune() (r rune) {
+func (sc *Scanner) readRune() rune {
 	r, size := utf8.DecodeRuneInString(sc.input[sc.offset:])
 	switch {
 	case r == utf8.RuneError && size == 0:
