@@ -134,6 +134,11 @@ type FuncPermission struct {
 	Results        []Permission   // Permissions of results
 }
 
+// InterfacePermission manages permissions on an interface.
+type InterfacePermission struct {
+	BasePermission BasePermission // Permission of the interface itself
+}
+
 // These types are all types of permissions.
 func (perm BasePermission) isAPermission()                        {}
 func (pointerPermission *PointerPermission) isAPermission()       {}
@@ -141,3 +146,4 @@ func (chanPermission *ChanPermission) isAPermission()             {}
 func (arraySlicePermission *ArraySlicePermission) isAPermission() {}
 func (mapPerm *MapPermission) isAPermission()                     {}
 func (funcPerm *FuncPermission) isAPermission()                   {}
+func (InterfacePermission *InterfacePermission) isAPermission()   {}

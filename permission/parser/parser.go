@@ -60,6 +60,8 @@ func (p *Parser) parseInner() permission.Permission {
 	switch tok := p.sc.Peek(); tok.Type {
 	case Func, ParenLeft:
 		return p.parseFunc(basePerm)
+	case Interface:
+		return p.parseInterface(basePerm)
 	case Map:
 		return p.parseMap(basePerm)
 	case Chan:
@@ -174,6 +176,12 @@ func (p *Parser) parseChan(bp permission.BasePermission) permission.Permission {
 	p.sc.Accept(Chan)
 	rhs := p.parseInner()
 	return &permission.ChanPermission{BasePermission: bp, ElementPermission: rhs}
+}
+
+// @syntax chan <- 'interface'
+func (p *Parser) parseInterface(bp permission.BasePermission) permission.Permission {
+	p.sc.Accept(Interface)
+	return &permission.InterfacePermission{BasePermission: bp}
 }
 
 // @syntax map <- 'map' '[' inner ']' inner

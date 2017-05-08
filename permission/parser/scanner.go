@@ -23,6 +23,7 @@ const (
 	Comma                         // A Comma
 	Word                          // A word (string of letters)
 	Func                          // The word "func"
+	Interface                     // The word "interface"
 	Map                           // The word "map"
 	Chan                          // The word "chan"
 	Error                         // The word "error" (for testing)
@@ -46,6 +47,8 @@ func (typ TokenType) String() string {
 		return "word"
 	case Func:
 		return "keyword 'func'"
+	case Interface:
+		return "keyword 'interface'"
 	case Map:
 		return "keyword 'map'"
 	case Chan:
@@ -223,6 +226,8 @@ func assignKeyword(tok *Token) {
 	switch tok.Value {
 	case "func":
 		tok.Type = Func
+	case "interface":
+		tok.Type = Interface
 	case "map":
 		tok.Type = Map
 	case "chan":
