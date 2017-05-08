@@ -58,19 +58,12 @@ func (p *Parser) Parse() (perm permission.Permission, err error) {
 //
 // @syntax inner <- basePermission [func | map | chan | pointer | sliceOrArray]
 func (p *Parser) parseInner() (permission.Permission, error) {
-	basePermTok := p.sc.Peek()
-
-	if basePermTok.Type != Word {
-		return nil, fmt.Errorf("Expected base permission at start of permission spec, received %v", basePermTok)
-	}
 	basePerm, err := p.parseBasePermission()
 	if err != nil {
 		return nil, err
 	}
 
-	tok := p.sc.Peek()
-
-	switch tok.Type {
+	switch tok := p.sc.Peek(); tok.Type {
 	case Func, Left:
 		return p.parseFunc(basePerm)
 	case Map:
@@ -79,8 +72,6 @@ func (p *Parser) parseInner() (permission.Permission, error) {
 		return p.parseChan(basePerm)
 	case Star:
 		return p.parsePointer(basePerm)
-	case EndOfFile:
-		return basePerm, nil
 	case SliceOpen:
 		return p.parseSliceOrArray(basePerm)
 	default:
@@ -194,10 +185,7 @@ func (p *Parser) parseParamList() ([]permission.Permission, error) {
 		}
 		perms = append(perms, perm)
 	}
-	// Eww, underlying reader error
-	if err != nil {
-		return nil, err
-	}
+
 	return perms, nil
 }
 
