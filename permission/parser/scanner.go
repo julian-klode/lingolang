@@ -160,22 +160,22 @@ func (sc *Scanner) Peek() Token {
 
 // TryAccept peeks the next token and if its type matches one of the types
 // specified as an argument, scans and returns it.
-func (sc *Scanner) TryAccept(types ...TokenType) (Token, error) {
+func (sc *Scanner) TryAccept(types ...TokenType) (Token, bool) {
 	tok := sc.Peek()
 
 	for _, typ := range types {
 		if tok.Type == typ {
-			return sc.Scan(), nil
+			return sc.Scan(), true
 		}
 	}
-	return Token{}, sc.wrapError(fmt.Errorf("Expected one of %v, received %v", types, tok))
+	return Token{}, false
 }
 
 // Accept is like TryAccept, but panics instead of returning an error.
 func (sc *Scanner) Accept(types ...TokenType) Token {
-	tok, err := sc.TryAccept(types...)
-	if err != nil {
-		panic(err)
+	tok, ok := sc.TryAccept(types...)
+	if !ok {
+		panic(sc.wrapError(fmt.Errorf("Expected one of %v, received %v", types, tok)))
 	}
 	return tok
 }
