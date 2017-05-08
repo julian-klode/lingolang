@@ -4,6 +4,7 @@ package parser
 
 import (
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/julian-klode/lingolang/permission"
@@ -147,7 +148,22 @@ func TestParser(t *testing.T) {
 }
 
 func BenchmarkParser(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		NewParser("m (m) func (v, l) (a, n)").Parse()
+	keys := make([]string, 0, len(testCases))
+	for input, _ := range testCases {
+		keys = append(keys, input)
+	}
+	sort.Strings(keys)
+
+	for _, input := range keys {
+		expected := testCases[input]
+		if expected == nil {
+			continue
+		}
+		input := input
+		b.Run(input, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				NewParser(input).Parse()
+			}
+		})
 	}
 }
