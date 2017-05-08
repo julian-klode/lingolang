@@ -5,3 +5,9 @@ go:
   - 1.7
   - 1.8
   - tip
+
+script:
+  - go test -v -race -coverprofile=coverage.txt -covermode=atomic ./permission/parser
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
