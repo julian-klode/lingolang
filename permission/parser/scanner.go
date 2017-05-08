@@ -82,6 +82,17 @@ func (tok Token) String() string {
 type Scanner struct {
 	reader *bufio.Reader
 	buffer *Token
+	offset int
+}
+
+// An error in the error.
+type scannerError struct {
+	error
+	offset int
+}
+
+func (err scannerError) Error() string {
+	return fmt.Sprintf("At element ending at %d before %v: %s", err.offset, err.error.Error())
 }
 
 // NewScanner creates a new scanner
@@ -112,17 +123,17 @@ func (sc *Scanner) Scan() Token {
 	case ch == ',':
 		return Token{Comma, ","}
 	case unicode.IsLetter(ch):
-		sc.reader.UnreadRune()
+		sc.unreadRune()
 		tok := sc.scanWhile(Word, unicode.IsLetter)
 		assignKeyword(&tok)
 		return tok
 	case unicode.IsDigit(ch):
-		sc.reader.UnreadRune()
+		sc.unreadRune()
 		return sc.scanWhile(Number, unicode.IsDigit)
 	case unicode.IsSpace(ch):
 		return sc.Scan()
 	default:
-		panic(errors.New("Unknown character to start token: " + string(ch)))
+		panic(sc.wrapError(errors.New("Unknown character to start token: " + string(ch))))
 	}
 }
 
@@ -150,7 +161,7 @@ func (sc *Scanner) TryAccept(types ...TokenType) (Token, error) {
 			return sc.Scan(), nil
 		}
 	}
-	return Token{}, fmt.Errorf("Expected one of %v, received %v", types, tok)
+	return Token{}, sc.wrapError(fmt.Errorf("Expected one of %v, received %v", types, tok))
 }
 
 // Accept is like TryAccept, but panics instead of returning an error.
@@ -167,10 +178,23 @@ func (sc *Scanner) readRune() (r rune, size int) {
 	r, size, err := sc.reader.ReadRune()
 
 	if err != nil && err != io.EOF {
-		panic(err)
+		panic(sc.wrapError(err))
 	}
 
+	sc.offset++
+
 	return
+}
+
+// unreadRune unreads a rune
+func (sc *Scanner) unreadRune() {
+	err := sc.reader.UnreadRune()
+
+	if err != nil && err != io.EOF {
+		panic(sc.wrapError(err))
+	}
+
+	sc.offset--
 }
 
 // scanWhile scans a sequence of runes accepted by the given function.
@@ -180,10 +204,16 @@ func (sc *Scanner) scanWhile(typ TokenType, acceptor func(rune) bool) Token {
 	for ch, _ = sc.readRune(); acceptor(ch); ch, _ = sc.readRune() {
 		word = append(word, ch)
 	}
-
-	sc.reader.UnreadRune()
+	if ch != 0 {
+		sc.unreadRune()
+	}
 
 	return Token{typ, string(word)}
+}
+
+// Annotate error with position information
+func (sc *Scanner) wrapError(err error) error {
+	return scannerError{err, sc.offset}
 }
 
 // assignKeyword looks at the value of a word token and if it is a keyword,

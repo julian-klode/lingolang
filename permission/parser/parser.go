@@ -33,12 +33,13 @@ func NewParser(rd io.Reader) *Parser {
 func (p *Parser) Parse() (perm permission.Permission, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			if r.(error) == nil {
-				panic(r)
+			switch rr := r.(type) {
+			case scannerError:
+				perm = nil
+				err = rr
+			default:
+				panic(rr)
 			}
-
-			perm = nil
-			err = r.(error)
 		}
 	}()
 	perm = p.parseInner()
@@ -100,7 +101,7 @@ func (p *Parser) parseBasePermission() permission.BasePermission {
 		case 'n':
 			perm |= permission.None
 		default:
-			panic(fmt.Errorf("Unknown permission bit or type: %c", c))
+			panic(p.sc.wrapError(fmt.Errorf("Unknown permission bit or type: %c", c)))
 		}
 	}
 	if perm.String() != tok.Value {
