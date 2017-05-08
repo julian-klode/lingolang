@@ -4,6 +4,9 @@ This project aims to implements annotations for linear typing in Go, so that
 Go programs can be written without worrying about accidentally sharing mutable
 state between goroutines.
 
+[![Build Status](https://travis-ci.org/julian-klode/lingolang.svg?branch=master)](https://travis-ci.org/julian-klode/lingolang)
+[![codecov](https://codecov.io/gh/julian-klode/lingolang/branch/master/graph/badge.svg)](https://codecov.io/gh/julian-klode/lingolang)
+
 ## Goal
 
 Provide a set of comment-based annotations to Go programs that restrict the

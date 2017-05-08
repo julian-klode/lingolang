@@ -6,8 +6,12 @@ go:
   - 1.8
   - tip
 
+before_script:
+  - go get -u github.com/wadey/gocovmerge
+
 script:
-  - go test -v -race -coverprofile=coverage.txt -covermode=atomic ./permission/parser
+  - go list -f '{{if gt (len .TestGoFiles) 0}}"go test -covermode=atomic -race -coverprofile {{.Name}}.coverprofile -coverpkg ./... {{.ImportPath}}"{{end}}' ./... | xargs -I {} bash -c {}
+  - gocovmerge `ls *.coverprofile` > coverage.txt
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
