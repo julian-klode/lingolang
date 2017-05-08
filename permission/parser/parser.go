@@ -30,8 +30,18 @@ func NewParser(rd io.Reader) *Parser {
 // Parse parses the permission specification language.
 //
 // @syntax main <- inner EOF
-func (p *Parser) Parse() (permission.Permission, error) {
-	perm, err := p.parseInner()
+func (p *Parser) Parse() (perm permission.Permission, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			if r.(error) == nil {
+				panic(r)
+			}
+
+			perm = nil
+			err = r.(error)
+		}
+	}()
+	perm, err = p.parseInner()
 	if err != nil {
 		return nil, err
 	}
@@ -48,10 +58,8 @@ func (p *Parser) Parse() (permission.Permission, error) {
 //
 // @syntax inner <- basePermission [func | map | chan | pointer | sliceOrArray]
 func (p *Parser) parseInner() (permission.Permission, error) {
-	basePermTok, err := p.sc.Peek()
-	if err != nil {
-		return nil, err
-	}
+	basePermTok := p.sc.Peek()
+
 	if basePermTok.Type != Word {
 		return nil, fmt.Errorf("Expected base permission at start of permission spec, received %v", basePermTok)
 	}
@@ -60,10 +68,7 @@ func (p *Parser) parseInner() (permission.Permission, error) {
 		return nil, err
 	}
 
-	tok, err := p.sc.Peek()
-	if err != nil {
-		return nil, err
-	}
+	tok := p.sc.Peek()
 
 	switch tok.Type {
 	case Func, Left:
@@ -161,7 +166,7 @@ func (p *Parser) parseFunc(bp permission.BasePermission) (permission.Permission,
 		if _, err = p.sc.Accept(Right); err != nil {
 			return nil, err
 		}
-	} else if tok, _ := p.sc.Peek(); tok.Type == Word {
+	} else if tok := p.sc.Peek(); tok.Type == Word {
 		result, err := p.parseInner()
 		if err != nil {
 			return nil, err
@@ -181,7 +186,7 @@ func (p *Parser) parseParamList() ([]permission.Permission, error) {
 		return nil, err
 	}
 	perms = append(perms, perm)
-	for tok, err = p.sc.Peek(); tok.Type == Comma; tok, err = p.sc.Peek() {
+	for tok = p.sc.Peek(); tok.Type == Comma; tok = p.sc.Peek() {
 		p.sc.Scan()
 		perm, err = p.parseInner()
 		if err != nil {

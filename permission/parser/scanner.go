@@ -90,44 +90,39 @@ func NewScanner(rd io.Reader) *Scanner {
 }
 
 // Scan the next token.
-func (sc *Scanner) Scan() (Token, error) {
+func (sc *Scanner) Scan() Token {
 	if sc.buffer != nil {
 		tok := *sc.buffer
 		sc.buffer = nil
-		return tok, nil
+		return tok
 	}
-	switch ch, _, err := sc.reader.ReadRune(); {
+	switch ch, _ := sc.readRune(); {
 	case ch == 0:
-		return Token{}, nil
-	case err != nil:
-		return Token{EndOfFile, "<error>"}, err
+		return Token{}
 	case ch == '(':
-		return Token{Left, "("}, nil
+		return Token{Left, "("}
 	case ch == ')':
-		return Token{Right, ")"}, nil
+		return Token{Right, ")"}
 	case ch == '*':
-		return Token{Star, "*"}, nil
+		return Token{Star, "*"}
 	case ch == '[':
-		return Token{SliceOpen, "["}, nil
+		return Token{SliceOpen, "["}
 	case ch == ']':
-		return Token{SliceClose, "]"}, nil
+		return Token{SliceClose, "]"}
 	case ch == ',':
-		return Token{Comma, ","}, nil
+		return Token{Comma, ","}
 	case unicode.IsLetter(ch):
 		sc.reader.UnreadRune()
-		tok, err := sc.scanWhile(Word, unicode.IsLetter)
-		if err != nil {
-			return Token{}, err
-		}
+		tok := sc.scanWhile(Word, unicode.IsLetter)
 		assignKeyword(&tok)
-		return tok, nil
+		return tok
 	case unicode.IsDigit(ch):
 		sc.reader.UnreadRune()
 		return sc.scanWhile(Number, unicode.IsDigit)
 	case unicode.IsSpace(ch):
 		return sc.Scan()
 	default:
-		return Token{Value: "<error>"}, errors.New("Unknown character to start token: " + string(ch))
+		panic(errors.New("Unknown character to start token: " + string(ch)))
 	}
 }
 
@@ -137,44 +132,49 @@ func (sc *Scanner) Unscan(tok Token) {
 }
 
 // Peek at the next token.
-func (sc *Scanner) Peek() (Token, error) {
-	tok, err := sc.Scan()
+func (sc *Scanner) Peek() Token {
+	tok := sc.Scan()
 
 	sc.Unscan(tok)
 
-	return tok, err
+	return tok
 }
 
 // Accept peeks the next token and if its type matches one of the types
 // specified as an argument, scans and returns it.
 func (sc *Scanner) Accept(types ...TokenType) (Token, error) {
-	tok, err := sc.Peek()
-	if err != nil {
-		return Token{}, err
-	}
+	tok := sc.Peek()
+
 	for _, typ := range types {
 		if tok.Type == typ {
-			return sc.Scan()
+			return sc.Scan(), nil
 		}
 	}
 	return Token{}, fmt.Errorf("Expected one of %v, received %v", types, tok)
 }
 
+// readRune calls ReadRune() on the reader and panics if it errors.
+func (sc *Scanner) readRune() (r rune, size int) {
+	r, size, err := sc.reader.ReadRune()
+
+	if err != nil && err != io.EOF {
+		panic(err)
+	}
+
+	return
+}
+
 // scanWhile scans a sequence of runes accepted by the given function.
-func (sc *Scanner) scanWhile(typ TokenType, acceptor func(rune) bool) (Token, error) {
+func (sc *Scanner) scanWhile(typ TokenType, acceptor func(rune) bool) Token {
 	word := make([]rune, 0)
 	var ch rune
-	var err error
-	for ch, _, err = sc.reader.ReadRune(); acceptor(ch); ch, _, err = sc.reader.ReadRune() {
+	for ch, _ = sc.readRune(); acceptor(ch); ch, _ = sc.readRune() {
 		word = append(word, ch)
 	}
 
-	if len(word) > 0 {
-		sc.reader.UnreadRune()
-		return Token{typ, string(word)}, nil
-	}
+	sc.reader.UnreadRune()
 
-	return Token{Value: "<error>"}, err
+	return Token{typ, string(word)}
 }
 
 // assignKeyword looks at the value of a word token and if it is a keyword,

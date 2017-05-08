@@ -16,8 +16,8 @@ func main() {
 	fmt.Printf("ExclWrite = %v:%T\n", permission.ExclWrite, permission.ExclWrite)
 
 	sc := parser.NewScanner(strings.NewReader("of (or) func (oa, ob) oR"))
-	for tok, err := sc.Scan(); tok.Type != parser.EndOfFile; tok, err = sc.Scan() {
-		fmt.Printf("Token %#v and error %v\n", tok, err)
+	for tok := sc.Scan(); tok.Type != parser.EndOfFile; tok = sc.Scan() {
+		fmt.Printf("Token %#v \n", tok)
 	}
 
 	p := parser.NewParser(strings.NewReader("om map [ov] ol"))
