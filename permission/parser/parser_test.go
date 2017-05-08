@@ -132,6 +132,7 @@ func helper() (perm permission.Permission, err error) {
 	perm = NewParser(strings.NewReader("error")).parseBasePermission()
 	return perm, nil
 }
+
 func TestParser(t *testing.T) {
 	for input, expected := range testCases {
 		perm, err := NewParser(strings.NewReader(input)).Parse()
@@ -143,5 +144,11 @@ func TestParser(t *testing.T) {
 	perm, err := helper()
 	if err == nil {
 		t.Errorf("Input 'error' parsed to valid base permission %v", perm)
+	}
+}
+
+func BenchmarkParser(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		NewParser(strings.NewReader("m (m) func (v, l) (a, n)")).Parse()
 	}
 }
