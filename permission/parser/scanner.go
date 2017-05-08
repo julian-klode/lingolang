@@ -4,11 +4,10 @@
 package parser
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
-	"io"
 	"unicode"
+	"unicode/utf8"
 )
 
 // TokenType is the type of a token. Valid values are given in the
@@ -83,10 +82,11 @@ func (tok Token) String() string {
 //
 // It provides a single lookahead token to use.
 type Scanner struct {
-	reader    io.RuneScanner
-	buffer    Token
-	hasBuffer bool
-	offset    int
+	input     string // Input string
+	offset    int    // Offset in the input string
+	start     int    // Start of the current rune
+	buffer    Token  // A token that was unscanned
+	hasBuffer bool   // Whether buffer contains an unscanned token
 }
 
 // An error in the error.
@@ -100,13 +100,8 @@ func (err scannerError) Error() string {
 }
 
 // NewScanner creates a new scanner
-func NewScanner(rd io.Reader) *Scanner {
-	runeReader := rd.(io.RuneScanner)
-	if runeReader != nil {
-		return &Scanner{reader: runeReader}
-	}
-
-	return &Scanner{reader: bufio.NewReader(rd)}
+func NewScanner(input string) *Scanner {
+	return &Scanner{input: input}
 }
 
 // Scan the next token.
@@ -187,40 +182,36 @@ func (sc *Scanner) Accept(types ...TokenType) Token {
 
 // readRune calls ReadRune() on the reader and panics if it errors.
 func (sc *Scanner) readRune() (r rune, size int) {
-	r, size, err := sc.reader.ReadRune()
-
-	if err != nil && err != io.EOF {
-		panic(sc.wrapError(err))
+	r, width := utf8.DecodeRuneInString(sc.input[sc.offset:])
+	switch {
+	case r == utf8.RuneError && width == 0:
+		return 0, 0
+	case r == utf8.RuneError:
+		panic(sc.wrapError(fmt.Errorf("Encoding error")))
+	default:
+		sc.start = sc.offset
+		sc.offset += width
+		return r, width
 	}
-
-	sc.offset++
-
-	return
 }
 
 // unreadRune unreads a rune
 func (sc *Scanner) unreadRune() {
-	err := sc.reader.UnreadRune()
-
-	if err != nil && err != io.EOF {
-		panic(sc.wrapError(err))
-	}
-
-	sc.offset--
+	sc.offset = sc.start
 }
 
 // scanWhile scans a sequence of runes accepted by the given function.
 func (sc *Scanner) scanWhile(typ TokenType, acceptor func(rune) bool) Token {
-	word := make([]rune, 0)
+	start := sc.offset
 	var ch rune
 	for ch, _ = sc.readRune(); acceptor(ch); ch, _ = sc.readRune() {
-		word = append(word, ch)
+
 	}
 	if ch != 0 {
 		sc.unreadRune()
 	}
 
-	return Token{typ, string(word)}
+	return Token{typ, sc.input[start:sc.offset]}
 }
 
 // Annotate error with position information

@@ -7,7 +7,6 @@ package parser
 
 import (
 	"fmt"
-	"io"
 
 	"github.com/julian-klode/lingolang/permission"
 )
@@ -23,8 +22,8 @@ type Parser struct {
 }
 
 // NewParser returns a new parser for the permission specification language.
-func NewParser(rd io.Reader) *Parser {
-	return &Parser{NewScanner(rd)}
+func NewParser(input string) *Parser {
+	return &Parser{NewScanner(input)}
 }
 
 // Parse parses the permission specification language.

@@ -4,7 +4,6 @@ package parser
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/julian-klode/lingolang/permission"
@@ -129,13 +128,13 @@ func helper() (perm permission.Permission, err error) {
 			err = r.(error)
 		}
 	}()
-	perm = NewParser(strings.NewReader("error")).parseBasePermission()
+	perm = NewParser("error").parseBasePermission()
 	return perm, nil
 }
 
 func TestParser(t *testing.T) {
 	for input, expected := range testCases {
-		perm, err := NewParser(strings.NewReader(input)).Parse()
+		perm, err := NewParser(input).Parse()
 		if !reflect.DeepEqual(perm, expected) {
 			t.Errorf("Input %s: Unexpected permission %v, expected %v - error: %v", input, perm, expected, err)
 		}
@@ -149,6 +148,6 @@ func TestParser(t *testing.T) {
 
 func BenchmarkParser(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		NewParser(strings.NewReader("m (m) func (v, l) (a, n)")).Parse()
+		NewParser("m (m) func (v, l) (a, n)").Parse()
 	}
 }
