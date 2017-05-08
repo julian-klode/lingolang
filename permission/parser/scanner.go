@@ -113,7 +113,7 @@ func (sc *Scanner) Scan() Token {
 		sc.hasBuffer = false
 		return tok
 	}
-	switch ch, _ := sc.readRune(); {
+	switch ch := sc.readRune(); {
 	case ch == 0:
 		return Token{}
 	case ch == '(':
@@ -181,17 +181,17 @@ func (sc *Scanner) Accept(types ...TokenType) Token {
 }
 
 // readRune calls ReadRune() on the reader and panics if it errors.
-func (sc *Scanner) readRune() (r rune, size int) {
-	r, width := utf8.DecodeRuneInString(sc.input[sc.offset:])
+func (sc *Scanner) readRune() (r rune) {
+	r, size := utf8.DecodeRuneInString(sc.input[sc.offset:])
 	switch {
-	case r == utf8.RuneError && width == 0:
-		return 0, 0
+	case r == utf8.RuneError && size == 0:
+		return 0
 	case r == utf8.RuneError:
 		panic(sc.wrapError(fmt.Errorf("Encoding error")))
 	default:
 		sc.start = sc.offset
-		sc.offset += width
-		return r, width
+		sc.offset += size
+		return r
 	}
 }
 
@@ -204,8 +204,7 @@ func (sc *Scanner) unreadRune() {
 func (sc *Scanner) scanWhile(typ TokenType, acceptor func(rune) bool) Token {
 	start := sc.offset
 	var ch rune
-	for ch, _ = sc.readRune(); acceptor(ch); ch, _ = sc.readRune() {
-
+	for ch = sc.readRune(); acceptor(ch); ch = sc.readRune() {
 	}
 	if ch != 0 {
 		sc.unreadRune()
