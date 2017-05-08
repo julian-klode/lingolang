@@ -161,13 +161,15 @@ func (sc *Scanner) Peek() Token {
 // TryAccept peeks the next token and if its type matches one of the types
 // specified as an argument, scans and returns it.
 func (sc *Scanner) TryAccept(types ...TokenType) (Token, bool) {
-	tok := sc.Peek()
+	tok := sc.Scan()
 
 	for _, typ := range types {
 		if tok.Type == typ {
-			return sc.Scan(), true
+			return tok, true
 		}
 	}
+
+	sc.Unscan(tok)
 	return Token{}, false
 }
 
