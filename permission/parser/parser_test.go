@@ -113,8 +113,12 @@ var testCases = map[string]permission.Permission{
 	"m (m) func (v) (v":      nil,
 	"m (m) func (v) hello":   nil,
 	// Interface
-	"m interface":     &permission.InterfacePermission{permission.Mutable},
-	"l interface":     &permission.InterfacePermission{permission.LinearValue},
+	"m interface": &permission.InterfacePermission{
+		BasePermission: permission.Mutable,
+	},
+	"l interface": &permission.InterfacePermission{
+		BasePermission: permission.LinearValue,
+	},
 	"error interface": nil,
 	"interface error": nil,
 }
