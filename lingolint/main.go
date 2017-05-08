@@ -2,14 +2,26 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/julian-klode/lingolang/permission"
+	"github.com/julian-klode/lingolang/permission/parser"
 )
 
 func main() {
-	fmt.Printf("Owned = %v:%T\n", lingo.Owned, lingo.Owned)
-	fmt.Printf("Read = %v:%T\n", lingo.Read, lingo.Read)
-	fmt.Printf("Write = %v:%T\n", lingo.Write, lingo.Write)
-	fmt.Printf("ExclRead = %v:%T\n", lingo.ExclRead, lingo.ExclRead)
-	fmt.Printf("ExclWrite = %v:%T\n", lingo.ExclWrite, lingo.ExclWrite)
+	fmt.Printf("Owned = %v:%T\n", permission.Owned, permission.Owned)
+	fmt.Printf("Read = %v:%T\n", permission.Read, permission.Read)
+	fmt.Printf("Write = %v:%T\n", permission.Write, permission.Write)
+	fmt.Printf("ExclRead = %v:%T\n", permission.ExclRead, permission.ExclRead)
+	fmt.Printf("ExclWrite = %v:%T\n", permission.ExclWrite, permission.ExclWrite)
+
+	sc := parser.NewScanner(strings.NewReader("of (or) func (oa, ob) oR"))
+	for tok, err := sc.Scan(); tok.Type != parser.EndOfFile; tok, err = sc.Scan() {
+		fmt.Printf("Token %#v and error %v\n", tok, err)
+	}
+
+	p := parser.NewParser(strings.NewReader("om map [ov] ol"))
+	perm, err := p.Parse()
+	fmt.Printf("Parsed %v with error %v", perm, err)
+
 }
