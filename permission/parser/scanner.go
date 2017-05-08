@@ -83,9 +83,10 @@ func (tok Token) String() string {
 //
 // It provides a single lookahead token to use.
 type Scanner struct {
-	reader io.RuneScanner
-	buffer *Token
-	offset int
+	reader    io.RuneScanner
+	buffer    Token
+	hasBuffer bool
+	offset    int
 }
 
 // An error in the error.
@@ -111,9 +112,10 @@ func NewScanner(rd io.Reader) *Scanner {
 // Scan the next token.
 func (sc *Scanner) Scan() Token {
 	// We put a token back, so let's give that out again.
-	if sc.buffer != nil {
-		tok := *sc.buffer
-		sc.buffer = nil
+	if sc.hasBuffer {
+		tok := sc.buffer
+		sc.buffer = Token{}
+		sc.hasBuffer = false
 		return tok
 	}
 	switch ch, _ := sc.readRune(); {
@@ -148,7 +150,8 @@ func (sc *Scanner) Scan() Token {
 
 // Unscan makes a token available again for Scan()
 func (sc *Scanner) Unscan(tok Token) {
-	sc.buffer = &tok
+	sc.buffer = tok
+	sc.hasBuffer = true
 }
 
 // Peek at the next token.
