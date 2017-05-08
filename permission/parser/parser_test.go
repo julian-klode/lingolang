@@ -114,6 +114,15 @@ var testCases = map[string]permission.Permission{
 	"m (m) func (v) hello":   nil,
 }
 
+func helper() (perm permission.Permission, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = r.(error)
+		}
+	}()
+	perm = NewParser(strings.NewReader("error")).parseBasePermission()
+	return perm, nil
+}
 func TestParser(t *testing.T) {
 	for input, expected := range testCases {
 		perm, err := NewParser(strings.NewReader(input)).Parse()
@@ -122,7 +131,7 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	perm, err := NewParser(strings.NewReader("error")).parseBasePermission()
+	perm, err := helper()
 	if err == nil {
 		t.Errorf("Input 'error' parsed to valid base permission %v", perm)
 	}

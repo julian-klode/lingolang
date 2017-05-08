@@ -120,3 +120,7 @@ func Examples(x interface{} /*@cap oc */) (interface{} /*@cap c*/, interface{} /
 	}
 	return x, a
 }
+
+// @acap
+// @rcap
+// @cap

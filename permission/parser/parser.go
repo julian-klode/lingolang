@@ -41,14 +41,10 @@ func (p *Parser) Parse() (perm permission.Permission, err error) {
 			err = r.(error)
 		}
 	}()
-	perm, err = p.parseInner()
-	if err != nil {
-		return nil, err
-	}
+	perm = p.parseInner()
+
 	// Ensure that the inner run is complete
-	if _, err := p.sc.Accept(EndOfFile); err != nil {
-		return nil, err
-	}
+	p.sc.Accept(EndOfFile)
 	return perm, nil
 }
 
@@ -57,11 +53,8 @@ func (p *Parser) Parse() (perm permission.Permission, err error) {
 // happen
 //
 // @syntax inner <- basePermission [func | map | chan | pointer | sliceOrArray]
-func (p *Parser) parseInner() (permission.Permission, error) {
-	basePerm, err := p.parseBasePermission()
-	if err != nil {
-		return nil, err
-	}
+func (p *Parser) parseInner() permission.Permission {
+	basePerm := p.parseBasePermission()
 
 	switch tok := p.sc.Peek(); tok.Type {
 	case Func, Left:
@@ -75,17 +68,15 @@ func (p *Parser) parseInner() (permission.Permission, error) {
 	case SliceOpen:
 		return p.parseSliceOrArray(basePerm)
 	default:
-		return basePerm, nil
+		return basePerm
 	}
 }
 
 // @syntax basePermission ('o'|'r'|'w'|'R'|'W'|'m'|'l'|'v'|'a'|'n')+
-func (p *Parser) parseBasePermission() (permission.BasePermission, error) {
+func (p *Parser) parseBasePermission() permission.BasePermission {
 	var perm permission.BasePermission
-	tok, err := p.sc.Accept(Word)
-	if err != nil {
-		return 0, err
-	}
+	tok := p.sc.Accept(Word)
+
 	for _, c := range tok.Value {
 		switch c {
 		case 'o':
@@ -109,140 +100,94 @@ func (p *Parser) parseBasePermission() (permission.BasePermission, error) {
 		case 'n':
 			perm |= permission.None
 		default:
-			return 0, fmt.Errorf("Unknown permission bit or type: %c", c)
+			panic(fmt.Errorf("Unknown permission bit or type: %c", c))
 		}
 	}
 	if perm.String() != tok.Value {
 		fmt.Printf("Warning: Permission %v can be rewritten as %v\n", tok.Value, perm.String())
 	}
-	return perm, nil
+	return perm
 }
 
 // @syntax func <- ['(' paramList ')'] 'func' '(' paramList ')' ( inner |  '(' paramList ')')
-func (p *Parser) parseFunc(bp permission.BasePermission) (permission.Permission, error) {
+func (p *Parser) parseFunc(bp permission.BasePermission) permission.Permission {
 	var receiver []permission.Permission
 	var params []permission.Permission
 	var results []permission.Permission
-	var err error
 
 	// Try to parse the receiver
-	if tok, _ := p.sc.Accept(Left, Func); tok.Type == Left {
-		if receiver, err = p.parseParamList(); err != nil {
-			return nil, err
-		}
-		if _, err = p.sc.Accept(Right); err != nil {
-			return nil, err
-		}
-		if _, err = p.sc.Accept(Func); err != nil {
-			return nil, err
-		}
+	if tok, _ := p.sc.TryAccept(Left, Func); tok.Type == Left {
+		receiver = p.parseParamList()
+		p.sc.Accept(Right)
+		p.sc.Accept(Func)
 	}
 
 	// Pararameters
-	if _, err = p.sc.Accept(Left); err != nil {
-		return nil, err
-	}
-	if params, err = p.parseParamList(); err != nil {
-		return nil, err
-	}
-	if _, err = p.sc.Accept(Right); err != nil {
-		return nil, err
-	}
+	p.sc.Accept(Left)
+	params = p.parseParamList()
+	p.sc.Accept(Right)
 
 	// Results
-	if tok, _ := p.sc.Accept(Left); tok.Type == Left {
-		if results, err = p.parseParamList(); err != nil {
-			return nil, err
-		}
-		if _, err = p.sc.Accept(Right); err != nil {
-			return nil, err
-		}
+	if tok, _ := p.sc.TryAccept(Left); tok.Type == Left {
+		results = p.parseParamList()
+		p.sc.Accept(Right)
 	} else if tok := p.sc.Peek(); tok.Type == Word {
-		result, err := p.parseInner()
-		if err != nil {
-			return nil, err
-		}
-		results = []permission.Permission{result}
+		results = []permission.Permission{p.parseInner()}
 	}
 
-	return &permission.FuncPermission{BasePermission: bp, Receivers: receiver, Params: params, Results: results}, nil
+	return &permission.FuncPermission{BasePermission: bp, Receivers: receiver, Params: params, Results: results}
 }
 
 // @syntax paramList <- inner (',' inner)*
-func (p *Parser) parseParamList() ([]permission.Permission, error) {
+func (p *Parser) parseParamList() []permission.Permission {
 	var tok Token
 	var perms []permission.Permission
-	perm, err := p.parseInner()
-	if err != nil {
-		return nil, err
-	}
+	perm := p.parseInner()
+
 	perms = append(perms, perm)
 	for tok = p.sc.Peek(); tok.Type == Comma; tok = p.sc.Peek() {
 		p.sc.Scan()
-		perm, err = p.parseInner()
-		if err != nil {
-			return nil, err
-		}
-		perms = append(perms, perm)
+		perms = append(perms, p.parseInner())
 	}
 
-	return perms, nil
+	return perms
 }
 
 // @syntax sliceOrArray <- '[' [NUMBER] ']' inner
-func (p *Parser) parseSliceOrArray(bp permission.BasePermission) (permission.Permission, error) {
-	p.sc.Scan()
-	p.sc.Accept(Number)
-	if _, err := p.sc.Accept(SliceClose); err != nil {
-		return nil, err
-	}
+func (p *Parser) parseSliceOrArray(bp permission.BasePermission) permission.Permission {
+	p.sc.Accept(SliceOpen)
+	p.sc.TryAccept(Number)
+	p.sc.Accept(SliceClose)
 
-	rhs, err := p.parseInner()
-	if err != nil {
-		return nil, err
-	}
-	return &permission.ArraySlicePermission{BasePermission: bp, ElementPermission: rhs}, nil
+	rhs := p.parseInner()
+
+	return &permission.ArraySlicePermission{BasePermission: bp, ElementPermission: rhs}
 }
 
 // @syntax chan <- 'chan' inner
-func (p *Parser) parseChan(bp permission.BasePermission) (permission.Permission, error) {
-	p.sc.Scan()
-	rhs, err := p.parseInner()
-	if err != nil {
-		return nil, err
-	}
-	return &permission.ChanPermission{BasePermission: bp, ElementPermission: rhs}, nil
+func (p *Parser) parseChan(bp permission.BasePermission) permission.Permission {
+	p.sc.Accept(Chan)
+	rhs := p.parseInner()
+
+	return &permission.ChanPermission{BasePermission: bp, ElementPermission: rhs}
 }
 
 // @syntax map <- 'map' '[' inner ']' inner
-func (p *Parser) parseMap(bp permission.BasePermission) (permission.Permission, error) {
-	p.sc.Scan() // Map keyword
+func (p *Parser) parseMap(bp permission.BasePermission) permission.Permission {
+	p.sc.Accept(Map) // Map keyword
+	p.sc.Accept(SliceOpen)
 
-	if _, err := p.sc.Accept(SliceOpen); err != nil {
-		return nil, err
-	}
-	key, err := p.parseInner()
-	if err != nil {
-		return nil, err
-	}
-	if _, err = p.sc.Accept(SliceClose); err != nil {
-		return nil, err
-	}
+	key := p.parseInner()
+	p.sc.Accept(SliceClose)
 
-	val, err := p.parseInner()
-	if err != nil {
-		return nil, err
-	}
+	val := p.parseInner()
 
-	return &permission.MapPermission{BasePermission: bp, KeyPermission: key, ValuePermission: val}, nil
+	return &permission.MapPermission{BasePermission: bp, KeyPermission: key, ValuePermission: val}
 }
 
 // @syntax pointer <- '*' inner
-func (p *Parser) parsePointer(bp permission.BasePermission) (permission.Permission, error) {
+func (p *Parser) parsePointer(bp permission.BasePermission) permission.Permission {
 	p.sc.Scan()
-	rhs, err := p.parseInner()
-	if err != nil {
-		return nil, err
-	}
-	return &permission.PointerPermission{BasePermission: bp, Target: rhs}, nil
+	rhs := p.parseInner()
+	return &permission.PointerPermission{BasePermission: bp, Target: rhs}
 }

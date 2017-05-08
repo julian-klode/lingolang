@@ -140,9 +140,9 @@ func (sc *Scanner) Peek() Token {
 	return tok
 }
 
-// Accept peeks the next token and if its type matches one of the types
+// TryAccept peeks the next token and if its type matches one of the types
 // specified as an argument, scans and returns it.
-func (sc *Scanner) Accept(types ...TokenType) (Token, error) {
+func (sc *Scanner) TryAccept(types ...TokenType) (Token, error) {
 	tok := sc.Peek()
 
 	for _, typ := range types {
@@ -151,6 +151,15 @@ func (sc *Scanner) Accept(types ...TokenType) (Token, error) {
 		}
 	}
 	return Token{}, fmt.Errorf("Expected one of %v, received %v", types, tok)
+}
+
+// Accept is like TryAccept, but panics instead of returning an error.
+func (sc *Scanner) Accept(types ...TokenType) Token {
+	tok, err := sc.TryAccept(types...)
+	if err != nil {
+		panic(err)
+	}
+	return tok
 }
 
 // readRune calls ReadRune() on the reader and panics if it errors.
