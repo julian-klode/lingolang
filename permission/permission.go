@@ -91,33 +91,33 @@ type Permission interface {
 
 // PointerPermission describes permissions on a pointer value.
 type PointerPermission struct {
-	BasePermission            // The permission on the pointer value itself
-	Target         Permission // The permission of the value we are pointing to
+	BasePermission BasePermission // The permission on the pointer value itself
+	Target         Permission     // The permission of the value we are pointing to
 }
 
 // ChanPermission describes permissions on channels and their elements.
 type ChanPermission struct {
-	BasePermission               // The permission on the chan value itself
-	ElementPermission Permission // The permission of the elements it contains
+	BasePermission    BasePermission // The permission on the chan value itself
+	ElementPermission Permission     // The permission of the elements it contains
 }
 
 // ArraySlicePermission describes permissions on arrays, slices, and elements.
 type ArraySlicePermission struct {
-	BasePermission               // The permission on the array/slice value itself
-	ElementPermission Permission // The permission of the elements it contains
+	BasePermission    BasePermission // The permission on the array/slice value itself
+	ElementPermission Permission     // The permission of the elements it contains
 }
 
 // MapPermission describes permissions on map values, their keys and values.
 type MapPermission struct {
-	BasePermission             // The permission of the map itself
-	KeyPermission   Permission // The permission of contained keys
-	ValuePermission Permission // The permission of contained values
+	BasePermission  BasePermission // The permission of the map itself
+	KeyPermission   Permission     // The permission of contained keys
+	ValuePermission Permission     // The permission of contained values
 }
 
 // StructPermission describes permissions of structs.
 type StructPermission struct {
-	BasePermission              // Permission of the struct itself
-	fields         []Permission // Permissions of the fields, in order
+	BasePermission BasePermission // Permission of the struct itself
+	fields         []Permission   // Permissions of the fields, in order
 }
 
 // FuncPermission describes permissions of functions
@@ -128,10 +128,10 @@ type StructPermission struct {
 // with the same exclusive bits as bound variables)
 // TODO: If we use excl. to mark bound excl. vars, can we "freeze" the func?
 type FuncPermission struct {
-	BasePermission              // Permission of the function itself
-	Receivers      []Permission // Permissions of the receiver
-	Params         []Permission // Permissions of the parameters
-	Results        []Permission // Permissions of results
+	BasePermission BasePermission // Permission of the function itself
+	Receivers      []Permission   // Permissions of the receiver
+	Params         []Permission   // Permissions of the parameters
+	Results        []Permission   // Permissions of results
 }
 
 // These types are all types of permissions.
