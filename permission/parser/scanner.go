@@ -83,7 +83,7 @@ func (tok Token) String() string {
 //
 // It provides a single lookahead token to use.
 type Scanner struct {
-	reader *bufio.Reader
+	reader io.RuneScanner
 	buffer *Token
 	offset int
 }
@@ -100,6 +100,11 @@ func (err scannerError) Error() string {
 
 // NewScanner creates a new scanner
 func NewScanner(rd io.Reader) *Scanner {
+	runeReader := rd.(io.RuneScanner)
+	if runeReader != nil {
+		return &Scanner{reader: runeReader}
+	}
+
 	return &Scanner{reader: bufio.NewReader(rd)}
 }
 
