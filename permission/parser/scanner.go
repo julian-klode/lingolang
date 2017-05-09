@@ -151,8 +151,8 @@ func (sc *Scanner) Peek() Token {
 
 // Accept peeks the next token and if its type matches one of the types
 // specified as an argument, scans and returns it.
-func (sc *Scanner) Accept(types ...TokenType) (Token, bool) {
-	tok := sc.Scan()
+func (sc *Scanner) Accept(types ...TokenType) (tok Token, ok bool) {
+	tok = sc.Scan()
 
 	for _, typ := range types {
 		if tok.Type == typ {
@@ -164,7 +164,7 @@ func (sc *Scanner) Accept(types ...TokenType) (Token, bool) {
 	return Token{}, false
 }
 
-// Expect is like Accept, but panics instead of returning an error.
+// Expect calls accept and panic()s if Accept fails
 func (sc *Scanner) Expect(types ...TokenType) Token {
 	tok, ok := sc.Accept(types...)
 	if !ok {
