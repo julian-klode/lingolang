@@ -32,40 +32,30 @@ const (
 	BracketRight                  // The character "]"
 )
 
-func (typ TokenType) String() string {
-	switch typ {
-	case EndOfFile:
-		return "end of file"
-	case ParenLeft:
-		return "opening paren"
-	case ParenRight:
-		return "closing paren"
-	case Comma:
-		return "comma"
-	case Word:
-		return "word"
-	case Func:
-		return "keyword 'func'"
-	case Interface:
-		return "keyword 'interface'"
-	case Map:
-		return "keyword 'map'"
-	case Chan:
-		return "keyword 'chan'"
-	case Error:
-		return "keyword 'error'"
-	case Number:
-		return "number"
-	case Star:
-		return "operator '*'"
-	case BracketLeft:
-		return "operator '['"
-	case BracketRight:
-		return "operator ']'"
-	default:
-		return fmt.Sprintf("<unknown token type %d>", typ)
-	}
+var TokenTypeString = map[TokenType]string{
+	EndOfFile:    "end of file",
+	ParenLeft:    "opening paren",
+	ParenRight:   "closing paren",
+	Comma:        "comma",
+	Word:         "word",
+	Func:         "keyword 'func'",
+	Interface:    "keyword 'interface'",
+	Map:          "keyword 'map'",
+	Chan:         "keyword 'chan'",
+	Error:        "keyword 'error'",
+	Number:       "number",
+	Star:         "operator '*'",
+	BracketLeft:  "operator '['",
+	BracketRight: "operator ']'",
+}
 
+func (typ TokenType) String() string {
+	switch str := TokenTypeString[typ]; str {
+	case "":
+		return fmt.Sprintf("<unknown token type %d>", typ)
+	default:
+		return str
+	}
 }
 
 // Token has a type and a value
