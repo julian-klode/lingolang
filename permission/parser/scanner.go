@@ -103,33 +103,34 @@ func (sc *Scanner) Scan() Token {
 		sc.hasBuffer = false
 		return tok
 	}
-	switch ch := sc.readRune(); {
-	case ch == 0:
-		return Token{}
-	case ch == '(':
-		return Token{ParenLeft, "("}
-	case ch == ')':
-		return Token{ParenRight, ")"}
-	case ch == '*':
-		return Token{Star, "*"}
-	case ch == '[':
-		return Token{BracketLeft, "["}
-	case ch == ']':
-		return Token{BracketRight, "]"}
-	case ch == ',':
-		return Token{Comma, ","}
-	case unicode.IsLetter(ch):
-		sc.unreadRune()
-		tok := sc.scanWhile(Word, unicode.IsLetter)
-		assignKeyword(&tok)
-		return tok
-	case unicode.IsDigit(ch):
-		sc.unreadRune()
-		return sc.scanWhile(Number, unicode.IsDigit)
-	case unicode.IsSpace(ch):
-		return sc.Scan()
-	default:
-		panic(sc.wrapError(errors.New("Unknown character to start token: " + string(ch))))
+	for {
+		switch ch := sc.readRune(); {
+		case ch == 0:
+			return Token{}
+		case ch == '(':
+			return Token{ParenLeft, "("}
+		case ch == ')':
+			return Token{ParenRight, ")"}
+		case ch == '*':
+			return Token{Star, "*"}
+		case ch == '[':
+			return Token{BracketLeft, "["}
+		case ch == ']':
+			return Token{BracketRight, "]"}
+		case ch == ',':
+			return Token{Comma, ","}
+		case unicode.IsLetter(ch):
+			sc.unreadRune()
+			tok := sc.scanWhile(Word, unicode.IsLetter)
+			assignKeyword(&tok)
+			return tok
+		case unicode.IsDigit(ch):
+			sc.unreadRune()
+			return sc.scanWhile(Number, unicode.IsDigit)
+		case unicode.IsSpace(ch):
+		default:
+			panic(sc.wrapError(errors.New("Unknown character to start token: " + string(ch))))
+		}
 	}
 }
 
