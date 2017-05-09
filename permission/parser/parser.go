@@ -44,7 +44,7 @@ func (p *Parser) Parse() (perm permission.Permission, err error) {
 	perm = p.parseInner()
 
 	// Ensure that the inner run is complete
-	p.sc.Accept(EndOfFile)
+	p.sc.Expect(EndOfFile)
 	return perm, nil
 }
 
@@ -79,7 +79,7 @@ func (p *Parser) parseInner() permission.Permission {
 // @syntax basePermission ('o'|'r'|'w'|'R'|'W'|'m'|'l'|'v'|'a'|'n')+
 func (p *Parser) parseBasePermission() permission.BasePermission {
 	var perm permission.BasePermission
-	tok := p.sc.Accept(Word)
+	tok := p.sc.Expect(Word)
 
 	for _, c := range tok.Value {
 		switch c {
@@ -120,21 +120,21 @@ func (p *Parser) parseFunc(bp permission.BasePermission) permission.Permission {
 	var results []permission.Permission
 
 	// Try to parse the receiver
-	if tok, _ := p.sc.TryAccept(ParenLeft, Func); tok.Type == ParenLeft {
+	if tok, _ := p.sc.Accept(ParenLeft, Func); tok.Type == ParenLeft {
 		receiver = p.parseParamList()
-		p.sc.Accept(ParenRight)
-		p.sc.Accept(Func)
+		p.sc.Expect(ParenRight)
+		p.sc.Expect(Func)
 	}
 
 	// Pararameters
-	p.sc.Accept(ParenLeft)
+	p.sc.Expect(ParenLeft)
 	params = p.parseParamList()
-	p.sc.Accept(ParenRight)
+	p.sc.Expect(ParenRight)
 
 	// Results
-	if tok, _ := p.sc.TryAccept(ParenLeft); tok.Type == ParenLeft {
+	if tok, _ := p.sc.Accept(ParenLeft); tok.Type == ParenLeft {
 		results = p.parseParamList()
-		p.sc.Accept(ParenRight)
+		p.sc.Expect(ParenRight)
 	} else if tok := p.sc.Peek(); tok.Type == Word {
 		// permission starts with word. We peek()ed first, so we can backtrack.
 		results = []permission.Permission{p.parseInner()}
@@ -161,9 +161,9 @@ func (p *Parser) parseParamList() []permission.Permission {
 
 // @syntax sliceOrArray <- '[' [NUMBER] ']' inner
 func (p *Parser) parseSliceOrArray(bp permission.BasePermission) permission.Permission {
-	p.sc.Accept(BracketLeft)
-	p.sc.TryAccept(Number)
-	p.sc.Accept(BracketRight)
+	p.sc.Expect(BracketLeft)
+	p.sc.Accept(Number)
+	p.sc.Expect(BracketRight)
 
 	rhs := p.parseInner()
 
@@ -172,24 +172,24 @@ func (p *Parser) parseSliceOrArray(bp permission.BasePermission) permission.Perm
 
 // @syntax chan <- 'chan' inner
 func (p *Parser) parseChan(bp permission.BasePermission) permission.Permission {
-	p.sc.Accept(Chan)
+	p.sc.Expect(Chan)
 	rhs := p.parseInner()
 	return &permission.ChanPermission{BasePermission: bp, ElementPermission: rhs}
 }
 
 // @syntax chan <- 'interface'
 func (p *Parser) parseInterface(bp permission.BasePermission) permission.Permission {
-	p.sc.Accept(Interface)
+	p.sc.Expect(Interface)
 	return &permission.InterfacePermission{BasePermission: bp}
 }
 
 // @syntax map <- 'map' '[' inner ']' inner
 func (p *Parser) parseMap(bp permission.BasePermission) permission.Permission {
-	p.sc.Accept(Map) // Map keyword
+	p.sc.Expect(Map) // Map keyword
 
-	p.sc.Accept(BracketLeft)
+	p.sc.Expect(BracketLeft)
 	key := p.parseInner()
-	p.sc.Accept(BracketRight)
+	p.sc.Expect(BracketRight)
 
 	val := p.parseInner()
 
@@ -198,7 +198,7 @@ func (p *Parser) parseMap(bp permission.BasePermission) permission.Permission {
 
 // @syntax pointer <- '*' inner
 func (p *Parser) parsePointer(bp permission.BasePermission) permission.Permission {
-	p.sc.Accept(Star)
+	p.sc.Expect(Star)
 	rhs := p.parseInner()
 	return &permission.PointerPermission{BasePermission: bp, Target: rhs}
 }
