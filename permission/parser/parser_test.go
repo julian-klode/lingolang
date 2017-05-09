@@ -135,10 +135,14 @@ func helper() (perm permission.Permission, err error) {
 
 func TestParser(t *testing.T) {
 	for input, expected := range testCases {
-		perm, err := NewParser(input).Parse()
-		if !reflect.DeepEqual(perm, expected) {
-			t.Errorf("Input %s: Unexpected permission %v, expected %v - error: %v", input, perm, expected, err)
-		}
+		input := input
+		expected := expected
+		t.Run(input, func(t *testing.T) {
+			perm, err := NewParser(input).Parse()
+			if !reflect.DeepEqual(perm, expected) {
+				t.Errorf("Input %s: Unexpected permission %v, expected %v - error: %v", input, perm, expected, err)
+			}
+		})
 	}
 
 	perm, err := helper()
