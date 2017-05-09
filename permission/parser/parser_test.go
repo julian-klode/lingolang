@@ -149,7 +149,7 @@ func TestParser(t *testing.T) {
 
 func BenchmarkParser(b *testing.B) {
 	keys := make([]string, 0, len(testCases))
-	for input, _ := range testCases {
+	for input := range testCases {
 		keys = append(keys, input)
 	}
 	sort.Strings(keys)

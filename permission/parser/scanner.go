@@ -32,7 +32,7 @@ const (
 	BracketRight                  // The character "]"
 )
 
-var TokenTypeString = map[TokenType]string{
+var tokenTypeString = map[TokenType]string{
 	EndOfFile:    "end of file",
 	ParenLeft:    "opening paren",
 	ParenRight:   "closing paren",
@@ -50,7 +50,7 @@ var TokenTypeString = map[TokenType]string{
 }
 
 func (typ TokenType) String() string {
-	switch str := TokenTypeString[typ]; str {
+	switch str := tokenTypeString[typ]; str {
 	case "":
 		return fmt.Sprintf("<unknown token type %d>", typ)
 	default:
