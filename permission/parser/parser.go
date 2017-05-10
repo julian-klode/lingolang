@@ -65,6 +65,8 @@ func (p *Parser) parseInner() permission.Permission {
 		return p.parseMap(basePerm)
 	case Chan:
 		return p.parseChan(basePerm)
+	case Struct:
+		return p.parseStruct(basePerm)
 	case Star:
 		return p.parsePointer(basePerm)
 	case BracketLeft:
@@ -204,4 +206,13 @@ func (p *Parser) parsePointer(bp permission.BasePermission) permission.Permissio
 	p.sc.Expect(Star)
 	rhs := p.parseInner()
 	return &permission.PointerPermission{BasePermission: bp, Target: rhs}
+}
+
+// @syntax struct <- 'struct' '{' fieldList '}'
+func (p *Parser) parseStruct(bp permission.BasePermission) permission.Permission {
+	p.sc.Expect(Struct)
+	p.sc.Expect(BraceLeft)
+	fields := p.parseFieldList(Semicolon)
+	p.sc.Expect(BraceRight)
+	return &permission.StructPermission{BasePermission: bp, Fields: fields}
 }

@@ -126,6 +126,25 @@ var testCases = map[string]permission.Permission{
 	},
 	"error interface": nil,
 	"interface error": nil,
+	"{}":              nil,
+	"m struct {}":     nil,
+	"m struct":        nil,
+	"m struct {":      nil,
+	"m struct }":      nil,
+	"m struct v":      nil,
+	"m struct {v}": &permission.StructPermission{
+		BasePermission: permission.Mutable,
+		Fields: []permission.Permission{
+			permission.Value,
+		},
+	},
+	"m struct {v; l}": &permission.StructPermission{
+		BasePermission: permission.Mutable,
+		Fields: []permission.Permission{
+			permission.Value,
+			permission.LinearValue,
+		},
+	},
 }
 
 func helper() (perm permission.Permission, err error) {

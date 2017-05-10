@@ -26,10 +26,14 @@ const (
 	Map                           // The word "map"
 	Chan                          // The word "chan"
 	Error                         // The word "error" (for testing)
+	Struct                        // The word "struct"
 	Number                        // A number (string of digits)
 	Star                          // The character "*"
 	BracketLeft                   // The character "["
 	BracketRight                  // The character "]"
+	BraceLeft                     // The character '{'
+	BraceRight                    // The character '}'
+	Semicolon                     // The character ';'
 )
 
 var tokenTypeString = map[TokenType]string{
@@ -43,10 +47,14 @@ var tokenTypeString = map[TokenType]string{
 	Map:          "keyword 'map'",
 	Chan:         "keyword 'chan'",
 	Error:        "keyword 'error'",
+	Struct:       "keyword 'struct'",
 	Number:       "number",
 	Star:         "operator '*'",
 	BracketLeft:  "operator '['",
 	BracketRight: "operator ']'",
+	BraceLeft:    "operator '{'",
+	BraceRight:   "operator '}'",
+	Semicolon:    "operator ';'",
 }
 
 func (typ TokenType) String() string {
@@ -117,8 +125,14 @@ func (sc *Scanner) Scan() Token {
 			return Token{BracketLeft, "["}
 		case ch == ']':
 			return Token{BracketRight, "]"}
+		case ch == '{':
+			return Token{BraceLeft, "{"}
+		case ch == '}':
+			return Token{BraceRight, "}"}
 		case ch == ',':
 			return Token{Comma, ","}
+		case ch == ';':
+			return Token{Semicolon, ";"}
 		case unicode.IsLetter(ch):
 			sc.unreadRune()
 			tok := sc.scanWhile(Word, unicode.IsLetter)
@@ -225,5 +239,7 @@ func assignKeyword(tok *Token) {
 		tok.Type = Chan
 	case "error":
 		tok.Type = Error
+	case "struct":
+		tok.Type = Struct
 	}
 }

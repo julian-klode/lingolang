@@ -117,7 +117,7 @@ type MapPermission struct {
 // StructPermission describes permissions of structs.
 type StructPermission struct {
 	BasePermission BasePermission // Permission of the struct itself
-	fields         []Permission   // Permissions of the fields, in order
+	Fields         []Permission   // Permissions of the fields, in order
 }
 
 // FuncPermission describes permissions of functions
@@ -145,5 +145,6 @@ func (pointerPermission *PointerPermission) isAPermission()       {}
 func (chanPermission *ChanPermission) isAPermission()             {}
 func (arraySlicePermission *ArraySlicePermission) isAPermission() {}
 func (mapPerm *MapPermission) isAPermission()                     {}
+func (structPerm *StructPermission) isAPermission()               {}
 func (funcPerm *FuncPermission) isAPermission()                   {}
 func (InterfacePermission *InterfacePermission) isAPermission()   {}
