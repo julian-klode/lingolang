@@ -113,7 +113,7 @@ func (p *Parser) parseBasePermission() permission.BasePermission {
 	return perm
 }
 
-// @syntax func <- ['(' paramList ')'] 'func' '(' paramList ')' ( inner |  '(' paramList ')')
+// @syntax func <- ['(' param List ')'] 'func' '(' [paramList] ')' ( [inner] |  '(' [paramList] ')')
 func (p *Parser) parseFunc(bp permission.BasePermission) permission.Permission {
 	var receiver []permission.Permission
 	var params []permission.Permission
@@ -121,19 +121,21 @@ func (p *Parser) parseFunc(bp permission.BasePermission) permission.Permission {
 
 	// Try to parse the receiver
 	if tok, _ := p.sc.Accept(ParenLeft, Func); tok.Type == ParenLeft {
-		receiver = p.parseParamList()
+		receiver = p.parseFieldList(Comma)
 		p.sc.Expect(ParenRight)
 		p.sc.Expect(Func)
 	}
 
 	// Pararameters
 	p.sc.Expect(ParenLeft)
-	params = p.parseParamList()
+	if p.sc.Peek().Type != ParenRight {
+		params = p.parseFieldList(Comma)
+	}
 	p.sc.Expect(ParenRight)
 
 	// Results
 	if tok, _ := p.sc.Accept(ParenLeft); tok.Type == ParenLeft {
-		results = p.parseParamList()
+		results = p.parseFieldList(Comma)
 		p.sc.Expect(ParenRight)
 	} else if tok := p.sc.Peek(); tok.Type == Word {
 		// permission starts with word. We peek()ed first, so we can backtrack.
@@ -144,14 +146,15 @@ func (p *Parser) parseFunc(bp permission.BasePermission) permission.Permission {
 }
 
 // @syntax paramList <- inner (',' inner)*
-func (p *Parser) parseParamList() []permission.Permission {
+// @syntax fieldList <- inner (';' inner)*
+func (p *Parser) parseFieldList(sep TokenType) []permission.Permission {
 	var tok Token
 	var perms []permission.Permission
 
 	perm := p.parseInner()
 	perms = append(perms, perm)
 
-	for tok = p.sc.Peek(); tok.Type == Comma; tok = p.sc.Peek() {
+	for tok = p.sc.Peek(); tok.Type == sep; tok = p.sc.Peek() {
 		p.sc.Scan()
 		perms = append(perms, p.parseInner())
 	}
