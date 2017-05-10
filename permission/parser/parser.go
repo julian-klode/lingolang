@@ -182,10 +182,16 @@ func (p *Parser) parseChan(bp permission.BasePermission) permission.Permission {
 	return &permission.ChanPermission{BasePermission: bp, ElementPermission: rhs}
 }
 
-// @syntax chan <- 'interface'
+// @syntax chan <- 'interface' '{' [fieldList] '}'
 func (p *Parser) parseInterface(bp permission.BasePermission) permission.Permission {
+	var fields []permission.Permission
 	p.sc.Expect(Interface)
-	return &permission.InterfacePermission{BasePermission: bp}
+	p.sc.Expect(BraceLeft)
+	if p.sc.Peek().Type != BraceRight {
+		fields = p.parseFieldList(Semicolon)
+	}
+	p.sc.Expect(BraceRight)
+	return &permission.InterfacePermission{BasePermission: bp, Methods: fields}
 }
 
 // @syntax map <- 'map' '[' inner ']' inner

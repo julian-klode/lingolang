@@ -137,6 +137,7 @@ type FuncPermission struct {
 // InterfacePermission manages permissions on an interface.
 type InterfacePermission struct {
 	BasePermission BasePermission // Permission of the interface itself
+	Methods        []Permission   // Permission of the methods
 }
 
 // These types are all types of permissions.
