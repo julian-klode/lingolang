@@ -14,6 +14,8 @@ import (
 var testCases = map[string]permission.Permission{
 	"123":     nil,
 	"!":       nil,
+	"\xc2":    nil, // incomplete rune at beginning
+	"a\xc2":   nil, // incomplete rune in word
 	"a !":     nil,
 	"a error": nil,
 	"":        nil,
