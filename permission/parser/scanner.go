@@ -175,7 +175,7 @@ func (sc *Scanner) Accept(types ...TokenType) (tok Token, ok bool) {
 	}
 
 	sc.Unscan(tok)
-	return Token{}, false
+	return tok, false
 }
 
 // Expect calls accept and panic()s if Accept fails
