@@ -22,7 +22,7 @@ type Checker struct {
 	conf   *Config
 	info   *Info
 	pmap   map[ast.Node]permission.Permission
-	passes []Pass
+	passes []pass
 	// Errors occured during capability checking.
 	Errors []error
 }
@@ -38,8 +38,8 @@ func NewChecker(conf *Config, info *Info, path string, fset *token.FileSet, file
 		pmap:  make(map[ast.Node]permission.Permission),
 	}
 	// Configure all passes here.
-	checker.passes = []Pass{
-		AssignPass{checker: checker},
+	checker.passes = []pass{
+		assignPass{checker: checker},
 	}
 	return checker
 }
@@ -91,23 +91,22 @@ func (c *Checker) errorf(format string, a ...interface{}) {
 	}
 }
 
-// Pass is simply an interface that extends the ast.Visitor interface, and
+// pass is simply an interface that extends the ast.Visitor interface, and
 // represents the individual passes of the type checker. Each pass my store
 // its own data in its associated object. The state is shared between files
 // of the same package.
-type Pass interface {
+type pass interface {
 	ast.Visitor
 }
 
-// AssignPass assigns annotations in comments to their associated nodes.
-type AssignPass struct {
+// assignPass assigns annotations in comments to their associated nodes.
+type assignPass struct {
 	checker *Checker
 	// Comment map for the active file
 	commentMap ast.CommentMap
 }
 
-// Visit implements ast.Visitor.
-func (p AssignPass) Visit(node ast.Node) (w ast.Visitor) {
+func (p assignPass) Visit(node ast.Node) (w ast.Visitor) {
 	// We are entering a file, get its comment map.
 	if f, ok := node.(*ast.File); ok {
 		p.commentMap = ast.NewCommentMap(p.checker.fset, f, f.Comments)
