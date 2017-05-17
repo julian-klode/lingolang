@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"go/types"
 	"strings"
 
 	"github.com/julian-klode/lingolang/permission"
@@ -16,6 +17,7 @@ import (
 // Checker is a type that keeps shared state from multiple check
 // passes. It must be created by NewChecker().
 type Checker struct {
+	parent *types.Checker
 	path   string
 	fset   *token.FileSet
 	conf   *Config
@@ -28,12 +30,14 @@ type Checker struct {
 
 // NewChecker returns a new checker with the specified settings.
 func NewChecker(conf *Config, info *Info, path string, fset *token.FileSet) *Checker {
+	pkg := types.NewPackage(path, "")
 	checker := &Checker{
-		path: path,
-		fset: fset,
-		conf: conf,
-		info: info,
-		pmap: make(map[ast.Node]permission.Permission),
+		parent: types.NewChecker(&conf.Types, fset, pkg, &info.Types),
+		path:   path,
+		fset:   fset,
+		conf:   conf,
+		info:   info,
+		pmap:   make(map[ast.Node]permission.Permission),
 	}
 	// Configure all passes here.
 	checker.passes = []pass{
@@ -57,7 +61,7 @@ func (c *Checker) Files(files []*ast.File) (err error) {
 		}
 	}()
 	// Perform the type check.
-	_, err = c.conf.Types.Check(c.path, c.fset, files, &c.info.Types)
+	err = c.parent.Files(files)
 	if err != nil {
 		c.Errors = append(c.Errors, err)
 		return
