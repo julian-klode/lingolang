@@ -2,7 +2,12 @@ package main
 
 import (
 	"fmt"
+	"go/ast"
+	goparser "go/parser"
+	"go/token"
+	"log"
 
+	"github.com/julian-klode/lingolang/capabilities"
 	"github.com/julian-klode/lingolang/permission"
 	"github.com/julian-klode/lingolang/permission/parser"
 )
@@ -22,4 +27,30 @@ func main() {
 	p := parser.NewParser("om map [ov] ol")
 	perm, err := p.Parse()
 	fmt.Printf("Parsed %v with error %v\n", perm, err)
+
+	// Parse one file.
+	fset := token.NewFileSet()
+	f, err := goparser.ParseFile(fset, "/home/jak/Projects/Go/src/github.com/golang/example/gotypes/defsuses/example/test.go",
+		`package main
+				// Bananas
+				// @cap ol
+				// Mango
+				var a = 5
+
+				func foo() {
+					var x = 9
+					println(x)
+				}
+			`, goparser.ParseComments)
+	if err != nil {
+		log.Fatal(err) // parse error
+	}
+
+	config := capabilities.Config{}
+	info := capabilities.Info{}
+	err = config.Check("hello", fset, []*ast.File{f}, &info)
+	if err != nil {
+		panic(err)
+	}
+
 }
