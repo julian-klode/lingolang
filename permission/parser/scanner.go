@@ -16,45 +16,45 @@ type TokenType int
 
 // Token types. These shall become private at some point.
 const (
-	EndOfFile    TokenType = iota // End of file or error
-	ParenLeft                     // Opening parenthesis.
-	ParenRight                    // Closing parenthesis.
-	Comma                         // A Comma
-	Word                          // A word (string of letters)
-	Func                          // The word "func"
-	Interface                     // The word "interface"
-	Map                           // The word "map"
-	Chan                          // The word "chan"
-	Error                         // The word "error" (for testing)
-	Struct                        // The word "struct"
-	Number                        // A number (string of digits)
-	Star                          // The character "*"
-	BracketLeft                   // The character "["
-	BracketRight                  // The character "]"
-	BraceLeft                     // The character '{'
-	BraceRight                    // The character '}'
-	Semicolon                     // The character ';'
+	TokenEndOfFile    TokenType = iota // End of file or error
+	TokenParenLeft                     // Opening parenthesis.
+	TokenParenRight                    // Closing parenthesis.
+	TokenComma                         // A Comma
+	TokenWord                          // A word (string of letters)
+	TokenFunc                          // The word "func"
+	TokenInterface                     // The word "interface"
+	TokenMap                           // The word "map"
+	TokenChan                          // The word "chan"
+	TokenError                         // The word "error" (for testing)
+	TokenStruct                        // The word "struct"
+	TokenNumber                        // A number (string of digits)
+	TokenStar                          // The character "*"
+	TokenBracketLeft                   // The character "["
+	TokenBracketRight                  // The character "]"
+	TokenBraceLeft                     // The character '{'
+	TokenBraceRight                    // The character '}'
+	TokenSemicolon                     // The character ';'
 )
 
 var tokenTypeString = map[TokenType]string{
-	EndOfFile:    "end of file",
-	ParenLeft:    "opening paren",
-	ParenRight:   "closing paren",
-	Comma:        "comma",
-	Word:         "word",
-	Func:         "keyword 'func'",
-	Interface:    "keyword 'interface'",
-	Map:          "keyword 'map'",
-	Chan:         "keyword 'chan'",
-	Error:        "keyword 'error'",
-	Struct:       "keyword 'struct'",
-	Number:       "number",
-	Star:         "operator '*'",
-	BracketLeft:  "operator '['",
-	BracketRight: "operator ']'",
-	BraceLeft:    "operator '{'",
-	BraceRight:   "operator '}'",
-	Semicolon:    "operator ';'",
+	TokenEndOfFile:    "end of file",
+	TokenParenLeft:    "opening paren",
+	TokenParenRight:   "closing paren",
+	TokenComma:        "comma",
+	TokenWord:         "word",
+	TokenFunc:         "keyword 'func'",
+	TokenInterface:    "keyword 'interface'",
+	TokenMap:          "keyword 'map'",
+	TokenChan:         "keyword 'chan'",
+	TokenError:        "keyword 'error'",
+	TokenStruct:       "keyword 'struct'",
+	TokenNumber:       "number",
+	TokenStar:         "operator '*'",
+	TokenBracketLeft:  "operator '['",
+	TokenBracketRight: "operator ']'",
+	TokenBraceLeft:    "operator '{'",
+	TokenBraceRight:   "operator '}'",
+	TokenSemicolon:    "operator ';'",
 }
 
 func (typ TokenType) String() string {
@@ -116,31 +116,31 @@ func (sc *Scanner) Scan() Token {
 		case ch == 0:
 			return Token{}
 		case ch == '(':
-			return Token{ParenLeft, "("}
+			return Token{TokenParenLeft, "("}
 		case ch == ')':
-			return Token{ParenRight, ")"}
+			return Token{TokenParenRight, ")"}
 		case ch == '*':
-			return Token{Star, "*"}
+			return Token{TokenStar, "*"}
 		case ch == '[':
-			return Token{BracketLeft, "["}
+			return Token{TokenBracketLeft, "["}
 		case ch == ']':
-			return Token{BracketRight, "]"}
+			return Token{TokenBracketRight, "]"}
 		case ch == '{':
-			return Token{BraceLeft, "{"}
+			return Token{TokenBraceLeft, "{"}
 		case ch == '}':
-			return Token{BraceRight, "}"}
+			return Token{TokenBraceRight, "}"}
 		case ch == ',':
-			return Token{Comma, ","}
+			return Token{TokenComma, ","}
 		case ch == ';':
-			return Token{Semicolon, ";"}
+			return Token{TokenSemicolon, ";"}
 		case unicode.IsLetter(ch):
 			sc.unreadRune()
-			tok := sc.scanWhile(Word, unicode.IsLetter)
+			tok := sc.scanWhile(TokenWord, unicode.IsLetter)
 			assignKeyword(&tok)
 			return tok
 		case unicode.IsDigit(ch):
 			sc.unreadRune()
-			return sc.scanWhile(Number, unicode.IsDigit)
+			return sc.scanWhile(TokenNumber, unicode.IsDigit)
 		case unicode.IsSpace(ch):
 		default:
 			panic(sc.wrapError(errors.New("Unknown character to start token: " + string(ch))))
@@ -230,16 +230,16 @@ func (sc *Scanner) wrapError(err error) error {
 func assignKeyword(tok *Token) {
 	switch tok.Value {
 	case "func":
-		tok.Type = Func
+		tok.Type = TokenFunc
 	case "interface":
-		tok.Type = Interface
+		tok.Type = TokenInterface
 	case "map":
-		tok.Type = Map
+		tok.Type = TokenMap
 	case "chan":
-		tok.Type = Chan
+		tok.Type = TokenChan
 	case "error":
-		tok.Type = Error
+		tok.Type = TokenError
 	case "struct":
-		tok.Type = Struct
+		tok.Type = TokenStruct
 	}
 }
