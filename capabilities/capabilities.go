@@ -34,8 +34,8 @@ type Info struct {
 
 // Check performs a capability check on a package.
 func (conf *Config) Check(path string, fset *token.FileSet, files []*ast.File, info *Info) error {
-	checker := NewChecker(conf, info, path, fset, files...)
-	err := checker.Check()
+	checker := NewChecker(conf, info, path, fset)
+	err := checker.Files(files)
 	info.Errors = checker.Errors
 	if err != nil {
 		return err

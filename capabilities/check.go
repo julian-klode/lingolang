@@ -18,7 +18,6 @@ import (
 type Checker struct {
 	path   string
 	fset   *token.FileSet
-	files  []*ast.File
 	conf   *Config
 	info   *Info
 	pmap   map[ast.Node]permission.Permission
@@ -28,14 +27,13 @@ type Checker struct {
 }
 
 // NewChecker returns a new checker with the specified settings.
-func NewChecker(conf *Config, info *Info, path string, fset *token.FileSet, files ...*ast.File) *Checker {
+func NewChecker(conf *Config, info *Info, path string, fset *token.FileSet) *Checker {
 	checker := &Checker{
-		path:  path,
-		fset:  fset,
-		files: files,
-		conf:  conf,
-		info:  info,
-		pmap:  make(map[ast.Node]permission.Permission),
+		path: path,
+		fset: fset,
+		conf: conf,
+		info: info,
+		pmap: make(map[ast.Node]permission.Permission),
 	}
 	// Configure all passes here.
 	checker.passes = []pass{
@@ -44,11 +42,11 @@ func NewChecker(conf *Config, info *Info, path string, fset *token.FileSet, file
 	return checker
 }
 
-// Check performs the checks the checker was set up for.
+// Files performs the checks the checker was set up for.
 //
 // Returns the first error, if any. More errors can be found in the Errors
 // field.
-func (c *Checker) Check() (err error) {
+func (c *Checker) Files(files []*ast.File) (err error) {
 	defer func() {
 		r := recover()
 		if _, ok := r.(bailout); r != nil && !ok {
@@ -59,7 +57,7 @@ func (c *Checker) Check() (err error) {
 		}
 	}()
 	// Perform the type check.
-	_, err = c.conf.Types.Check(c.path, c.fset, c.files, &c.info.Types)
+	_, err = c.conf.Types.Check(c.path, c.fset, files, &c.info.Types)
 	if err != nil {
 		c.Errors = append(c.Errors, err)
 		return
@@ -68,7 +66,7 @@ func (c *Checker) Check() (err error) {
 	// Run the individual capability checking passes.
 	// TODO: Error handling.
 	for _, p := range c.passes {
-		for _, f := range c.files {
+		for _, f := range files {
 			ast.Walk(p, f)
 		}
 	}
