@@ -6,6 +6,7 @@ state between goroutines.
 
 [![Build Status](https://travis-ci.org/julian-klode/lingolang.svg?branch=master)](https://travis-ci.org/julian-klode/lingolang)
 [![codecov](https://codecov.io/gh/julian-klode/lingolang/branch/master/graph/badge.svg)](https://codecov.io/gh/julian-klode/lingolang)
+![Go 1.7 or newer ](https://img.shields.io/badge/Go-1.7%2B-green.svg)
 [![GoDoc](https://godoc.org/github.com/julian-klode/lingolang?status.svg)](http://godoc.org/github.com/julian-klode/lingolang)
 [![Go Report Card](https://goreportcard.com/badge/github.com/julian-klode/lingolang)](https://goreportcard.com/report/github.com/julian-klode/lingolang)
 
