@@ -15,7 +15,7 @@ import (
 func TestCapabilitiesSuccess(t *testing.T) {
 	// Parse one file.
 	fset := token.NewFileSet()
-	f, err := goparser.ParseFile(fset, "/home/jak/Projects/Go/src/github.com/golang/example/gotypes/defsuses/example/test.go",
+	f, err := goparser.ParseFile(fset, "TestCapabilitiesSuccess.go",
 		`package main
             // Bananas
             // @cap ol
@@ -38,7 +38,7 @@ func TestCapabilitiesSuccess(t *testing.T) {
 
 func TestCapabilitiesError(t *testing.T) {
 	fset := token.NewFileSet()
-	f, err := goparser.ParseFile(fset, "/home/jak/Projects/Go/src/github.com/golang/example/gotypes/defsuses/example/test.go",
+	f, err := goparser.ParseFile(fset, "TestCapabilitiesError.go",
 		`package main
             // Bananas
             // @cap olx
@@ -67,7 +67,7 @@ func TestCapabilitiesError(t *testing.T) {
 
 func TestCapabilitiesErrorBailout(t *testing.T) {
 	fset := token.NewFileSet()
-	f, err := goparser.ParseFile(fset, "bailout.go",
+	f, err := goparser.ParseFile(fset, "TestCapabilitiesErrorBailout.go",
 		`package main
             var a = 5		// @cap olx
             var b = 5		// @cap olx
@@ -98,7 +98,7 @@ func TestCapabilitiesErrorBailout(t *testing.T) {
 
 func TestCapabilitiesTypeError(t *testing.T) {
 	fset := token.NewFileSet()
-	f, err := goparser.ParseFile(fset, "bailout.go",
+	f, err := goparser.ParseFile(fset, "TestCapabilitiesTypeError.go",
 		`package main
             var a = 5		// @cap ol
             var a = 5 		// @cap ol`, goparser.ParseComments)
