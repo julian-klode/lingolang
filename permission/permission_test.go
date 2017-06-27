@@ -39,15 +39,3 @@ func TestPermissionString(t *testing.T) {
 		})
 	}
 }
-
-func TestIsAPermission(t *testing.T) {
-	Permission.isAPermission(Any)
-	Permission.isAPermission(&PointerPermission{})
-	Permission.isAPermission(&ChanPermission{})
-	Permission.isAPermission(&ArrayPermission{})
-	Permission.isAPermission(&SlicePermission{})
-	Permission.isAPermission(&MapPermission{})
-	Permission.isAPermission(&StructPermission{})
-	Permission.isAPermission(&FuncPermission{})
-	Permission.isAPermission(&InterfacePermission{})
-}

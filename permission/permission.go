@@ -86,7 +86,7 @@ func (perm BasePermission) String() string {
 // Permission is an entity associated with an value that describes in which
 // ways the value can be used.
 type Permission interface {
-	isAPermission()
+	isMovableTo(p2 Permission) bool
 }
 
 // PointerPermission describes permissions on a pointer value.
@@ -145,14 +145,3 @@ type InterfacePermission struct {
 	BasePermission BasePermission // Permission of the interface itself
 	Methods        []Permission   // Permission of the methods
 }
-
-// These types are all types of permissions.
-func (perm BasePermission) isAPermission()                      {}
-func (pointerPermission *PointerPermission) isAPermission()     {}
-func (chanPermission *ChanPermission) isAPermission()           {}
-func (arrayPermission *ArrayPermission) isAPermission()         {}
-func (slicePermission *SlicePermission) isAPermission()         {}
-func (mapPerm *MapPermission) isAPermission()                   {}
-func (structPerm *StructPermission) isAPermission()             {}
-func (funcPerm *FuncPermission) isAPermission()                 {}
-func (InterfacePermission *InterfacePermission) isAPermission() {}
