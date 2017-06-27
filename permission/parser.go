@@ -1,14 +1,10 @@
 // (C) 2017 Julian Andres Klode <jak@jak-linux.org>
 // Licensed under the 2-Clause BSD license, see LICENSE for more information.
 
-// Package parser provides a parser for the permission specification
-// language.
-package parser
+package permission
 
 import (
 	"fmt"
-
-	"github.com/julian-klode/lingolang/permission"
 )
 
 // Parser is a parser for the permission syntax.
@@ -29,7 +25,7 @@ func NewParser(input string) *Parser {
 // Parse parses the permission specification language.
 //
 // @syntax main <- inner EOF
-func (p *Parser) Parse() (perm permission.Permission, err error) {
+func (p *Parser) Parse() (perm Permission, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			switch rr := r.(type) {
@@ -53,7 +49,7 @@ func (p *Parser) Parse() (perm permission.Permission, err error) {
 // happen
 //
 // @syntax inner <- basePermission [func | map | chan | pointer | sliceOrArray]
-func (p *Parser) parseInner() permission.Permission {
+func (p *Parser) parseInner() Permission {
 	basePerm := p.parseBasePermission()
 
 	switch tok := p.sc.Peek(); tok.Type {
@@ -79,32 +75,32 @@ func (p *Parser) parseInner() permission.Permission {
 }
 
 // @syntax basePermission ('o'|'r'|'w'|'R'|'W'|'m'|'l'|'v'|'a'|'n')+
-func (p *Parser) parseBasePermission() permission.BasePermission {
-	var perm permission.BasePermission
+func (p *Parser) parseBasePermission() BasePermission {
+	var perm BasePermission
 	tok := p.sc.Expect(TokenWord)
 
 	for _, c := range tok.Value {
 		switch c {
 		case 'o':
-			perm |= permission.Owned
+			perm |= Owned
 		case 'r':
-			perm |= permission.Read
+			perm |= Read
 		case 'w':
-			perm |= permission.Write
+			perm |= Write
 		case 'R':
-			perm |= permission.ExclRead
+			perm |= ExclRead
 		case 'W':
-			perm |= permission.ExclWrite
+			perm |= ExclWrite
 		case 'm':
-			perm |= permission.Mutable
+			perm |= Mutable
 		case 'l':
-			perm |= permission.LinearValue
+			perm |= LinearValue
 		case 'v':
-			perm |= permission.Value
+			perm |= Value
 		case 'a':
-			perm |= permission.Any
+			perm |= Any
 		case 'n':
-			perm |= permission.None
+			perm |= None
 		default:
 			panic(p.sc.wrapError(fmt.Errorf("Unknown permission bit or type: %c", c)))
 		}
@@ -116,10 +112,10 @@ func (p *Parser) parseBasePermission() permission.BasePermission {
 }
 
 // @syntax func <- ['(' param List ')'] 'func' '(' [paramList] ')' ( [inner] |  '(' [paramList] ')')
-func (p *Parser) parseFunc(bp permission.BasePermission) permission.Permission {
-	var receiver []permission.Permission
-	var params []permission.Permission
-	var results []permission.Permission
+func (p *Parser) parseFunc(bp BasePermission) Permission {
+	var receiver []Permission
+	var params []Permission
+	var results []Permission
 
 	// Try to parse the receiver
 	if tok, _ := p.sc.Accept(TokenParenLeft, TokenFunc); tok.Type == TokenParenLeft {
@@ -141,17 +137,17 @@ func (p *Parser) parseFunc(bp permission.BasePermission) permission.Permission {
 		p.sc.Expect(TokenParenRight)
 	} else if tok := p.sc.Peek(); tok.Type == TokenWord {
 		// permission starts with word. We peek()ed first, so we can backtrack.
-		results = []permission.Permission{p.parseInner()}
+		results = []Permission{p.parseInner()}
 	}
 
-	return &permission.FuncPermission{BasePermission: bp, Receivers: receiver, Params: params, Results: results}
+	return &FuncPermission{BasePermission: bp, Receivers: receiver, Params: params, Results: results}
 }
 
 // @syntax paramList <- inner (',' inner)*
 // @syntax fieldList <- inner (';' inner)*
-func (p *Parser) parseFieldList(sep TokenType) []permission.Permission {
+func (p *Parser) parseFieldList(sep TokenType) []Permission {
 	var tok Token
-	var perms []permission.Permission
+	var perms []Permission
 
 	perm := p.parseInner()
 	perms = append(perms, perm)
@@ -165,37 +161,37 @@ func (p *Parser) parseFieldList(sep TokenType) []permission.Permission {
 }
 
 // @syntax sliceOrArray <- '[' [NUMBER] ']' inner
-func (p *Parser) parseSliceOrArray(bp permission.BasePermission) permission.Permission {
+func (p *Parser) parseSliceOrArray(bp BasePermission) Permission {
 	p.sc.Expect(TokenBracketLeft)
 	p.sc.Accept(TokenNumber)
 	p.sc.Expect(TokenBracketRight)
 
 	rhs := p.parseInner()
 
-	return &permission.ArraySlicePermission{BasePermission: bp, ElementPermission: rhs}
+	return &ArraySlicePermission{BasePermission: bp, ElementPermission: rhs}
 }
 
 // @syntax chan <- 'chan' inner
-func (p *Parser) parseChan(bp permission.BasePermission) permission.Permission {
+func (p *Parser) parseChan(bp BasePermission) Permission {
 	p.sc.Expect(TokenChan)
 	rhs := p.parseInner()
-	return &permission.ChanPermission{BasePermission: bp, ElementPermission: rhs}
+	return &ChanPermission{BasePermission: bp, ElementPermission: rhs}
 }
 
 // @syntax chan <- 'interface' '{' [fieldList] '}'
-func (p *Parser) parseInterface(bp permission.BasePermission) permission.Permission {
-	var fields []permission.Permission
+func (p *Parser) parseInterface(bp BasePermission) Permission {
+	var fields []Permission
 	p.sc.Expect(TokenInterface)
 	p.sc.Expect(TokenBraceLeft)
 	if p.sc.Peek().Type != TokenBraceRight {
 		fields = p.parseFieldList(TokenSemicolon)
 	}
 	p.sc.Expect(TokenBraceRight)
-	return &permission.InterfacePermission{BasePermission: bp, Methods: fields}
+	return &InterfacePermission{BasePermission: bp, Methods: fields}
 }
 
 // @syntax map <- 'map' '[' inner ']' inner
-func (p *Parser) parseMap(bp permission.BasePermission) permission.Permission {
+func (p *Parser) parseMap(bp BasePermission) Permission {
 	p.sc.Expect(TokenMap) // Map keyword
 
 	p.sc.Expect(TokenBracketLeft)
@@ -204,21 +200,21 @@ func (p *Parser) parseMap(bp permission.BasePermission) permission.Permission {
 
 	val := p.parseInner()
 
-	return &permission.MapPermission{BasePermission: bp, KeyPermission: key, ValuePermission: val}
+	return &MapPermission{BasePermission: bp, KeyPermission: key, ValuePermission: val}
 }
 
 // @syntax pointer <- '*' inner
-func (p *Parser) parsePointer(bp permission.BasePermission) permission.Permission {
+func (p *Parser) parsePointer(bp BasePermission) Permission {
 	p.sc.Expect(TokenStar)
 	rhs := p.parseInner()
-	return &permission.PointerPermission{BasePermission: bp, Target: rhs}
+	return &PointerPermission{BasePermission: bp, Target: rhs}
 }
 
 // @syntax struct <- 'struct' '{' fieldList '}'
-func (p *Parser) parseStruct(bp permission.BasePermission) permission.Permission {
+func (p *Parser) parseStruct(bp BasePermission) Permission {
 	p.sc.Expect(TokenStruct)
 	p.sc.Expect(TokenBraceLeft)
 	fields := p.parseFieldList(TokenSemicolon)
 	p.sc.Expect(TokenBraceRight)
-	return &permission.StructPermission{BasePermission: bp, Fields: fields}
+	return &StructPermission{BasePermission: bp, Fields: fields}
 }

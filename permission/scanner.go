@@ -1,7 +1,7 @@
 // (C) 2017 Julian Andres Klode <jak@jak-linux.org>
 // Licensed under the 2-Clause BSD license, see LICENSE for more information.
 
-package parser
+package permission
 
 import (
 	"errors"

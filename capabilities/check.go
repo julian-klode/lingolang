@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/julian-klode/lingolang/permission"
-	"github.com/julian-klode/lingolang/permission/parser"
 )
 
 // Checker is a type that keeps shared state from multiple check
@@ -128,7 +127,7 @@ func (p assignPass) Visit(node ast.Node) (w ast.Visitor) {
 			if strings.HasPrefix(strings.TrimSpace(text), "@cap") {
 				cap := text[strings.Index(text, "@cap")+len("@cap"):]
 
-				perm, err := parser.NewParser(cap).Parse()
+				perm, err := permission.NewParser(cap).Parse()
 				if err != nil {
 					p.checker.errorf("%s: Cannot parse permission: %s", p.checker.fset.Position(cmt.Slash), err)
 				}

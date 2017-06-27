@@ -9,7 +9,6 @@ import (
 
 	"github.com/julian-klode/lingolang/capabilities"
 	"github.com/julian-klode/lingolang/permission"
-	"github.com/julian-klode/lingolang/permission/parser"
 )
 
 func main() {
@@ -19,12 +18,12 @@ func main() {
 	fmt.Printf("ExclRead = %v:%T\n", permission.ExclRead, permission.ExclRead)
 	fmt.Printf("ExclWrite = %v:%T\n", permission.ExclWrite, permission.ExclWrite)
 
-	sc := parser.NewScanner("of (or) func (oa, ob) oR")
-	for tok := sc.Scan(); tok.Type != parser.TokenEndOfFile; tok = sc.Scan() {
+	sc := permission.NewScanner("of (or) func (oa, ob) oR")
+	for tok := sc.Scan(); tok.Type != permission.TokenEndOfFile; tok = sc.Scan() {
 		fmt.Printf("Token %#v \n", tok)
 	}
 
-	p := parser.NewParser("om map [ov] ol")
+	p := permission.NewParser("om map [ov] ol")
 	perm, err := p.Parse()
 	fmt.Printf("Parsed %v with error %v\n", perm, err)
 
