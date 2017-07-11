@@ -3,15 +3,7 @@
 
 package permission
 
-// This file defines when permissions are considered copyable from one
-// value to another.
-//
-// TODO: Annotate functions with logic rules
-
-// copyableTo is a map to help with recursive types.
-//
-// TODO: We want a local map, a global one is ugly (or it needs a lock)
-var copyableTo = make(map[struct{ A, B Permission }]bool)
+type copyableState map[struct{ A, B Permission }]bool
 
 // CopyableTo checks that a capability of permission A can be copied to
 // a capability with permission B.
@@ -24,21 +16,25 @@ var copyableTo = make(map[struct{ A, B Permission }]bool)
 // Pointers however, are not reference types, and are copyable if the target
 // is refcopyable.
 func CopyableTo(A, B Permission) bool {
+	return copyableTo(A, B, make(copyableState))
+}
+
+func copyableTo(A, B Permission, state copyableState) bool {
 	// Oh dear, this is our entry point. We need to ensure we can do recursive
 	// permissions correctly.
-	isCopyable, ok := copyableTo[struct{ A, B Permission }{A, B}]
+	isCopyable, ok := state[struct{ A, B Permission }{A, B}]
 
 	if !ok {
-		copyableTo[struct{ A, B Permission }{A, B}] = true
-		isCopyable = A.isCopyableTo(B)
-		copyableTo[struct{ A, B Permission }{A, B}] = isCopyable
+		state[struct{ A, B Permission }{A, B}] = true
+		isCopyable = A.isCopyableTo(B, state)
+		state[struct{ A, B Permission }{A, B}] = isCopyable
 	}
 
 	return isCopyable
 }
 
 // isCopyableTo for base permission means: always allowed.
-func (perm BasePermission) isCopyableTo(p2 Permission) bool {
+func (perm BasePermission) isCopyableTo(p2 Permission, state copyableState) bool {
 	_, ok := p2.(BasePermission)
 	if !ok {
 		return false
@@ -47,51 +43,51 @@ func (perm BasePermission) isCopyableTo(p2 Permission) bool {
 }
 
 // isCopyableTo for pointers means target is refcopyable
-func (p *PointerPermission) isCopyableTo(p2 Permission) bool {
+func (p *PointerPermission) isCopyableTo(p2 Permission, state copyableState) bool {
 	switch p2 := p2.(type) {
 	case *PointerPermission:
-		return CopyableTo(p.BasePermission, p2.BasePermission) && RefcopyableTo(p.Target, p2.Target)
+		return copyableTo(p.BasePermission, p2.BasePermission, state) && RefcopyableTo(p.Target, p2.Target)
 	default:
 		return false
 	}
 }
 
 // isCopyableTo for channels means false
-func (p *ChanPermission) isCopyableTo(p2 Permission) bool {
+func (p *ChanPermission) isCopyableTo(p2 Permission, state copyableState) bool {
 	return false
 }
 
 // isCopyableTo for arrays means recursive
-func (p *ArrayPermission) isCopyableTo(p2 Permission) bool {
+func (p *ArrayPermission) isCopyableTo(p2 Permission, state copyableState) bool {
 	switch p2 := p2.(type) {
 	case *ArrayPermission:
-		return CopyableTo(p.BasePermission, p2.BasePermission) && CopyableTo(p.ElementPermission, p2.ElementPermission)
+		return copyableTo(p.BasePermission, p2.BasePermission, state) && copyableTo(p.ElementPermission, p2.ElementPermission, state)
 	default:
 		return false
 	}
 }
 
 // isCopyableTo for slices means false
-func (p *SlicePermission) isCopyableTo(p2 Permission) bool {
+func (p *SlicePermission) isCopyableTo(p2 Permission, state copyableState) bool {
 	return false
 }
 
 // isCopyableTo for maps means false
-func (p *MapPermission) isCopyableTo(p2 Permission) bool {
+func (p *MapPermission) isCopyableTo(p2 Permission, state copyableState) bool {
 	return false
 }
 
 // isCopyableTo for structs means recursive.
-func (p *StructPermission) isCopyableTo(p2 Permission) bool {
+func (p *StructPermission) isCopyableTo(p2 Permission, state copyableState) bool {
 	switch p2 := p2.(type) {
 	case *StructPermission:
-		if !CopyableTo(p.BasePermission, p2.BasePermission) {
+		if !copyableTo(p.BasePermission, p2.BasePermission, state) {
 			return false // grr, unreachable
 		}
 
 		// TODO: Field length, structural subtyping
 		for i := 0; i < len(p.Fields); i++ {
-			if !CopyableTo(p.Fields[i], p2.Fields[i]) {
+			if !copyableTo(p.Fields[i], p2.Fields[i], state) {
 				return false
 			}
 		}
@@ -102,11 +98,11 @@ func (p *StructPermission) isCopyableTo(p2 Permission) bool {
 }
 
 // isCopyableTo for func means false
-func (p *FuncPermission) isCopyableTo(p2 Permission) bool {
+func (p *FuncPermission) isCopyableTo(p2 Permission, state copyableState) bool {
 	return false
 }
 
 // isCopyableTo for interfaces means movable methods.
-func (p *InterfacePermission) isCopyableTo(p2 Permission) bool {
+func (p *InterfacePermission) isCopyableTo(p2 Permission, state copyableState) bool {
 	return false
 }

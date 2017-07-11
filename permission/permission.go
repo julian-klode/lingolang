@@ -93,7 +93,7 @@ func (perm BasePermission) isLinear() bool {
 type Permission interface {
 	isMovableTo(p2 Permission, state movableState) bool
 	isRefcopyableTo(p2 Permission, state refcopyableState) bool
-	isCopyableTo(p2 Permission) bool
+	isCopyableTo(p2 Permission, state copyableState) bool
 }
 
 // PointerPermission describes permissions on a pointer value.
