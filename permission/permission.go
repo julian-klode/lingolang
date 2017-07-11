@@ -92,7 +92,7 @@ func (perm BasePermission) isLinear() bool {
 // ways the value can be used.
 type Permission interface {
 	isMovableTo(p2 Permission, state movableState) bool
-	isRefcopyableTo(p2 Permission) bool
+	isRefcopyableTo(p2 Permission, state refcopyableState) bool
 	isCopyableTo(p2 Permission) bool
 }
 

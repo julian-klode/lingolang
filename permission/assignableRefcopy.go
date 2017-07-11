@@ -3,15 +3,7 @@
 
 package permission
 
-// This file defines when permissions are considered refcopyable from one
-// value to another.
-//
-// TODO: Annotate functions with logic rules
-
-// refcopyableTo is a map to help with recursive types.
-//
-// TODO: We want a local map, a global one is ugly (or it needs a lock)
-var refcopyableTo = make(map[struct{ A, B Permission }]bool)
+type refcopyableState map[struct{ A, B Permission }]bool
 
 // RefcopyableTo checks that a capability of permission A can be referenced
 // by another capability whose target permissions are checked.
@@ -24,21 +16,25 @@ var refcopyableTo = make(map[struct{ A, B Permission }]bool)
 // RefcopyableTo() is used on the target types of pointers: So, "ov" is not
 // refcopyable to "ov *ov", but refcopyable to "ov".
 func RefcopyableTo(A, B Permission) bool {
+	return refcopyableTo(A, B, make(refcopyableState))
+}
+
+func refcopyableTo(A, B Permission, state refcopyableState) bool {
 	// Oh dear, this is our entry point. We need to ensure we can do recursive
 	// permissions correctly.
-	isRefcopyable, ok := refcopyableTo[struct{ A, B Permission }{A, B}]
+	isRefcopyable, ok := state[struct{ A, B Permission }{A, B}]
 
 	if !ok {
-		refcopyableTo[struct{ A, B Permission }{A, B}] = true
-		isRefcopyable = A.isRefcopyableTo(B)
-		refcopyableTo[struct{ A, B Permission }{A, B}] = isRefcopyable
+		state[struct{ A, B Permission }{A, B}] = true
+		isRefcopyable = A.isRefcopyableTo(B, state)
+		state[struct{ A, B Permission }{A, B}] = isRefcopyable
 	}
 
 	return isRefcopyable
 }
 
 // isRefcopyableTo for base permission means: no new permissions and non–linear
-func (perm BasePermission) isRefcopyableTo(p2 Permission) bool {
+func (perm BasePermission) isRefcopyableTo(p2 Permission, state refcopyableState) bool {
 	perm2, ok := p2.(BasePermission)
 	if !ok {
 		return false
@@ -47,68 +43,68 @@ func (perm BasePermission) isRefcopyableTo(p2 Permission) bool {
 }
 
 // isRefcopyableTo for pointers means recursive
-func (p *PointerPermission) isRefcopyableTo(p2 Permission) bool {
+func (p *PointerPermission) isRefcopyableTo(p2 Permission, state refcopyableState) bool {
 	switch p2 := p2.(type) {
 	case *PointerPermission:
-		return RefcopyableTo(p.BasePermission, p2.BasePermission) && RefcopyableTo(p.Target, p2.Target)
+		return refcopyableTo(p.BasePermission, p2.BasePermission, state) && refcopyableTo(p.Target, p2.Target, state)
 	default:
 		return false
 	}
 }
 
 // isRefcopyableTo for channels means recursive.
-func (p *ChanPermission) isRefcopyableTo(p2 Permission) bool {
+func (p *ChanPermission) isRefcopyableTo(p2 Permission, state refcopyableState) bool {
 	switch p2 := p2.(type) {
 	case *ChanPermission:
-		return RefcopyableTo(p.BasePermission, p2.BasePermission) && RefcopyableTo(p.ElementPermission, p2.ElementPermission)
+		return refcopyableTo(p.BasePermission, p2.BasePermission, state) && refcopyableTo(p.ElementPermission, p2.ElementPermission, state)
 	default:
 		return false
 	}
 }
 
 // isRefcopyableTo for arrays means recursive to array or slice
-func (p *ArrayPermission) isRefcopyableTo(p2 Permission) bool {
+func (p *ArrayPermission) isRefcopyableTo(p2 Permission, state refcopyableState) bool {
 	switch p2 := p2.(type) {
 	case *ArrayPermission:
-		return RefcopyableTo(p.BasePermission, p2.BasePermission) && RefcopyableTo(p.ElementPermission, p2.ElementPermission)
+		return refcopyableTo(p.BasePermission, p2.BasePermission, state) && refcopyableTo(p.ElementPermission, p2.ElementPermission, state)
 	case *SlicePermission:
-		return RefcopyableTo(p.BasePermission, p2.BasePermission) && RefcopyableTo(p.ElementPermission, p2.ElementPermission)
+		return refcopyableTo(p.BasePermission, p2.BasePermission, state) && refcopyableTo(p.ElementPermission, p2.ElementPermission, state)
 	default:
 		return false
 	}
 }
 
 // isRefcopyableTo for slices means recursive.
-func (p *SlicePermission) isRefcopyableTo(p2 Permission) bool {
+func (p *SlicePermission) isRefcopyableTo(p2 Permission, state refcopyableState) bool {
 	switch p2 := p2.(type) {
 	case *SlicePermission:
-		return RefcopyableTo(p.BasePermission, p2.BasePermission) && RefcopyableTo(p.ElementPermission, p2.ElementPermission)
+		return refcopyableTo(p.BasePermission, p2.BasePermission, state) && refcopyableTo(p.ElementPermission, p2.ElementPermission, state)
 	default:
 		return false
 	}
 }
 
 // isRefcopyableTo for maps means recursive.
-func (p *MapPermission) isRefcopyableTo(p2 Permission) bool {
+func (p *MapPermission) isRefcopyableTo(p2 Permission, state refcopyableState) bool {
 	switch p2 := p2.(type) {
 	case *MapPermission:
-		return RefcopyableTo(p.BasePermission, p2.BasePermission) && RefcopyableTo(p.KeyPermission, p2.KeyPermission) && RefcopyableTo(p.ValuePermission, p2.ValuePermission)
+		return refcopyableTo(p.BasePermission, p2.BasePermission, state) && refcopyableTo(p.KeyPermission, p2.KeyPermission, state) && refcopyableTo(p.ValuePermission, p2.ValuePermission, state)
 	default:
 		return false
 	}
 }
 
 // isRefcopyableTo for structs means recursive.
-func (p *StructPermission) isRefcopyableTo(p2 Permission) bool {
+func (p *StructPermission) isRefcopyableTo(p2 Permission, state refcopyableState) bool {
 	switch p2 := p2.(type) {
 	case *StructPermission:
-		if !RefcopyableTo(p.BasePermission, p2.BasePermission) {
+		if !refcopyableTo(p.BasePermission, p2.BasePermission, state) {
 			return false
 		}
 
 		// TODO: Field length, structural subtyping
 		for i := 0; i < len(p.Fields); i++ {
-			if !RefcopyableTo(p.Fields[i], p2.Fields[i]) {
+			if !refcopyableTo(p.Fields[i], p2.Fields[i], state) {
 				return false
 			}
 		}
@@ -119,16 +115,16 @@ func (p *StructPermission) isRefcopyableTo(p2 Permission) bool {
 }
 
 // isRefcopyableTo for func means receivers, params, results movable.
-func (p *FuncPermission) isRefcopyableTo(p2 Permission) bool {
+func (p *FuncPermission) isRefcopyableTo(p2 Permission, state refcopyableState) bool {
 	switch p2 := p2.(type) {
 	case *FuncPermission:
 		// Ownership needs to be respected
-		if !RefcopyableTo(p.BasePermission&Owned, p2.BasePermission&Owned) {
+		if !refcopyableTo(p.BasePermission&Owned, p2.BasePermission&Owned, state) {
 			return false
 		}
 		// We cannot assign a mutable function to a value function, but vice
 		// versa. This is reversed, because essentially
-		if !RefcopyableTo(p2.BasePermission&^Owned, p.BasePermission&^Owned) {
+		if !refcopyableTo(p2.BasePermission&^Owned, p.BasePermission&^Owned, state) {
 			return false
 		}
 		// Receivers and parameters are contravariant: If f2 takes argument
@@ -157,10 +153,10 @@ func (p *FuncPermission) isRefcopyableTo(p2 Permission) bool {
 }
 
 // isRefcopyableTo for interfaces means movable methods.
-func (p *InterfacePermission) isRefcopyableTo(p2 Permission) bool {
+func (p *InterfacePermission) isRefcopyableTo(p2 Permission, state refcopyableState) bool {
 	switch p2 := p2.(type) {
 	case *InterfacePermission:
-		if !RefcopyableTo(p.BasePermission, p2.BasePermission) {
+		if !refcopyableTo(p.BasePermission, p2.BasePermission, state) {
 			return false
 		}
 
