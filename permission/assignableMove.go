@@ -22,9 +22,9 @@ var movableTo = make(map[struct{ A, B Permission }]bool)
 func MovableTo(A, B Permission) bool {
 	// Oh dear, this is our entry point. We need to ensure we can do recursive
 	// permissions correctly.
-	isMovable := movableTo[struct{ A, B Permission }{A, B}]
+	isMovable, ok := movableTo[struct{ A, B Permission }{A, B}]
 
-	if !isMovable {
+	if !ok {
 		movableTo[struct{ A, B Permission }{A, B}] = true
 		isMovable = A.isMovableTo(B)
 		movableTo[struct{ A, B Permission }{A, B}] = isMovable

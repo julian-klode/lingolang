@@ -26,9 +26,9 @@ var copyableTo = make(map[struct{ A, B Permission }]bool)
 func CopyableTo(A, B Permission) bool {
 	// Oh dear, this is our entry point. We need to ensure we can do recursive
 	// permissions correctly.
-	isCopyable := copyableTo[struct{ A, B Permission }{A, B}]
+	isCopyable, ok := copyableTo[struct{ A, B Permission }{A, B}]
 
-	if !isCopyable {
+	if !ok {
 		copyableTo[struct{ A, B Permission }{A, B}] = true
 		isCopyable = A.isCopyableTo(B)
 		copyableTo[struct{ A, B Permission }{A, B}] = isCopyable

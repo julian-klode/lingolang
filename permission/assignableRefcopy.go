@@ -26,9 +26,9 @@ var refcopyableTo = make(map[struct{ A, B Permission }]bool)
 func RefcopyableTo(A, B Permission) bool {
 	// Oh dear, this is our entry point. We need to ensure we can do recursive
 	// permissions correctly.
-	isRefcopyable := refcopyableTo[struct{ A, B Permission }{A, B}]
+	isRefcopyable, ok := refcopyableTo[struct{ A, B Permission }{A, B}]
 
-	if !isRefcopyable {
+	if !ok {
 		refcopyableTo[struct{ A, B Permission }{A, B}] = true
 		isRefcopyable = A.isRefcopyableTo(B)
 		refcopyableTo[struct{ A, B Permission }{A, B}] = isRefcopyable
