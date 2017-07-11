@@ -93,6 +93,7 @@ func (perm BasePermission) IsLinear() bool {
 type Permission interface {
 	isMovableTo(p2 Permission) bool
 	isRefcopyableTo(p2 Permission) bool
+	isCopyableTo(p2 Permission) bool
 	// IsLinear checks if the type is linear
 	IsLinear() bool
 }

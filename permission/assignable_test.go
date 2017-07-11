@@ -12,100 +12,104 @@ type assignableToTestCase struct {
 	to          string
 	assignable  bool
 	refcopyable bool
+	copyable    bool
 }
 
 var testcasesAssignableTo = []assignableToTestCase{
 	// Basic types
-	{"om", "om", true, false},
-	{"ov", "ov", true, true},
-	{"om", "ov", true, false},
-	{"ov", "om", false, false},
+	{"om", "om", true, false, true},
+	{"ov", "ov", true, true, true},
+	{"om", "ov", true, false, true},
+	{"ov", "om", false, false, true},
 	// pointers
-	{"om *ov", "om *om", false, false},
-	{"om *om", "om *ov", true, false},
-	{"ov *ov", "ov *ov", true, true},
+	{"om *ov", "om *om", false, false, false},
+	{"om *om", "om *ov", true, false, false},
+	{"ov *ov", "ov *ov", true, true, true},
 	// channels
-	{"om chan ov", "om chan om", false, false},
-	{"om chan om", "om chan ov", true, false},
-	{"ov chan ov", "ov chan ov", true, true}, // useless chan?
+	{"om chan ov", "om chan om", false, false, false},
+	{"om chan om", "om chan ov", true, false, false},
+	{"ov chan ov", "ov chan ov", true, true, false}, // useless chan?
 	// Array slice
-	{"ov []ov", "ov []ov", true, true},
-	{"ov [1]ov", "ov [1]ov", true, true},
-	{"om []om", "om []ov", true, false},
-	{"om [1]om", "om [1]ov", true, false},
-	{"om []om", "om [1]ov", false, false},
-	{"om [1]om", "om []ov", false, false},
-	{"ov [1]ov", "ov []ov", false, true}, // can refcopy array to slice
-	{"om []ov", "om []om", false, false},
-	{"ov []ov", "om []ov", false, false},
-	{"om []ov", "ov []ov", true, false},
+	{"ov []ov", "ov []ov", true, true, false},
+	{"ov [1]ov", "ov [1]ov", true, true, true},
+	{"om []om", "om []ov", true, false, false},
+	{"om [1]om", "om [1]ov", true, false, true},
+	{"om []om", "om [1]ov", false, false, false},
+	{"om [1]om", "om []ov", false, false, false},
+	{"ov [1]ov", "ov []ov", false, true, false}, // can refcopy array to slice
+	{"om []ov", "om []om", false, false, false},
+	{"ov []ov", "om []ov", false, false, false},
+	{"om []ov", "ov []ov", true, false, false},
 	// channels
-	{"ov map[ov] ov", "ov map[ov] ov", true, true},
-	{"om map[ov] ov", "om map[om] ov", false, false},
-	{"om map[om] ov", "om map[ov] ov", true, false},
-	{"om map[ov] ov", "om map[ov] om", false, false},
-	{"om map[ov] om", "om map[ov] ov", true, false},
-	{"om map[ov] ov", "om map[ov] ov", true, false},
+	{"ov map[ov] ov", "ov map[ov] ov", true, true, false},
+	{"om map[ov] ov", "om map[om] ov", false, false, false},
+	{"om map[om] ov", "om map[ov] ov", true, false, false},
+	{"om map[ov] ov", "om map[ov] om", false, false, false},
+	{"om map[ov] om", "om map[ov] ov", true, false, false},
+	{"om map[ov] ov", "om map[ov] ov", true, false, false},
 	// structs
-	{"om struct {om}", "om struct {ov}", true, false},
-	{"om struct {ov}", "om struct {om}", false, false},
-	{"om struct {ov}", "ov struct {ov}", true, false},
-	{"ov struct {ov}", "om struct {ov}", false, false}, // TODO: We can copy.
-	{"ov struct {ov}", "ov struct {ov}", true, true},
+	{"om struct {om}", "om struct {ov}", true, false, true},
+	{"om struct {ov}", "om struct {om}", false, false, true},
+	{"om struct {ov}", "ov struct {ov}", true, false, true},
+	{"ov struct {ov}", "om struct {ov}", false, false, true}, // TODO: We can copy.
+	{"ov struct {ov}", "ov struct {ov}", true, true, true},
 	// Incompatible types
-	{"om", "om func ()", false, false},
-	{"om func ()", "om", false, false},
-	{"om interface {}", "om", false, false},
-	{"om chan om", "om", false, false},
-	{"om map[om] om", "om", false, false},
-	{"om struct {om}", "om", false, false},
-	{"om *om", "om", false, false},
-	{"om []om", "om", false, false},
-	{"om [1]om", "om", false, false},
+	{"om", "om func ()", false, false, false},
+	{"om func ()", "om", false, false, false},
+	{"om interface {}", "om", false, false, false},
+	{"om chan om", "om", false, false, false},
+	{"om map[om] om", "om", false, false, false},
+	{"om struct {om}", "om", false, false, false},
+	{"om *om", "om", false, false, false},
+	{"om []om", "om", false, false, false},
+	{"om [1]om", "om", false, false, false},
 	// Functions themselves are complicated: Here writeable actually means
 	// that the function can return different values for the same arguments,
 	// hence we can assign a constant function to a non-constant one.
-	{"ov (ov) func ()", "ov (ov) func ()", true, true},
-	{"om (ov) func ()", "om (ov) func ()", true, false},
-	{"om (ov) func ()", "ov (ov) func ()", false, false},
-	{"ov (ov) func ()", "om (ov) func ()", true, false},
+	{"ov (ov) func ()", "ov (ov) func ()", true, true, false},
+	{"om (ov) func ()", "om (ov) func ()", true, false, false},
+	{"om (ov) func ()", "ov (ov) func ()", false, false, false},
+	{"ov (ov) func ()", "om (ov) func ()", true, false, false},
 	// Owned functions can be assigned to unowned however, and not vice versa
-	{"om (ov) func ()", "m (ov) func ()", true, false},
-	{"m (ov) func ()", "om (ov) func ()", false, false},
+	{"om (ov) func ()", "m (ov) func ()", true, false, false},
+	{"m (ov) func ()", "om (ov) func ()", false, false, false},
 	// A function accepting mutable values cannot be used
 	// as a function accepting values, but vice versa it works.
-	{"om (om) func ()", "om (ov) func ()", false, false},
-	{"om (ov) func ()", "om (om) func ()", true, false},
-	{"om func (om)", "om func (ov)", false, false},
-	{"om func (ov)", "om func (om)", true, false},
+	{"om (om) func ()", "om (ov) func ()", false, false, false},
+	{"om (ov) func ()", "om (om) func ()", true, false, false},
+	{"om func (om)", "om func (ov)", false, false, false},
+	{"om func (ov)", "om func (om)", true, false, false},
 	// Function results: May be wider (excess rights stripped away)
-	{"om func (om) ov", "om func (om) om", false, false},
-	{"om func (om) om", "om func (om) ov", true, false},
+	{"om func (om) ov", "om func (om) om", false, false, false},
+	{"om func (om) om", "om func (om) ov", true, false, false},
 
 	// Interfaces
-	{"ov interface{}", "ov interface{}", true, true},
-	{"om interface{}", "ov interface{}", true, false},
-	{"ov interface{}", "om interface{}", false, false},
-	{"om interface{}", "m interface{}", true, false},
-	{"m interface{}", "om interface{}", false, false},
+	{"ov interface{}", "ov interface{}", true, true, false},
+	{"om interface{}", "ov interface{}", true, false, false},
+	{"ov interface{}", "om interface{}", false, false, false},
+	{"om interface{}", "m interface{}", true, false, false},
+	{"m interface{}", "om interface{}", false, false, false},
 	// TODO: We might actually have to do things differently. These are
 	// actually somewhat inconsistent, the receiver is not expanded to the
 	// type.
-	{"om interface { ov (om) func()}", "om interface { om (om) func()}", true, false},
-	{"om interface { om (om) func()}", "om interface { ov (om) func()}", false, false},
-	{"ov interface { ov (ov) func()}", "ov interface { ov (ov) func()}", true, true},
-	{"ov interface { om (om) func()}", "ov interface { om (om) func()}", true, true},
-	{"ov interface { om (om) func()}", "ov interface { ov (om) func()}", false, false},
+	{"om interface { ov (om) func()}", "om interface { om (om) func()}", true, false, false},
+	{"om interface { om (om) func()}", "om interface { ov (om) func()}", false, false, false},
+	{"ov interface { ov (ov) func()}", "ov interface { ov (ov) func()}", true, true, false},
+	{"ov interface { om (om) func()}", "ov interface { om (om) func()}", true, true, false},
+	{"ov interface { om (om) func()}", "ov interface { ov (om) func()}", false, false, false},
 
 	// FIXME: Do we actually want to allow permissions like these?
-	{"ov struct {ov}", "ov struct {om}", false, false}, // TODO: We can copy.
-	{"ov func (om)", "ov func (om)", true, true},
-	{"ov func (om)", "ov func (ov)", false, false},
-	{"ov func (om) (om)", "ov func (om) (ov)", true, true},
-	{"ov func (om) (ov)", "ov func (om) (om)", false, false},
-	{"ov (ov) func (om)", "ov (ov) func (om)", true, true},
-	{"ov (ov) func (om)", "ov (om) func (om)", true, true},
-	{"ov (om) func (om)", "ov (ov) func (om)", false, false},
+	{"ov struct {ov}", "ov struct {om}", false, false, true},
+	{"ov func (om)", "ov func (om)", true, true, false},
+	{"ov func (om)", "ov func (ov)", false, false, false},
+	{"ov func (om) (om)", "ov func (om) (ov)", true, true, false},
+	{"ov func (om) (ov)", "ov func (om) (om)", false, false, false},
+	{"ov (ov) func (om)", "ov (ov) func (om)", true, true, false},
+	{"ov (ov) func (om)", "ov (om) func (om)", true, true, false},
+	{"ov (om) func (om)", "ov (ov) func (om)", false, false, false},
+
+	// TODO:
+	{"ov struct { ov []ov }", "ov struct {ov [] ov}", true, true, false},
 }
 
 func TestAssignableTo(t *testing.T) {
@@ -123,11 +127,15 @@ func TestAssignableTo(t *testing.T) {
 			}
 			assignable := MovableTo(p1, p2)
 			if assignable != testCase.assignable {
-				t.Errorf("Unexpected result %v, expected %v", assignable, testCase.assignable)
+				t.Errorf("Unexpected move result %v, expected %v", assignable, testCase.assignable)
 			}
 			refcopyable := RefcopyableTo(p1, p2)
 			if refcopyable != testCase.refcopyable {
-				t.Errorf("Unexpected result %v, expected %v", refcopyable, testCase.refcopyable)
+				t.Errorf("Unexpected refcopy result %v, expected %v", refcopyable, testCase.refcopyable)
+			}
+			copyable := CopyableTo(p1, p2)
+			if copyable != testCase.copyable {
+				t.Errorf("Unexpected copy result %v, expected %v", copyable, testCase.copyable)
 			}
 		})
 	}
