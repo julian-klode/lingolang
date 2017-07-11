@@ -51,7 +51,7 @@ var testcasesAssignableTo = []assignableToTestCase{
 	{"om struct {om}", "om struct {ov}", true, false, true},
 	{"om struct {ov}", "om struct {om}", false, false, true},
 	{"om struct {ov}", "ov struct {ov}", true, false, true},
-	{"ov struct {ov}", "om struct {ov}", false, false, true}, // TODO: We can copy.
+	{"ov struct {ov}", "om struct {ov}", false, false, true},
 	{"ov struct {ov}", "ov struct {ov}", true, true, true},
 	// Incompatible types
 	{"om", "om func ()", false, false, false},
@@ -89,9 +89,10 @@ var testcasesAssignableTo = []assignableToTestCase{
 	{"ov interface{}", "om interface{}", false, false, false},
 	{"om interface{}", "m interface{}", true, false, false},
 	{"m interface{}", "om interface{}", false, false, false},
-	// TODO: We might actually have to do things differently. These are
-	// actually somewhat inconsistent, the receiver is not expanded to the
-	// type.
+	// TODO: The receiver might actually be recursive, if no @cap declaration is
+	// given, the receiver actually becomes identical (!) to the interface
+	// permission itself. That's not possible to express in this syntax, and
+	// usually not wanted anyway.
 	{"om interface { ov (om) func()}", "om interface { om (om) func()}", true, false, false},
 	{"om interface { om (om) func()}", "om interface { ov (om) func()}", false, false, false},
 	{"ov interface { ov (ov) func()}", "ov interface { ov (ov) func()}", true, true, false},

@@ -166,12 +166,6 @@ func (perm StructPermission) IsLinear() bool {
 }
 
 // FuncPermission describes permissions of functions
-//
-// TODO: We need to make sure to encode a function that can return different
-// values for invocations with the same input, or methods that bind linear
-// variables - we cannot have two references to those (hence, mark them as
-// with the same exclusive bits as bound variables)
-// TODO: If we use excl. to mark bound excl. vars, can we "freeze" the func?
 type FuncPermission struct {
 	BasePermission BasePermission // Permission of the function itself
 	Receivers      []Permission   // Permissions of the receiver
