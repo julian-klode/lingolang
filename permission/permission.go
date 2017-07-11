@@ -91,7 +91,7 @@ func (perm BasePermission) isLinear() bool {
 // Permission is an entity associated with an value that describes in which
 // ways the value can be used.
 type Permission interface {
-	isMovableTo(p2 Permission) bool
+	isMovableTo(p2 Permission, state movableState) bool
 	isRefcopyableTo(p2 Permission) bool
 	isCopyableTo(p2 Permission) bool
 }
