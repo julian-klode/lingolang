@@ -40,14 +40,49 @@ func TestPermissionString(t *testing.T) {
 	}
 }
 
-func TestIsAPermission(t *testing.T) {
-	Permission.isAPermission(Any)
-	Permission.isAPermission(&PointerPermission{})
-	Permission.isAPermission(&ChanPermission{})
-	Permission.isAPermission(&ArrayPermission{})
-	Permission.isAPermission(&SlicePermission{})
-	Permission.isAPermission(&MapPermission{})
-	Permission.isAPermission(&StructPermission{})
-	Permission.isAPermission(&FuncPermission{})
-	Permission.isAPermission(&InterfacePermission{})
+var testcasesPermissionIsLinear = []struct {
+	perm     string
+	expected bool
+}{
+	{"m", true},
+	{"v", false},
+	{"l", true},
+	{"r", false},
+	{"w", false},
+	{"a", false},
+	{"om chan om", true},
+	{"om chan ov", true},
+	{"ov chan ov", false},
+	{"m * v", true},
+	{"v * v", false},
+	{"m struct {v}", true},
+	{"v struct {v}", false},
+	{"m [] v", true},
+	{"v [] v", false},
+	{"m [1] v", true},
+	{"v [1] v", false},
+	{"m chan v", true},
+	{"v chan v", false},
+	{"m map[v] v", true},
+	{"v map[v] v", false},
+	{"m interface {}", true},
+	{"v interface {}", false},
+	{"m func ()", true},
+	{"v func ()", false},
+}
+
+func TestPermissionIsLinear(t *testing.T) {
+	for _, testCase := range testcasesPermissionIsLinear {
+		testCase := testCase
+		t.Run(testCase.perm, func(t *testing.T) {
+			p1, err := NewParser(testCase.perm).Parse()
+			if err != nil {
+				t.Fatalf("Invalid from: %v", err)
+			}
+			result := p1.IsLinear()
+			if result != testCase.expected {
+				t.Errorf("Unexpected result %v, expected %v", result, testCase.expected)
+			}
+		})
+	}
 }

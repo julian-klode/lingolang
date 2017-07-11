@@ -170,9 +170,8 @@ func (p *Parser) parseSliceOrArray(bp BasePermission) Permission {
 
 	if isArray {
 		return &ArrayPermission{BasePermission: bp, ElementPermission: rhs}
-	} else {
-		return &SlicePermission{BasePermission: bp, ElementPermission: rhs}
 	}
+	return &SlicePermission{BasePermission: bp, ElementPermission: rhs}
 }
 
 // @syntax chan <- 'chan' inner

@@ -83,10 +83,19 @@ func (perm BasePermission) String() string {
 	}
 }
 
+// IsLinear checks if the type is linear
+func (perm BasePermission) IsLinear() bool {
+	return (perm&(ExclWrite) != 0 && perm&Write != 0) || (perm&(ExclRead) != 0 && perm&Read != 0)
+}
+
 // Permission is an entity associated with an value that describes in which
 // ways the value can be used.
 type Permission interface {
-	isAPermission()
+	isMovableTo(p2 Permission) bool
+	isRefcopyableTo(p2 Permission) bool
+	isCopyableTo(p2 Permission) bool
+	// IsLinear checks if the type is linear
+	IsLinear() bool
 }
 
 // PointerPermission describes permissions on a pointer value.
@@ -95,10 +104,20 @@ type PointerPermission struct {
 	Target         Permission     // The permission of the value we are pointing to
 }
 
+// IsLinear checks if the type is linear
+func (perm PointerPermission) IsLinear() bool {
+	return perm.BasePermission.IsLinear()
+}
+
 // ChanPermission describes permissions on channels and their elements.
 type ChanPermission struct {
 	BasePermission    BasePermission // The permission on the chan value itself
 	ElementPermission Permission     // The permission of the elements it contains
+}
+
+// IsLinear checks if the type is linear
+func (perm ChanPermission) IsLinear() bool {
+	return perm.BasePermission.IsLinear()
 }
 
 // ArrayPermission describes permissions on arrays
@@ -107,10 +126,20 @@ type ArrayPermission struct {
 	ElementPermission Permission     // The permission of the elements it contains
 }
 
+// IsLinear checks if the type is linear
+func (perm ArrayPermission) IsLinear() bool {
+	return perm.BasePermission.IsLinear()
+}
+
 // SlicePermission describes permissions on slices
 type SlicePermission struct {
 	BasePermission    BasePermission // The permission on the array/slice value itself
 	ElementPermission Permission     // The permission of the elements it contains
+}
+
+// IsLinear checks if the type is linear
+func (perm SlicePermission) IsLinear() bool {
+	return perm.BasePermission.IsLinear()
 }
 
 // MapPermission describes permissions on map values, their keys and values.
@@ -120,10 +149,20 @@ type MapPermission struct {
 	ValuePermission Permission     // The permission of contained values
 }
 
+// IsLinear checks if the type is linear
+func (perm MapPermission) IsLinear() bool {
+	return perm.BasePermission.IsLinear()
+}
+
 // StructPermission describes permissions of structs.
 type StructPermission struct {
 	BasePermission BasePermission // Permission of the struct itself
 	Fields         []Permission   // Permissions of the fields, in order
+}
+
+// IsLinear checks if the type is linear
+func (perm StructPermission) IsLinear() bool {
+	return perm.BasePermission.IsLinear()
 }
 
 // FuncPermission describes permissions of functions
@@ -140,19 +179,18 @@ type FuncPermission struct {
 	Results        []Permission   // Permissions of results
 }
 
+// IsLinear checks if the type is linear
+func (perm FuncPermission) IsLinear() bool {
+	return perm.BasePermission.IsLinear()
+}
+
 // InterfacePermission manages permissions on an interface.
 type InterfacePermission struct {
 	BasePermission BasePermission // Permission of the interface itself
 	Methods        []Permission   // Permission of the methods
 }
 
-// These types are all types of permissions.
-func (perm BasePermission) isAPermission()                      {}
-func (pointerPermission *PointerPermission) isAPermission()     {}
-func (chanPermission *ChanPermission) isAPermission()           {}
-func (arrayPermission *ArrayPermission) isAPermission()         {}
-func (slicePermission *SlicePermission) isAPermission()         {}
-func (mapPerm *MapPermission) isAPermission()                   {}
-func (structPerm *StructPermission) isAPermission()             {}
-func (funcPerm *FuncPermission) isAPermission()                 {}
-func (InterfacePermission *InterfacePermission) isAPermission() {}
+// IsLinear checks if the type is linear
+func (perm InterfacePermission) IsLinear() bool {
+	return perm.BasePermission.IsLinear()
+}
