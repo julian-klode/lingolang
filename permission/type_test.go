@@ -35,13 +35,13 @@ var testCases = map[string]Permission{
 			BasePermission: Mutable,
 		}},
 	},
-	"[]interface{}": &ArraySlicePermission{
+	"[]interface{}": &SlicePermission{
 		BasePermission: Mutable,
 		ElementPermission: &InterfacePermission{
 			BasePermission: Mutable,
 		},
 	},
-	"[5]interface{}": &ArraySlicePermission{
+	"[5]interface{}": &ArrayPermission{
 		BasePermission: Mutable,
 		ElementPermission: &InterfacePermission{
 			BasePermission: Mutable,

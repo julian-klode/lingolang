@@ -32,11 +32,11 @@ var testCasesParser = map[string]Permission{
 	"m [1":    nil,
 	"m []":    nil,
 	"m [1]":   nil,
-	"m [] a": &ArraySlicePermission{
+	"m [] a": &SlicePermission{
 		BasePermission:    Mutable,
 		ElementPermission: Any,
 	},
-	"m [1] a": &ArraySlicePermission{
+	"m [1] a": &ArrayPermission{
 		BasePermission:    Mutable,
 		ElementPermission: Any,
 	},

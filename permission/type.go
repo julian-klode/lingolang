@@ -32,7 +32,7 @@ func (typeMapper TypeMapper) NewFromType(t0 types.Type) (result Permission) {
 	case *types.Array:
 		return typeMapper.newFromArrayType(t)
 	case *types.Slice:
-		return typeMapper.newFromArrayType(t)
+		return typeMapper.newFromSliceType(t)
 	case *types.Chan:
 		return typeMapper.newFromChanType(t)
 	case *types.Pointer:
@@ -70,7 +70,14 @@ type arrayOrSliceType interface {
 }
 
 func (typeMapper TypeMapper) newFromArrayType(t arrayOrSliceType) Permission {
-	perm := &ArraySlicePermission{BasePermission: basicPermission}
+	perm := &ArrayPermission{BasePermission: basicPermission}
+	typeMapper[t] = perm
+	perm.ElementPermission = typeMapper.NewFromType(t.Elem())
+	return perm
+}
+
+func (typeMapper TypeMapper) newFromSliceType(t arrayOrSliceType) Permission {
+	perm := &SlicePermission{BasePermission: basicPermission}
 	typeMapper[t] = perm
 	perm.ElementPermission = typeMapper.NewFromType(t.Elem())
 	return perm

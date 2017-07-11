@@ -101,8 +101,14 @@ type ChanPermission struct {
 	ElementPermission Permission     // The permission of the elements it contains
 }
 
-// ArraySlicePermission describes permissions on arrays, slices, and elements.
-type ArraySlicePermission struct {
+// ArrayPermission describes permissions on arrays
+type ArrayPermission struct {
+	BasePermission    BasePermission // The permission on the array/slice value itself
+	ElementPermission Permission     // The permission of the elements it contains
+}
+
+// SlicePermission describes permissions on slices
+type SlicePermission struct {
 	BasePermission    BasePermission // The permission on the array/slice value itself
 	ElementPermission Permission     // The permission of the elements it contains
 }
@@ -141,11 +147,12 @@ type InterfacePermission struct {
 }
 
 // These types are all types of permissions.
-func (perm BasePermission) isAPermission()                        {}
-func (pointerPermission *PointerPermission) isAPermission()       {}
-func (chanPermission *ChanPermission) isAPermission()             {}
-func (arraySlicePermission *ArraySlicePermission) isAPermission() {}
-func (mapPerm *MapPermission) isAPermission()                     {}
-func (structPerm *StructPermission) isAPermission()               {}
-func (funcPerm *FuncPermission) isAPermission()                   {}
-func (InterfacePermission *InterfacePermission) isAPermission()   {}
+func (perm BasePermission) isAPermission()                      {}
+func (pointerPermission *PointerPermission) isAPermission()     {}
+func (chanPermission *ChanPermission) isAPermission()           {}
+func (arrayPermission *ArrayPermission) isAPermission()         {}
+func (slicePermission *SlicePermission) isAPermission()         {}
+func (mapPerm *MapPermission) isAPermission()                   {}
+func (structPerm *StructPermission) isAPermission()             {}
+func (funcPerm *FuncPermission) isAPermission()                 {}
+func (InterfacePermission *InterfacePermission) isAPermission() {}
