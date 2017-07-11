@@ -50,25 +50,6 @@ var testcasesPermissionIsLinear = []struct {
 	{"r", false},
 	{"w", false},
 	{"a", false},
-	{"om chan om", true},
-	{"om chan ov", true},
-	{"ov chan ov", false},
-	{"m * v", true},
-	{"v * v", false},
-	{"m struct {v}", true},
-	{"v struct {v}", false},
-	{"m [] v", true},
-	{"v [] v", false},
-	{"m [1] v", true},
-	{"v [1] v", false},
-	{"m chan v", true},
-	{"v chan v", false},
-	{"m map[v] v", true},
-	{"v map[v] v", false},
-	{"m interface {}", true},
-	{"v interface {}", false},
-	{"m func ()", true},
-	{"v func ()", false},
 }
 
 func TestPermissionIsLinear(t *testing.T) {
@@ -79,7 +60,7 @@ func TestPermissionIsLinear(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Invalid from: %v", err)
 			}
-			result := p1.IsLinear()
+			result := p1.(BasePermission).isLinear()
 			if result != testCase.expected {
 				t.Errorf("Unexpected result %v, expected %v", result, testCase.expected)
 			}

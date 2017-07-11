@@ -43,7 +43,7 @@ func (perm BasePermission) isRefcopyableTo(p2 Permission) bool {
 	if !ok {
 		return false
 	}
-	return perm2&^perm == 0 && !perm.IsLinear() && !p2.IsLinear()
+	return perm2&^perm == 0 && !perm.isLinear() && !perm2.isLinear()
 }
 
 // isRefcopyableTo for pointers means recursive
