@@ -67,3 +67,38 @@ func TestPermissionIsLinear(t *testing.T) {
 		})
 	}
 }
+
+var testcasesPermissionBasePermission = []struct {
+	perm string
+	base string
+}{
+	{"on", "on"},
+	{"ov chan on", "ov"},
+	{"ov * on", "ov"},
+	{"ov [] on", "ov"},
+	{"ol [1] on", "ol"},
+	{"om map[on] on", "om"},
+	{"om struct { on }", "om"},
+	{"or interface{}", "or"},
+	{"or func()", "or"},
+}
+
+func TestPermissionBasePermission(t *testing.T) {
+	for _, testCase := range testcasesPermissionBasePermission {
+		testCase := testCase
+		t.Run(testCase.perm, func(t *testing.T) {
+			p1, err := NewParser(testCase.perm).Parse()
+			if err != nil {
+				t.Fatalf("Invalid perm: %v", err)
+			}
+			p2, err := NewParser(testCase.base).Parse()
+			if err != nil {
+				t.Fatalf("Invalid base: %v", err)
+			}
+			result := p1.GetBasePermission()
+			if result != p2 {
+				t.Errorf("Unexpected result %v, expected %v", result, testCase.base)
+			}
+		})
+	}
+}

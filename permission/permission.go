@@ -88,9 +88,15 @@ func (perm BasePermission) isLinear() bool {
 	return (perm&(ExclWrite) != 0 && perm&Write != 0) || (perm&(ExclRead) != 0 && perm&Read != 0)
 }
 
+// GetBasePermission gets the base permission
+func (perm BasePermission) GetBasePermission() BasePermission {
+	return perm
+}
+
 // Permission is an entity associated with an value that describes in which
 // ways the value can be used.
 type Permission interface {
+	GetBasePermission() BasePermission
 	isMovableTo(p2 Permission, state movableState) bool
 	isRefcopyableTo(p2 Permission, state refcopyableState) bool
 	isCopyableTo(p2 Permission, state copyableState) bool
@@ -102,10 +108,20 @@ type PointerPermission struct {
 	Target         Permission     // The permission of the value we are pointing to
 }
 
+// GetBasePermission gets the base permission
+func (p *PointerPermission) GetBasePermission() BasePermission {
+	return p.BasePermission
+}
+
 // ChanPermission describes permissions on channels and their elements.
 type ChanPermission struct {
 	BasePermission    BasePermission // The permission on the chan value itself
 	ElementPermission Permission     // The permission of the elements it contains
+}
+
+// GetBasePermission gets the base permission
+func (p *ChanPermission) GetBasePermission() BasePermission {
+	return p.BasePermission
 }
 
 // ArrayPermission describes permissions on arrays
@@ -114,10 +130,20 @@ type ArrayPermission struct {
 	ElementPermission Permission     // The permission of the elements it contains
 }
 
+// GetBasePermission gets the base permission
+func (p *ArrayPermission) GetBasePermission() BasePermission {
+	return p.BasePermission
+}
+
 // SlicePermission describes permissions on slices
 type SlicePermission struct {
 	BasePermission    BasePermission // The permission on the array/slice value itself
 	ElementPermission Permission     // The permission of the elements it contains
+}
+
+// GetBasePermission gets the base permission
+func (p *SlicePermission) GetBasePermission() BasePermission {
+	return p.BasePermission
 }
 
 // MapPermission describes permissions on map values, their keys and values.
@@ -127,10 +153,20 @@ type MapPermission struct {
 	ValuePermission Permission     // The permission of contained values
 }
 
+// GetBasePermission gets the base permission
+func (p *MapPermission) GetBasePermission() BasePermission {
+	return p.BasePermission
+}
+
 // StructPermission describes permissions of structs.
 type StructPermission struct {
 	BasePermission BasePermission // Permission of the struct itself
 	Fields         []Permission   // Permissions of the fields, in order
+}
+
+// GetBasePermission gets the base permission
+func (p *StructPermission) GetBasePermission() BasePermission {
+	return p.BasePermission
 }
 
 // FuncPermission describes permissions of functions
@@ -141,8 +177,18 @@ type FuncPermission struct {
 	Results        []Permission   // Permissions of results
 }
 
+// GetBasePermission gets the base permission
+func (p *FuncPermission) GetBasePermission() BasePermission {
+	return p.BasePermission
+}
+
 // InterfacePermission manages permissions on an interface.
 type InterfacePermission struct {
 	BasePermission BasePermission // Permission of the interface itself
 	Methods        []Permission   // Permission of the methods
+}
+
+// GetBasePermission gets the base permission
+func (p *InterfacePermission) GetBasePermission() BasePermission {
+	return p.BasePermission
 }
