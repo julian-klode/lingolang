@@ -25,6 +25,8 @@ var testcasesAssignableTo = []assignableToTestCase{
 	{"om *ov", "om *om", false, false, false},
 	{"om *om", "om *ov", true, false, false},
 	{"ov *ov", "ov *ov", true, true, true},
+	{"om * om", "orR * om", true, false, false},
+	{"om * om", "or * or", true, false, false},
 	// channels
 	{"om chan ov", "om chan om", false, false, false},
 	{"om chan om", "om chan ov", true, false, false},

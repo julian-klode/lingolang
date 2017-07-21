@@ -41,6 +41,9 @@ A pointer declares a reference to another memory location (the target).
 
 A pointer can be _moved_ if its target can be moved, and _copied_ or _referenced_ if its target can be referenced. Note that an expression like `&value` might either move or reference `value` depending on whether it is linear or not.
 
+If a linear pointer is _converted_ to a non-linear pointer, any linearity is stripped from the target as well, and if it was write-linear, the write permission is stripped as well.
+For example, converting `orwRW * orwRW` to `or` yields `or * orR`, but converting it to `orR` yields `orR * orwRW`.
+
 ### Channels
 ```go
 // @cap <base> chan <permission>
