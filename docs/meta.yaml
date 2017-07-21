@@ -1,0 +1,26 @@
+---
+subject: 'Programming Languages'
+title:  'Linear Typing for Go'
+date: 01.01.2018
+subtitle: 'Master''s Thesis'
+documentclass: scrreprt
+#classoption: twoside
+links-as-notes: true
+toc: true
+author: Julian Andres Klode (Philipps-Universität-Marburg)
+abstract: |
+ Go is a programming language aimed at writing highly-concurrent software
+ like web servers. In concurrent programs, exchanging data between concurrent
+ calculations (goroutines) is essential.
+
+ Go embraces a culture of "Don't communicate by sharing memory, share memory
+ by communicating." (Rob Pike), that is, sending pointers to memory between
+ goroutines. It does not, however, provide a way to validate that there is
+ no other reference to the same memory location, which could result in two
+ goroutines trying to write to the same location in parallel, for example.
+
+ This thesis tries to approach the problem by introducing annotations for
+ linearity into Go programs, effectively allowing a programmer to state that
+ a given memory location can only be referenced by exactly one reference, which
+ can then be moved between goroutines as needed.
+---
