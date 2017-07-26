@@ -3,17 +3,24 @@ Lingo defines several types of permissions, the base permission and product perm
 
 The following permissions are defined:
 
-* `o` or **owned**
-* `r` or **read**
-* `w` or **write**
-* `R` or **exclusive read**
-* `W` or **exclusive write**
+* `o` or *owned*
+* `r` or *read*
+* `w` or *write*
+* `R` or *exclusive read*
+* `W` or *exclusive write*
 
 The **owned** permission bit limits which values can be stored as part of which other values: Owned values may only embed or reference owned values.
 
 The exclusive permissions do not include their non-exclusive variants: A permission set `rW` cannot be written too, but it asserts that no other reference can write to it.
 
 A permission is said to be _linear_ iff it combines a exclusive permission with its non-exclusive counter part.
+
+There are some important shortcuts:
+
+* `n` (short for _none_) is no flags
+* `l` (short for _linear value_) is `rRW`
+* `m` (short for _mutable_) is `rwRW`
+* `v` (short for _value_) is `rW`
 
 ## Primitive operations
 Lingo defines 5 primitive operations on which the checking is build. This subsection describes how the apply to primitive values, the next subsection describes additional requirements on more complex values.
@@ -24,7 +31,10 @@ The _copy_ operation copies values and thus allows new permissions to be added t
 
 The _reference_ operation is similar to _move_, but does not work on linear values.
 
-The _convert_ operation takes two permission sets and restricts the first permission set to the second permission set, but might add the ownership flag. The second set might be either a basic permission set, or one of the product permission sets describing more complex types (as long as it describes the same outer shape).
+The _convert_ operation takes two permission structures and replaces all base permissions in the first one with their corresponding ones in the second.
+Its use case is annotations: An annotation might be incomplete (for example, the `om struct { or }`, where the type is actually `type T struct { next * T}`. A matching permission would be `p = om struct { om * p }`. If we take such a complete permission and convert it to the annotation, we gain a complete permission matching the intention of the annotation:
+        `p = om struct { or * p0 }`
+where `p0 = or struct { or * p0}` (because the inner reference has a new base permission, it needs to be expanded one).
 
 Finally, given a type, a permission set can be generated that matches the shape of the type. This structure contains the maximum set of permissions possible (except ownership).
 The generated permission set can be restricted with an annotation, by first normalizing the annotation, and then converting the type-generated one to the normalized annotation.

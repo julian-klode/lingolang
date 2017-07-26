@@ -35,7 +35,13 @@ func (state convertState) register(result, perm, goal Permission) {
 }
 
 // ConvertTo takes a permission and makes it compatible with the goal
-// permission.
+// permission. It's use is to turn incomplete annotations into permissions
+// matching the type. For example, if there is a list with a next pointer:
+// it could be annotated "om struct { om }". That is incomplete: The inner
+// "om" refers to a list as well, so the permission needs to be recursive.
+// By taking the type permission, which is "p = om struct { p }", that is
+// a recursive permission refering to itself, and converting that to the
+// target, we can make the permission complete.
 //
 // goal can be either a base permission, or, alternatively, a permission of
 // the same shape as perm. In the latter case, goal must be a consistent
@@ -77,7 +83,7 @@ func convertTo(perm Permission, goal Permission, state convertState) Permission 
 }
 
 func (perm BasePermission) convertToBase(perm2 BasePermission) BasePermission {
-	return perm&perm2 | (perm2 & Owned)
+	return perm2
 }
 
 func (perm BasePermission) convertTo(p2 Permission, state convertState) Permission {
