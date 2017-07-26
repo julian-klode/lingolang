@@ -72,6 +72,45 @@ var testcasesConvert = []convertTestCase{
 	{"om interface { om (om) func () }", "or", "or interface { or (om) func () }", ""},                               // unsafe
 	{"om interface { om (om) func () }", "or interface { ov (om) func () }", "or interface { ov (om) func () }", ""}, // unsafe
 	{"om interface { om (om) func () }", "or interface { ov (om) func (); ov (om)  func () }", nil, "number of methods"},
+	{MakeRecursivePointer(true), "om", MakeRecursivePointer(true), ""},
+	{MakeRecursivePointer(true), "om * or", MakeRecursivePointer(false), ""},
+	{MakeRecursiveStruct(true), "om struct { om * om }", MakeRecursiveStruct(true), ""},
+	{MakeRecursiveStruct(true), "om struct { or * or }", MakeRecursiveStruct(false), ""},
+	{MakeRecursiveStruct(true), "om struct { or }", MakeRecursiveStruct(false), ""},
+}
+
+func MakeRecursivePointer(innerWritable bool) Permission {
+	if innerWritable {
+		p := &PointerPermission{
+			BasePermission: Owned | Mutable,
+		}
+		p.Target = p
+		return p
+	}
+
+	p0 := &PointerPermission{
+		BasePermission: Owned | Read,
+	}
+	p0.Target = p0
+	return &PointerPermission{
+		BasePermission: Owned | Mutable,
+		Target:         p0,
+	}
+
+}
+func MakeRecursiveStruct(innerWritable bool) Permission {
+	if innerWritable {
+		p := &StructPermission{
+			BasePermission: Owned | Mutable,
+		}
+		p.Fields = []Permission{&PointerPermission{Owned | Mutable, p}}
+		return p
+	}
+	p0 := &StructPermission{
+		BasePermission: Owned | Read,
+	}
+	p0.Fields = []Permission{&PointerPermission{Owned | Read, p0}}
+	return &StructPermission{BasePermission: Owned | Mutable, Fields: []Permission{&PointerPermission{Owned | Read, p0}}}
 }
 
 func TestConvertTo(t *testing.T) {

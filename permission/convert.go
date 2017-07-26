@@ -72,7 +72,7 @@ func convertTo(perm Permission, goal Permission, state convertState) Permission 
 	key := convertStateKey{perm, goal}
 	result, ok := state[key]
 	if !ok {
-		result = perm.convertTo(goal, make(convertState))
+		result = perm.convertTo(goal, state)
 		if result == nil {
 			panic(convertError(fmt.Errorf("Cannot make %v compatible to %v", perm, goal)))
 		}
