@@ -8,8 +8,6 @@ package permission
 //
 // TODO: Annotate functions with logic rules
 
-type movableState map[struct{ A, B Permission }]bool
-
 // MovableTo checks that a capability of permission A can be moved to
 // a capability with permission B.
 //
@@ -17,23 +15,24 @@ type movableState map[struct{ A, B Permission }]bool
 // than the permission of the source. Values can be copied, however: A
 // copy of a value might have a larger set of permissions - see CopyableTo()
 func MovableTo(A, B Permission) bool {
-	return movableTo(A, B, make(movableState))
+	return movableTo(A, B, make(assignableState))
 }
-func movableTo(A, B Permission, state movableState) bool {
+func movableTo(A, B Permission, state assignableState) bool {
 	// Oh dear, this is our entry point. We need to ensure we can do recursive
 	// permissions correctly.
-	isMovable, ok := state[struct{ A, B Permission }{A, B}]
+	key := assignableStateKey{A, B, assignMove}
+	isMovable, ok := state[key]
 
 	if !ok {
-		state[struct{ A, B Permission }{A, B}] = true
+		state[key] = true
 		isMovable = A.isMovableTo(B, state)
-		state[struct{ A, B Permission }{A, B}] = isMovable
+		state[key] = isMovable
 	}
 
 	return isMovable
 }
 
-func (perm BasePermission) isMovableTo(p2 Permission, state movableState) bool {
+func (perm BasePermission) isMovableTo(p2 Permission, state assignableState) bool {
 	perm2, ok := p2.(BasePermission)
 	if !ok {
 		return false
@@ -41,7 +40,7 @@ func (perm BasePermission) isMovableTo(p2 Permission, state movableState) bool {
 	return perm2&^perm == 0
 }
 
-func (p *PointerPermission) isMovableTo(p2 Permission, state movableState) bool {
+func (p *PointerPermission) isMovableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *PointerPermission:
 		return movableTo(p.BasePermission, p2.BasePermission, state) && movableTo(p.Target, p2.Target, state)
@@ -50,7 +49,7 @@ func (p *PointerPermission) isMovableTo(p2 Permission, state movableState) bool 
 	}
 }
 
-func (p *ChanPermission) isMovableTo(p2 Permission, state movableState) bool {
+func (p *ChanPermission) isMovableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *ChanPermission:
 		return movableTo(p.BasePermission, p2.BasePermission, state) && movableTo(p.ElementPermission, p2.ElementPermission, state)
@@ -59,7 +58,7 @@ func (p *ChanPermission) isMovableTo(p2 Permission, state movableState) bool {
 	}
 }
 
-func (p *ArrayPermission) isMovableTo(p2 Permission, state movableState) bool {
+func (p *ArrayPermission) isMovableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *ArrayPermission:
 		return movableTo(p.BasePermission, p2.BasePermission, state) && movableTo(p.ElementPermission, p2.ElementPermission, state)
@@ -68,7 +67,7 @@ func (p *ArrayPermission) isMovableTo(p2 Permission, state movableState) bool {
 	}
 }
 
-func (p *SlicePermission) isMovableTo(p2 Permission, state movableState) bool {
+func (p *SlicePermission) isMovableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *SlicePermission:
 		return movableTo(p.BasePermission, p2.BasePermission, state) && movableTo(p.ElementPermission, p2.ElementPermission, state)
@@ -77,7 +76,7 @@ func (p *SlicePermission) isMovableTo(p2 Permission, state movableState) bool {
 	}
 }
 
-func (p *MapPermission) isMovableTo(p2 Permission, state movableState) bool {
+func (p *MapPermission) isMovableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *MapPermission:
 		return movableTo(p.BasePermission, p2.BasePermission, state) && movableTo(p.KeyPermission, p2.KeyPermission, state) && movableTo(p.ValuePermission, p2.ValuePermission, state)
@@ -86,7 +85,7 @@ func (p *MapPermission) isMovableTo(p2 Permission, state movableState) bool {
 	}
 }
 
-func (p *StructPermission) isMovableTo(p2 Permission, state movableState) bool {
+func (p *StructPermission) isMovableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *StructPermission:
 		if !movableTo(p.BasePermission, p2.BasePermission, state) {
@@ -105,7 +104,7 @@ func (p *StructPermission) isMovableTo(p2 Permission, state movableState) bool {
 	}
 }
 
-func (p *FuncPermission) isMovableTo(p2 Permission, state movableState) bool {
+func (p *FuncPermission) isMovableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *FuncPermission:
 		// Ownership needs to be respected
@@ -142,7 +141,7 @@ func (p *FuncPermission) isMovableTo(p2 Permission, state movableState) bool {
 	}
 }
 
-func (p *InterfacePermission) isMovableTo(p2 Permission, state movableState) bool {
+func (p *InterfacePermission) isMovableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *InterfacePermission:
 		if !movableTo(p.BasePermission, p2.BasePermission, state) {
