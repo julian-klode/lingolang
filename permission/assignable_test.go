@@ -30,9 +30,9 @@ var testcasesAssignableTo = []assignableToTestCase{
 	// channels
 	{"om chan ov", "om chan om", false, false, false},
 	{"om chan om", "om chan ov", true, false, false},
-	{"ov chan ov", "ov chan ov", true, true, false}, // useless chan?
+	{"ov chan ov", "ov chan ov", true, true, true}, // useless chan?
 	// Array slice
-	{"ov []ov", "ov []ov", true, true, false},
+	{"ov []ov", "ov []ov", true, true, true},
 	{"ov [1]ov", "ov [1]ov", true, true, true},
 	{"om []om", "om []ov", true, false, false},
 	{"om [1]om", "om [1]ov", true, false, true},
@@ -43,7 +43,7 @@ var testcasesAssignableTo = []assignableToTestCase{
 	{"ov []ov", "om []ov", false, false, false},
 	{"om []ov", "ov []ov", true, false, false},
 	// channels
-	{"ov map[ov] ov", "ov map[ov] ov", true, true, false},
+	{"ov map[ov] ov", "ov map[ov] ov", true, true, true},
 	{"om map[ov] ov", "om map[om] ov", false, false, false},
 	{"om map[om] ov", "om map[ov] ov", true, false, false},
 	{"om map[ov] ov", "om map[ov] om", false, false, false},
@@ -68,7 +68,7 @@ var testcasesAssignableTo = []assignableToTestCase{
 	// Functions themselves are complicated: Here writeable actually means
 	// that the function can return different values for the same arguments,
 	// hence we can assign a constant function to a non-constant one.
-	{"ov (ov) func ()", "ov (ov) func ()", true, true, false},
+	{"ov (ov) func ()", "ov (ov) func ()", true, true, true},
 	{"om (ov) func ()", "om (ov) func ()", true, false, false},
 	{"om (ov) func ()", "ov (ov) func ()", false, false, false},
 	{"ov (ov) func ()", "om (ov) func ()", true, false, false},
@@ -86,7 +86,7 @@ var testcasesAssignableTo = []assignableToTestCase{
 	{"om func (om) om", "om func (om) ov", true, false, false},
 
 	// Interfaces
-	{"ov interface{}", "ov interface{}", true, true, false},
+	{"ov interface{}", "ov interface{}", true, true, true},
 	{"om interface{}", "ov interface{}", true, false, false},
 	{"ov interface{}", "om interface{}", false, false, false},
 	{"om interface{}", "m interface{}", true, false, false},
@@ -97,22 +97,20 @@ var testcasesAssignableTo = []assignableToTestCase{
 	// usually not wanted anyway.
 	{"om interface { ov (om) func()}", "om interface { om (om) func()}", true, false, false},
 	{"om interface { om (om) func()}", "om interface { ov (om) func()}", false, false, false},
-	{"ov interface { ov (ov) func()}", "ov interface { ov (ov) func()}", true, true, false},
-	{"ov interface { om (om) func()}", "ov interface { om (om) func()}", true, true, false},
+	{"ov interface { ov (ov) func()}", "ov interface { ov (ov) func()}", true, true, true},
+	{"ov interface { om (om) func()}", "ov interface { om (om) func()}", true, true, true},
 	{"ov interface { om (om) func()}", "ov interface { ov (om) func()}", false, false, false},
 
 	// FIXME: Do we actually want to allow permissions like these?
 	{"ov struct {ov}", "ov struct {om}", false, false, true},
-	{"ov func (om)", "ov func (om)", true, true, false},
+	{"ov func (om)", "ov func (om)", true, true, true},
 	{"ov func (om)", "ov func (ov)", false, false, false},
-	{"ov func (om) (om)", "ov func (om) (ov)", true, true, false},
+	{"ov func (om) (om)", "ov func (om) (ov)", true, true, true},
 	{"ov func (om) (ov)", "ov func (om) (om)", false, false, false},
-	{"ov (ov) func (om)", "ov (ov) func (om)", true, true, false},
-	{"ov (ov) func (om)", "ov (om) func (om)", true, true, false},
+	{"ov (ov) func (om)", "ov (ov) func (om)", true, true, true},
+	{"ov (ov) func (om)", "ov (om) func (om)", true, true, true},
 	{"ov (om) func (om)", "ov (ov) func (om)", false, false, false},
-
-	// TODO:
-	{"ov struct { ov []ov }", "ov struct {ov [] ov}", true, true, false},
+	{"ov struct { ov []ov }", "ov struct {ov [] ov}", true, true, true},
 }
 
 func TestAssignableTo(t *testing.T) {

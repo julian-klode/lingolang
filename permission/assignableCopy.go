@@ -54,7 +54,7 @@ func (p *PointerPermission) isCopyableTo(p2 Permission, state copyableState) boo
 
 // isCopyableTo for channels means false
 func (p *ChanPermission) isCopyableTo(p2 Permission, state copyableState) bool {
-	return false
+	return RefcopyableTo(p, p2)
 }
 
 // isCopyableTo for arrays means recursive
@@ -69,12 +69,12 @@ func (p *ArrayPermission) isCopyableTo(p2 Permission, state copyableState) bool 
 
 // isCopyableTo for slices means false
 func (p *SlicePermission) isCopyableTo(p2 Permission, state copyableState) bool {
-	return false
+	return RefcopyableTo(p, p2)
 }
 
 // isCopyableTo for maps means false
 func (p *MapPermission) isCopyableTo(p2 Permission, state copyableState) bool {
-	return false
+	return RefcopyableTo(p, p2)
 }
 
 // isCopyableTo for structs means recursive.
@@ -99,10 +99,10 @@ func (p *StructPermission) isCopyableTo(p2 Permission, state copyableState) bool
 
 // isCopyableTo for func means false
 func (p *FuncPermission) isCopyableTo(p2 Permission, state copyableState) bool {
-	return false
+	return RefcopyableTo(p, p2)
 }
 
 // isCopyableTo for interfaces means movable methods.
 func (p *InterfacePermission) isCopyableTo(p2 Permission, state copyableState) bool {
-	return false
+	return RefcopyableTo(p, p2)
 }
