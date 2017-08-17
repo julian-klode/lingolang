@@ -23,7 +23,7 @@ There are some important shortcuts:
 * `v` (short for _value_) is `rW`
 
 ## Primitive operations
-Lingo defines 5 primitive operations on which the checking is build. This subsection describes how the apply to primitive values, the next subsection describes additional requirements on more complex values.
+Lingo defines 6 primitive operations on which the checking is build. This subsection describes how the apply to primitive values, the next subsection describes additional requirements on more complex values.
 
 The _move_ operation moves a value from one location to another; as long as the destination has a less-wide set of permissions. It might not actually move a value though, it's more an indication if it is allowed.
 
@@ -35,6 +35,15 @@ The _convert_ operation takes two permission structures and replaces all base pe
 Its use case is annotations: An annotation might be incomplete (for example, the `om struct { or }`, where the type is actually `type T struct { next * T}`. A matching permission would be `p = om struct { om * p }`. If we take such a complete permission and convert it to the annotation, we gain a complete permission matching the intention of the annotation:
         `p = om struct { or * p0 }`
 where `p0 = or struct { or * p0}` (because the inner reference has a new base permission, it needs to be expanded one).
+
+The _merge_ operation (in its _intersect_ and _union_ variants) takes two
+permissions and returns a new one. For intersection, the returned permission
+is assignable-to both inputs, so it can be used to merge two different code
+paths (sort of like a $\phi$ node). For union, the returned permission is
+assignable-from both inputs. It is used for parameters when intersecting
+functions: `intersect(om func(om) or, or func(or) or) = om func(om) or` - after
+all, we could not pass a read-only argument to a function exception something
+mutable.
 
 Finally, given a type, a permission set can be generated that matches the shape of the type. This structure contains the maximum set of permissions possible (except ownership).
 The generated permission set can be restricted with an annotation, by first normalizing the annotation, and then converting the type-generated one to the normalized annotation.
@@ -143,6 +152,10 @@ Functions can be moved or referenced, but the rules are more complex than for ot
 * Receivers and parameters are reverse-operated, they need to be moved/referenced from the destination to the src.
 For example, `or func (or)` can be moved/referenced to/as a `or func(orw)` (additional permissions on argumentsare simply discarded).
 * Results are simply recursively moved/referenced.
+
+The same rules apply to merging functions: The base permission, parameters,
+and receivers merge with the opposite operation (that is, union when
+intersecting and vice versa).
 
 ### Interfaces
 Interfaces essentially are a set of methods. They have the same requirements as methods.
