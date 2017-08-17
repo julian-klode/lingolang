@@ -55,6 +55,7 @@ var testcasesAssignableTo = []assignableToTestCase{
 	{"om struct {ov}", "ov struct {ov}", true, false, true},
 	{"ov struct {ov}", "om struct {ov}", false, false, true},
 	{"ov struct {ov}", "ov struct {ov}", true, true, true},
+	{"ov struct {om * om}", "ov struct {om * om}", true, false, false},
 	// Incompatible types
 	{"om", "om func ()", false, false, false},
 	{"om func ()", "om", false, false, false},
