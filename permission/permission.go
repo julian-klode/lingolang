@@ -101,6 +101,7 @@ type Permission interface {
 	isRefcopyableTo(p2 Permission, state assignableState) bool
 	isCopyableTo(p2 Permission, state assignableState) bool
 	convertTo(p2 Permission, state convertState) Permission
+	merge(p2 Permission, state *mergeState) Permission
 }
 
 // PointerPermission describes permissions on a pointer value.
