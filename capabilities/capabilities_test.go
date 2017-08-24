@@ -117,3 +117,14 @@ func TestCapabilitiesTypeError(t *testing.T) {
 		t.Errorf("have %v, expected ten errors", info.Errors)
 	}
 }
+
+func TestChecker_Files_panic(t *testing.T) {
+	defer func() {
+		e := recover()
+		if e == nil {
+			t.Error("did not panic")
+		}
+	}()
+	var c *Checker
+	c.Files(nil)
+}
