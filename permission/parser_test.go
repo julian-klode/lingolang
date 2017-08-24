@@ -205,3 +205,13 @@ func BenchmarkParser(b *testing.B) {
 		})
 	}
 }
+
+func TestParserParse_panic(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("did not panic")
+		}
+	}()
+	var p *Parser
+	p.Parse()
+}

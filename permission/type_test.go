@@ -131,3 +131,14 @@ func TestNewFromType(t *testing.T) {
 		})
 	}
 }
+
+func TestNewFromType_invalid(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("Expected panic")
+		}
+	}()
+
+	var typ *types.Tuple
+	NewTypeMapper().NewFromType(typ)
+}

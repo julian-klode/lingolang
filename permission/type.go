@@ -5,6 +5,7 @@
 package permission
 
 import (
+	"fmt"
 	"go/types"
 )
 
@@ -54,7 +55,7 @@ func (typeMapper TypeMapper) NewFromType(t0 types.Type) (result Permission) {
 			return typeMapper.NewFromType(t0)
 		}
 	}
-	return None
+	panic(fmt.Errorf("Cannot create permission for type %#v", t0))
 }
 
 func (typeMapper TypeMapper) newFromChanType(t *types.Chan) Permission {

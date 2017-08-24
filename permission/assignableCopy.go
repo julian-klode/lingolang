@@ -94,17 +94,16 @@ func (p *MapPermission) isCopyableTo(p2 Permission, state assignableState) bool 
 func (p *StructPermission) isCopyableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *StructPermission:
-		if !copyableTo(p.BasePermission, p2.BasePermission, state) {
-			return false // grr, unreachable
-		}
-
-		// TODO: Field length, structural subtyping
-		for i := 0; i < len(p.Fields); i++ {
-			if !copyableTo(p.Fields[i], p2.Fields[i], state) {
-				return false
+		copyable := copyableTo(p.BasePermission, p2.BasePermission, state)
+		if copyable {
+			// TODO: Field length, structural subtyping
+			for i := 0; i < len(p.Fields); i++ {
+				if !copyableTo(p.Fields[i], p2.Fields[i], state) {
+					return false
+				}
 			}
 		}
-		return true
+		return copyable
 	default:
 		return false
 	}
