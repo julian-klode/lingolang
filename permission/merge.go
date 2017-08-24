@@ -16,35 +16,56 @@ func mergeError(e error) mergeErrorT {
 	return mergeErrorT{e}
 }
 
+// What are we doing?
+type mergeAction int
+
+const (
+	mergeConversion mergeAction = iota
+	mergeIntersection
+	mergeUnion
+)
+
 // *mergeState is a map that stores the temporary results of making
-// a permission compatible to another, so we can handle recursive data
+// a permimergeConvertssion compatible to another, so we can handle recursive data
 // structures.
 type mergeState struct {
-	state map[mergeStateKey]Permission
-	union bool
+	state  map[mergeStateKey]Permission
+	action mergeAction
 }
 
 type mergeStateKey struct {
-	perm  Permission
-	goal  Permission
-	union bool
+	perm   Permission
+	goal   Permission
+	action mergeAction
 }
 
 // register registers a new result for a given permission and goal.
 func (state *mergeState) register(result, perm, goal Permission) {
-	state.state[mergeStateKey{perm, goal, state.union}] = result
+	state.state[mergeStateKey{perm, goal, state.action}] = result
 }
 
 // return a new state that toggles union/intersect
 func (state *mergeState) contravariant() *mergeState {
-	return &mergeState{state.state, !state.union}
+	switch state.action {
+	case mergeIntersection:
+		return &mergeState{state.state, mergeUnion}
+	case mergeUnion:
+		return &mergeState{state.state, mergeIntersection}
+	default:
+		return state
+	}
 }
 
 func (state *mergeState) mergeBase(p1, p2 BasePermission) BasePermission {
-	if state.union {
+	switch state.action {
+	case mergeConversion:
+		return p2
+	case mergeIntersection:
+		return p1 & p2
+	case mergeUnion:
 		return p1 | p2
 	}
-	return p1 & p2
+	panic(fmt.Errorf("Invalid merge action %d", state.action))
 }
 
 func mergeRecover(err *error) {
@@ -65,7 +86,7 @@ func mergeRecover(err *error) {
 // for v afterwards will be Intersect(A, B).
 func Intersect(perm Permission, goal Permission) (result Permission, err error) {
 	defer mergeRecover(&err)
-	result = merge(perm, goal, &mergeState{make(map[mergeStateKey]Permission), false})
+	result = merge(perm, goal, &mergeState{make(map[mergeStateKey]Permission), mergeIntersection})
 	if reflect.DeepEqual(result, perm) {
 		result = perm
 	}
@@ -81,7 +102,7 @@ func Intersect(perm Permission, goal Permission) (result Permission, err error) 
 // removing permissions is fine.
 func Union(perm Permission, goal Permission) (result Permission, err error) {
 	defer mergeRecover(&err)
-	result = merge(perm, goal, &mergeState{make(map[mergeStateKey]Permission), true})
+	result = merge(perm, goal, &mergeState{make(map[mergeStateKey]Permission), mergeUnion})
 	if reflect.DeepEqual(result, perm) {
 		result = perm
 	}
@@ -91,7 +112,7 @@ func Union(perm Permission, goal Permission) (result Permission, err error) {
 // MakeCompatibleTo takes a permission and makes it compatible with the outer
 // permission.
 func merge(perm Permission, goal Permission, state *mergeState) Permission {
-	key := mergeStateKey{perm, goal, state.union}
+	key := mergeStateKey{perm, goal, state.action}
 	result, ok := state.state[key]
 	if !ok {
 		result = perm.merge(goal, state)
