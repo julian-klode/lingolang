@@ -47,7 +47,7 @@ func (state convertState) register(result, perm, goal Permission) {
 // the same shape as perm. In the latter case, goal must be a consistent
 // permission: It must be made compatible to its base permission, otherwise
 // the result of this function causes undefined behavior.
-func ConvertTo(perm Permission, goal Permission) (result Permission, err error) {
+func ConvertToOld(perm Permission, goal Permission) (result Permission, err error) {
 	defer func() {
 		val := recover()
 		if val != nil {
@@ -114,9 +114,6 @@ func (p *PointerPermission) convertTo(p2 Permission, state convertState) Permiss
 			nextTarget &^= ExclRead
 		}
 		next.Target = convertTo(p.Target, nextTarget, state)
-	case *PointerPermission:
-		next.BasePermission = p.BasePermission.convertToBase(p2.BasePermission)
-		next.Target = convertTo(p.Target, p2.Target, state)
 	default:
 		return nil
 	}
@@ -131,9 +128,6 @@ func (p *ChanPermission) convertTo(p2 Permission, state convertState) Permission
 	case BasePermission:
 		next.BasePermission = p.BasePermission.convertToBase(p2)
 		next.ElementPermission = convertTo(p.ElementPermission, next.BasePermission, state)
-	case *ChanPermission:
-		next.BasePermission = p.BasePermission.convertToBase(p2.BasePermission)
-		next.ElementPermission = convertTo(p.ElementPermission, p2.ElementPermission, state)
 	default:
 		return nil
 	}
@@ -148,9 +142,6 @@ func (p *ArrayPermission) convertTo(p2 Permission, state convertState) Permissio
 	case BasePermission:
 		next.BasePermission = p.BasePermission.convertToBase(p2)
 		next.ElementPermission = convertTo(p.ElementPermission, next.BasePermission, state)
-	case *ArrayPermission:
-		next.BasePermission = p.BasePermission.convertToBase(p2.BasePermission)
-		next.ElementPermission = convertTo(p.ElementPermission, p2.ElementPermission, state)
 	default:
 		return nil
 	}
@@ -183,10 +174,6 @@ func (p *MapPermission) convertTo(p2 Permission, state convertState) Permission 
 		next.BasePermission = p.BasePermission.convertToBase(p2)
 		next.KeyPermission = convertTo(p.KeyPermission, next.BasePermission, state)
 		next.ValuePermission = convertTo(p.ValuePermission, next.BasePermission, state)
-	case *MapPermission:
-		next.BasePermission = p.BasePermission.convertToBase(p2.BasePermission)
-		next.KeyPermission = convertTo(p.KeyPermission, p2.KeyPermission, state)
-		next.ValuePermission = convertTo(p.ValuePermission, p2.ValuePermission, state)
 	default:
 		return nil
 	}
@@ -203,15 +190,6 @@ func (p *StructPermission) convertTo(p2 Permission, state convertState) Permissi
 		next.Fields = make([]Permission, len(p.Fields))
 		for i := 0; i < len(p.Fields); i++ {
 			next.Fields[i] = convertTo(p.Fields[i], next.BasePermission, state)
-		}
-	case *StructPermission:
-		next.BasePermission = p.BasePermission.convertToBase(p2.BasePermission)
-		next.Fields = make([]Permission, len(p.Fields))
-		if len(p.Fields) != len(p2.Fields) {
-			panic(convertError(fmt.Errorf("Cannot make %v compatible to %v: Different number of fields: %d vs %d", p, p2, len(p.Fields), len(p2.Fields))))
-		}
-		for i := 0; i < len(p.Fields); i++ {
-			next.Fields[i] = convertTo(p.Fields[i], p2.Fields[i], state)
 		}
 	default:
 		return nil
@@ -244,35 +222,6 @@ func (p *FuncPermission) convertTo(p2 Permission, state convertState) Permission
 				next.Results[i] = convertTo(p.Results[i], p.Results[i].GetBasePermission(), state)
 			}
 		}
-	case *FuncPermission:
-		next.BasePermission = p.BasePermission.convertToBase(p2.GetBasePermission())
-		if len(p.Receivers) != len(p2.Receivers) {
-			panic(convertError(fmt.Errorf("Cannot convert %v to %v: Different number of receivers", p, p2)))
-		}
-		if p.Receivers != nil {
-			next.Receivers = make([]Permission, len(p.Receivers))
-			for i := 0; i < len(p.Receivers); i++ {
-				next.Receivers[i] = convertTo(p.Receivers[i], p2.Receivers[i], state)
-			}
-		}
-		if len(p.Params) != len(p2.Params) {
-			panic(convertError(fmt.Errorf("Cannot convert %v to %v: Different number of parameters", p, p2)))
-		}
-		if p.Params != nil {
-			next.Params = make([]Permission, len(p.Params))
-			for i := 0; i < len(p.Params); i++ {
-				next.Params[i] = convertTo(p.Params[i], p2.Params[i], state)
-			}
-		}
-		if len(p.Results) != len(p2.Results) {
-			panic(convertError(fmt.Errorf("Cannot convert %v to %v: Different number of results", p, p2)))
-		}
-		if p.Results != nil {
-			next.Results = make([]Permission, len(p.Results))
-			for i := 0; i < len(p.Results); i++ {
-				next.Results[i] = convertTo(p.Results[i], p2.Results[i], state)
-			}
-		}
 	default:
 		return nil
 	}
@@ -290,17 +239,6 @@ func (p *InterfacePermission) convertTo(p2 Permission, state convertState) Permi
 			next.Methods = make([]Permission, len(p.Methods))
 			for i := 0; i < len(p.Methods); i++ {
 				next.Methods[i] = convertTo(p.Methods[i], next.BasePermission, state)
-			}
-		}
-	case *InterfacePermission:
-		next.BasePermission = p.BasePermission.convertToBase(p2.BasePermission)
-		if len(p.Methods) != len(p2.Methods) {
-			panic(convertError(fmt.Errorf("Cannot convert %v to %v: Different number of methods", p, p2)))
-		}
-		if p.Methods != nil {
-			next.Methods = make([]Permission, len(p.Methods))
-			for i := 0; i < len(p.Methods); i++ {
-				next.Methods[i] = convertTo(p.Methods[i], p2.Methods[i], state)
 			}
 		}
 	default:

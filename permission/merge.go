@@ -80,6 +80,29 @@ func mergeRecover(err *error) {
 	}
 }
 
+// ConvertTo takes a permission and makes it compatible with the goal
+// permission. It's use is to turn incomplete annotations into permissions
+// matching the type. For example, if there is a list with a next pointer:
+// it could be annotated "om struct { om }". That is incomplete: The inner
+// "om" refers to a list as well, so the permission needs to be recursive.
+//
+// By taking the type permission, which is "p = om struct { p }", that is
+// a recursive permission refering to itself, and converting that to the		-
+// target, we can make the permission complete.
+//
+// goal can be either a base permission, or, alternatively, a permission of
+// the same shape as perm. In the latter case, goal must be a consistent
+// permission: It must be made compatible to its base permission, otherwise
+// the result of this function causes undefined behavior.
+func ConvertTo(perm Permission, goal Permission) (result Permission, err error) {
+	defer mergeRecover(&err)
+	result = merge(perm, goal, &mergeState{make(map[mergeStateKey]Permission), mergeConversion})
+	if reflect.DeepEqual(result, perm) {
+		result = perm
+	}
+	return
+}
+
 // Intersect takes two permissions and returns a permission that is a subset
 // of both. An intersection can be used to join permissions from two branches:
 // Given if { v has permission A } else { v has permission B }, the permission
@@ -112,12 +135,23 @@ func Union(perm Permission, goal Permission) (result Permission, err error) {
 // MakeCompatibleTo takes a permission and makes it compatible with the outer
 // permission.
 func merge(perm Permission, goal Permission, state *mergeState) Permission {
+	// FIXME(jak): Temporary code, need to refactor convert to base.
+	_, goalIsBase := goal.(BasePermission)
+	_, permIsBase := perm.(BasePermission)
+	if state.action == mergeConversion && !permIsBase && goalIsBase {
+		p, e := ConvertToOld(perm, goal)
+		if e != nil {
+			panic(mergeError(e))
+		}
+		return p
+	}
+
 	key := mergeStateKey{perm, goal, state.action}
 	result, ok := state.state[key]
 	if !ok {
 		result = perm.merge(goal, state)
 		if result == nil {
-			panic(mergeError(fmt.Errorf("Cannot merge %v with %v", perm, goal)))
+			panic(mergeError(fmt.Errorf("Cannot merge %v with %v - not compatible", perm, goal)))
 		}
 	}
 	return result
