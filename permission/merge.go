@@ -142,7 +142,7 @@ func merge(perm Permission, goal Permission, state *mergeState) Permission {
 		goalAsBase, goalIsBase := goal.(BasePermission)
 		_, permIsBase := perm.(BasePermission)
 		if state.action == mergeConversion && !permIsBase && goalIsBase {
-			result = perm.convertTo(goalAsBase, (*convertState)(state))
+			result = perm.convertToBase(goalAsBase, (*convertToBaseState)(state))
 		} else {
 			result = perm.merge(goal, state)
 		}
