@@ -10,7 +10,13 @@ import (
 )
 
 // VisitExpr abstractly interprets permission changes by the expression.
-func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, Store) {
+//
+// The first return value describes the permission of the object this expr
+// could evaluate to. The second return value is a list of identifiers that
+//the resulting object could be a part of. If the result used, these identifiers
+// will have to be marked as unusable.
+// The third is a new store with any changes applied.
+func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []*ast.Ident, Store) {
 	switch e := e.(type) {
 	case *ast.BadExpr:
 		panic("Bad expression")
@@ -25,7 +31,7 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, St
 	case *ast.FuncLit:
 		panic("fun lit")
 	case *ast.Ident:
-		return st.GetEffective(e), st
+		return st.GetEffective(e), []*ast.Ident{e}, st
 	case *ast.IndexExpr:
 		panic("index expr")
 	case *ast.ParenExpr:
@@ -43,5 +49,5 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, St
 	default:
 		e.End()
 	}
-	return nil, nil
+	return nil, nil, nil
 }
