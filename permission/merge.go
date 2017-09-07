@@ -135,21 +135,17 @@ func Union(perm Permission, goal Permission) (result Permission, err error) {
 // MakeCompatibleTo takes a permission and makes it compatible with the outer
 // permission.
 func merge(perm Permission, goal Permission, state *mergeState) Permission {
-	// FIXME(jak): Temporary code, need to refactor convert to base.
-	goalAsBase, goalIsBase := goal.(BasePermission)
-	_, permIsBase := perm.(BasePermission)
-	if state.action == mergeConversion && !permIsBase && goalIsBase {
-		p, e := ConvertToOld(perm, goalAsBase)
-		if e != nil {
-			panic(mergeError(e))
-		}
-		return p
-	}
-
 	key := mergeStateKey{perm, goal, state.action}
 	result, ok := state.state[key]
 	if !ok {
-		result = perm.merge(goal, state)
+		// FIXME(jak): Temporary code, need to refactor convert to base.
+		goalAsBase, goalIsBase := goal.(BasePermission)
+		_, permIsBase := perm.(BasePermission)
+		if state.action == mergeConversion && !permIsBase && goalIsBase {
+			result = perm.convertTo(goalAsBase, (*convertState)(state))
+		} else {
+			result = perm.merge(goal, state)
+		}
 		if result == nil {
 			panic(mergeError(fmt.Errorf("Cannot merge %v with %v - not compatible", perm, goal)))
 		}

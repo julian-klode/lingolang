@@ -7,77 +7,18 @@
 
 package permission
 
-import (
-	"fmt"
-	"reflect"
-)
-
-// convertError is a bailout error type to use with panic() and recover()
-// below, so the code does not get crazy long due to ifs.
-type convertErrorT struct{ error }
-
-func convertError(e error) convertErrorT {
-	return convertErrorT{e}
-}
-
-// convertState is a map that stores the temporary results of making
-// a permission compatible to another, so we can handle recursive data
-// structures.
-type convertState map[convertStateKey]Permission
-type convertStateKey struct {
-	perm Permission
-	goal Permission
-}
+type convertState mergeState
 
 // register registers a new result for a given permission and goal.
-func (state convertState) register(result, perm, goal Permission) {
-	state[convertStateKey{perm, goal}] = result
+func (state *convertState) register(result, perm, goal Permission) {
+	state.state[mergeStateKey{perm, goal, mergeConversion}] = result
 }
 
-// ConvertTo takes a permission and makes it compatible with the goal
-// permission. It's use is to turn incomplete annotations into permissions
-// matching the type. For example, if there is a list with a next pointer:
-// it could be annotated "om struct { om }". That is incomplete: The inner
-// "om" refers to a list as well, so the permission needs to be recursive.
-// By taking the type permission, which is "p = om struct { p }", that is
-// a recursive permission refering to itself, and converting that to the
-// target, we can make the permission complete.
-//
-// goal can be either a base permission, or, alternatively, a permission of
-// the same shape as perm. In the latter case, goal must be a consistent
-// permission: It must be made compatible to its base permission, otherwise
-// the result of this function causes undefined behavior.
-func ConvertToOld(perm Permission, goal BasePermission) (result Permission, err error) {
-	defer func() {
-		val := recover()
-		if val != nil {
-			switch e := val.(type) {
-			case convertErrorT:
-				err = e
-			default:
-				panic(e)
-			}
-		}
-	}()
-	result = convertTo(perm, goal, make(convertState))
-	if reflect.DeepEqual(result, perm) {
-		result = perm
-	}
-	return
-}
-
-// MakeCompatibleTo takes a permission and makes it compatible with the outer
-// permission.
-func convertTo(perm Permission, goal BasePermission, state convertState) Permission {
-	key := convertStateKey{perm, goal}
-	result, ok := state[key]
+func convertTo(perm Permission, goal BasePermission, state *convertState) Permission {
+	key := mergeStateKey{perm, goal, mergeConversion}
+	result, ok := state.state[key]
 	if !ok {
 		result = perm.convertTo(goal, state)
-		if result == nil {
-			panic(convertError(fmt.Errorf("Cannot make %v compatible to %v", perm, goal)))
-		}
-
-		state[key] = result
 	}
 	return result
 }
@@ -86,11 +27,11 @@ func (perm BasePermission) convertToBase(perm2 BasePermission) BasePermission {
 	return perm2
 }
 
-func (perm BasePermission) convertTo(p2 BasePermission, state convertState) Permission {
+func (perm BasePermission) convertTo(p2 BasePermission, state *convertState) Permission {
 	return perm.convertToBase(p2)
 }
 
-func (p *PointerPermission) convertTo(p2 BasePermission, state convertState) Permission {
+func (p *PointerPermission) convertTo(p2 BasePermission, state *convertState) Permission {
 	next := &PointerPermission{}
 	state.register(next, p, p2)
 
@@ -112,7 +53,7 @@ func (p *PointerPermission) convertTo(p2 BasePermission, state convertState) Per
 	return next
 }
 
-func (p *ChanPermission) convertTo(p2 BasePermission, state convertState) Permission {
+func (p *ChanPermission) convertTo(p2 BasePermission, state *convertState) Permission {
 	next := &ChanPermission{}
 	state.register(next, p, p2)
 	next.BasePermission = p.BasePermission.convertToBase(p2)
@@ -121,7 +62,7 @@ func (p *ChanPermission) convertTo(p2 BasePermission, state convertState) Permis
 	return next
 }
 
-func (p *ArrayPermission) convertTo(p2 BasePermission, state convertState) Permission {
+func (p *ArrayPermission) convertTo(p2 BasePermission, state *convertState) Permission {
 	next := &ArrayPermission{}
 	state.register(next, p, p2)
 
@@ -131,7 +72,7 @@ func (p *ArrayPermission) convertTo(p2 BasePermission, state convertState) Permi
 	return next
 }
 
-func (p *SlicePermission) convertTo(p2 BasePermission, state convertState) Permission {
+func (p *SlicePermission) convertTo(p2 BasePermission, state *convertState) Permission {
 	next := &SlicePermission{}
 	state.register(next, p, p2)
 
@@ -141,7 +82,7 @@ func (p *SlicePermission) convertTo(p2 BasePermission, state convertState) Permi
 	return next
 }
 
-func (p *MapPermission) convertTo(p2 BasePermission, state convertState) Permission {
+func (p *MapPermission) convertTo(p2 BasePermission, state *convertState) Permission {
 	next := &MapPermission{}
 	state.register(next, p, p2)
 
@@ -152,7 +93,7 @@ func (p *MapPermission) convertTo(p2 BasePermission, state convertState) Permiss
 	return next
 }
 
-func (p *StructPermission) convertTo(p2 BasePermission, state convertState) Permission {
+func (p *StructPermission) convertTo(p2 BasePermission, state *convertState) Permission {
 	next := &StructPermission{}
 	state.register(next, p, p2)
 
@@ -165,7 +106,7 @@ func (p *StructPermission) convertTo(p2 BasePermission, state convertState) Perm
 	return next
 }
 
-func (p *FuncPermission) convertTo(p2 BasePermission, state convertState) Permission {
+func (p *FuncPermission) convertTo(p2 BasePermission, state *convertState) Permission {
 	next := &FuncPermission{}
 	state.register(next, p, p2)
 
@@ -192,7 +133,7 @@ func (p *FuncPermission) convertTo(p2 BasePermission, state convertState) Permis
 	return next
 }
 
-func (p *InterfacePermission) convertTo(p2 BasePermission, state convertState) Permission {
+func (p *InterfacePermission) convertTo(p2 BasePermission, state *convertState) Permission {
 	next := &InterfacePermission{}
 	state.register(next, p, p2)
 
