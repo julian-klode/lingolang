@@ -136,10 +136,10 @@ func Union(perm Permission, goal Permission) (result Permission, err error) {
 // permission.
 func merge(perm Permission, goal Permission, state *mergeState) Permission {
 	// FIXME(jak): Temporary code, need to refactor convert to base.
-	_, goalIsBase := goal.(BasePermission)
+	goalAsBase, goalIsBase := goal.(BasePermission)
 	_, permIsBase := perm.(BasePermission)
 	if state.action == mergeConversion && !permIsBase && goalIsBase {
-		p, e := ConvertToOld(perm, goal)
+		p, e := ConvertToOld(perm, goalAsBase)
 		if e != nil {
 			panic(mergeError(e))
 		}

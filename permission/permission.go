@@ -100,7 +100,7 @@ type Permission interface {
 	isMovableTo(p2 Permission, state assignableState) bool
 	isRefcopyableTo(p2 Permission, state assignableState) bool
 	isCopyableTo(p2 Permission, state assignableState) bool
-	convertTo(p2 Permission, state convertState) Permission
+	convertTo(p2 BasePermission, state convertState) Permission
 	merge(p2 Permission, state *mergeState) Permission
 }
 
