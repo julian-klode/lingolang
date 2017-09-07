@@ -116,15 +116,21 @@ func (p *Parser) parseBasePermission() BasePermission {
 
 // @syntax func <- ['(' param List ')'] 'func' '(' [paramList] ')' ( [inner] |  '(' [paramList] ')')
 func (p *Parser) parseFunc(bp BasePermission) Permission {
+	var name string
 	var receiver []Permission
 	var params []Permission
 	var results []Permission
 
-	// Try to parse the receiver
+	// Parse either a "func" token or a receiver and a func token
 	if tok, _ := p.sc.Accept(TokenParenLeft, TokenFunc); tok.Type == TokenParenLeft {
 		receiver = p.parseFieldList(TokenComma)
 		p.sc.Expect(TokenParenRight)
 		p.sc.Expect(TokenFunc)
+	}
+
+	// Parse a name
+	if nameTok, ok := p.sc.Accept(TokenWord); ok {
+		name = nameTok.Value
 	}
 
 	// Pararameters
@@ -143,7 +149,7 @@ func (p *Parser) parseFunc(bp BasePermission) Permission {
 		results = []Permission{p.parseInner()}
 	}
 
-	return &FuncPermission{BasePermission: bp, Receivers: receiver, Params: params, Results: results}
+	return &FuncPermission{BasePermission: bp, Name: name, Receivers: receiver, Params: params, Results: results}
 }
 
 // @syntax paramList <- inner (',' inner)*

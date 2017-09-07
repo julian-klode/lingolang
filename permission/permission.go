@@ -176,6 +176,7 @@ func (p *StructPermission) GetBasePermission() BasePermission {
 // FuncPermission describes permissions of functions
 type FuncPermission struct {
 	BasePermission BasePermission // Permission of the function itself
+	Name           string         // optional name
 	Receivers      []Permission   // Permissions of the receiver
 	Params         []Permission   // Permissions of the parameters
 	Results        []Permission   // Permissions of results

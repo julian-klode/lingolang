@@ -125,7 +125,10 @@ func (typeMapper TypeMapper) newFromInterfaceType(t *types.Interface) Permission
 	perm := &InterfacePermission{BasePermission: basicPermission}
 	typeMapper[t] = perm
 	for i := 0; i < t.NumMethods(); i++ {
-		perm.Methods = append(perm.Methods, typeMapper.NewFromType(t.Method(i).Type()))
+		methType := t.Method(i)
+		methPerm := typeMapper.NewFromType(methType.Type())
+		(methPerm).(*FuncPermission).Name = methType.Name()
+		perm.Methods = append(perm.Methods, methPerm)
 	}
 	return perm
 }

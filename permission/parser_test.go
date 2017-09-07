@@ -66,9 +66,23 @@ var testCasesParser = map[string]Permission{
 	},
 	"error":     nil,
 	"m * error": nil,
+	"m func foo(v) a": &FuncPermission{
+		BasePermission: Mutable,
+		Name:           "foo",
+		Receivers:      nil,
+		Params:         []Permission{Value},
+		Results:        []Permission{Any},
+	},
 	"m func (v) a": &FuncPermission{
 		BasePermission: Mutable,
 		Receivers:      nil,
+		Params:         []Permission{Value},
+		Results:        []Permission{Any},
+	},
+	"m (m) func foo (v) a": &FuncPermission{
+		BasePermission: Mutable,
+		Name:           "foo",
+		Receivers:      []Permission{Mutable},
 		Params:         []Permission{Value},
 		Results:        []Permission{Any},
 	},

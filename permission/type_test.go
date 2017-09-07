@@ -17,6 +17,7 @@ func newInterfaceWithMethod() *InterfacePermission {
 		BasePermission: Mutable,
 		Methods: []Permission{
 			&FuncPermission{
+				Name:           "foo",
 				BasePermission: Mutable,
 				Params:         []Permission{Mutable},
 			},
