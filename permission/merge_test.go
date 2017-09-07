@@ -34,6 +34,7 @@ var testcasesMerge = []mergeTestCase{
 	{Intersect, "om struct { om }", "or struct { or; or }", nil, "number of fields"},
 	{Intersect, "om (om) func(om) om", "or (or) func(or) or", "om (om) func(om) or", ""},
 	{Intersect, "om func(om)", "or func(or)", "om func(om)", ""},
+	{Union, "om func(om)", "or func(or)", "or func(or)", ""},
 	{Intersect, "om func(om, om)", "or func(or)", nil, "number of parameters"},
 	{Intersect, "om func()(om, om)", "or func()(or)", nil, "number of results"},
 	{Intersect, "om (om)func()", "or func()", nil, "number of receivers"},
@@ -98,8 +99,18 @@ func TestMergeTo(t *testing.T) {
 func TestMergeTo_panic(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
-			t.Errorf("The code did not panic")
+			t.Error("The code did not panic")
 		}
 	}()
 	Intersect(nil, nil)
+}
+
+func TestMergeBase_panic(t *testing.T) {
+	defer func() {
+		if r := fmt.Sprint(recover()); !strings.Contains(r, "nvalid merge action") {
+			t.Errorf("The code did not panic about invalid merge, but with %s", r)
+		}
+	}()
+	st := mergeState{action: -1}
+	st.mergeBase(None, None)
 }
