@@ -141,7 +141,7 @@ func (p *InterfacePermission) convertToBase(p2 BasePermission, state *convertToB
 	if p.Methods != nil {
 		next.Methods = make([]Permission, len(p.Methods))
 		for i := 0; i < len(p.Methods); i++ {
-			next.Methods[i] = convertToBase(p.Methods[i], next.BasePermission, state)
+			next.Methods[i] = convertToBase(p.Methods[i], p.Methods[i].GetBasePermission(), state)
 		}
 	}
 

@@ -73,7 +73,7 @@ var testcasesConvert = []convertTestCase{
 	{"om (om) func (om) om", "or chan om", nil, "compatible"},
 	{"om interface { }", "or", "or interface { }", ""},
 	{"om interface { }", "om struct {om}", nil, "compatible"},
-	{"om interface { om (om) func () }", "or", "or interface { or (om) func () }", ""},                               // unsafe
+	{"om interface { om (om) func () }", "or", "or interface { om (om) func () }", ""},                               // unsafe
 	{"om interface { om (om) func () }", "or interface { ov (om) func () }", "or interface { ov (om) func () }", ""}, // unsafe
 	{"om interface { om (om) func () }", "or interface { ov (om) func (); ov (om)  func () }", nil, "number of methods"},
 	{MakeRecursivePointer(true), "om", MakeRecursivePointer(true), ""},
@@ -81,6 +81,16 @@ var testcasesConvert = []convertTestCase{
 	{MakeRecursiveStruct(true), "om struct { om * om }", MakeRecursiveStruct(true), ""},
 	{MakeRecursiveStruct(true), "om struct { or * or }", MakeRecursiveStruct(false), ""},
 	{MakeRecursiveStruct(true), "om struct { or }", MakeRecursiveStruct(false), ""},
+
+	// Linear values containing mutable stuff should not happen
+	{"ol []om", "ol", "ol []ol", ""},
+	{"ol [_]om", "ol", "ol [_]ol", ""},
+	{"ol map[om]om", "ol", "ol map[ol]ol", ""},
+	{"ol struct { om }", "ol", "ol struct { ol }", ""},
+	{"ol chan om", "ol", "ol chan ol", ""},
+	// Two exceptions: Interfaces (methods are special) and pointers
+	{"ol interface { om func () }", "ol", "ol interface { om func() }", ""},
+	{"ol * om", "ol", "ol * om", ""},
 }
 
 func MakeRecursivePointer(innerWritable bool) Permission {
