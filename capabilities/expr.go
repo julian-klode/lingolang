@@ -1,3 +1,4 @@
+// +build ignore
 // (C) 2017 Julian Andres Klode <jak@jak-linux.org>
 // Licensed under the 2-Clause BSD license, see LICENSE for more information.
 
@@ -11,12 +12,11 @@ import (
 
 // VisitExpr abstractly interprets permission changes by the expression.
 //
-// The first return value describes the permission of the object this expr
-// could evaluate to. The second return value is a list of identifiers that
-//the resulting object could be a part of. If the result used, these identifiers
-// will have to be marked as unusable.
-// The third is a new store with any changes applied.
-func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []*ast.Ident, Store) {
+//
+func (i *Interpreter) VisitExpr(st Store, e ast.Expr, to permission.Permission) (permission.Permission, Store) {
+	if e == nil {
+		return permission.None, st
+	}
 	switch e := e.(type) {
 	case *ast.BadExpr:
 		panic("Bad expression")
@@ -31,7 +31,7 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 	case *ast.FuncLit:
 		panic("fun lit")
 	case *ast.Ident:
-		return st.GetEffective(e), []*ast.Ident{e}, st
+		return st.Assign(e, to)
 	case *ast.IndexExpr:
 		panic("index expr")
 	case *ast.ParenExpr:
@@ -50,4 +50,24 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 		e.End()
 	}
 	return nil, nil, nil
+}
+
+func (i *Interpreter) VisitIndexExpr(st Store, e *ast.IndexExpr, p permission.Permission) (permission.Permission, []*ast.Ident, Store) {
+	p1, st := i.VisitExpr(st, e.X, p.)
+	p2, st := i.VisitExpr(st, e.Index)
+
+	switch p1 := p1.(type) {
+	case *permission.ArrayPermission:
+		return p1.ElementPermission, deps1, st
+	case *permission.SlicePermission:
+		return p1.ElementPermission, deps1, st
+	case *permission.MapPermission:
+		if permission.CopyableTo(p2, p1.KeyPermission) {
+			return p1.ValuePermission, deps1, st
+		} else if permission.MovableTo(p2, p1.KeyPermission) {
+			return p1.ValuePermission, append(deps1, deps2...), st
+		}
+	}
+
+	panic("Indexing unknown type")
 }
