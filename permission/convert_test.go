@@ -34,8 +34,10 @@ var testcasesConvert = []convertTestCase{
 	{"a", "on * on", nil, "compatible"},
 	{"om * om", "or", "or * or", ""},
 	{"om * om", "ol", "ol * om", ""},
-	{"om * om", "l", "l * om", ""},
-	{"or * a", "or", "or * a", ""},
+	{"om * om", "ol", "ol * om", ""},
+	{"or * a", "or", "or * oa", ""},
+	{"or * r", "or", "or * or", ""},
+	{"r * or", "r", "r * r", ""},
 	{"or * om", "or", "or * or", ""},           // inconsistent: non-linear ptr to lin val
 	{"om * om * om", "or", "or * or * or", ""}, // inconsistent: non-linear ptr to lin val
 	{"or * ov", "or", "or * ov", ""},           // this is consistent ov=orW is not linear

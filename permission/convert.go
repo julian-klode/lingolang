@@ -39,7 +39,7 @@ func (p *PointerPermission) convertToBase(p2 BasePermission, state *convertToBas
 	// If we loose linearity of the pointer, the target we are pointing
 	// to is not linear anymore either. For writes, we drop the write
 	// permission.
-	nextTarget := p.Target.GetBasePermission()
+	nextTarget := p.Target.GetBasePermission()&^Owned | (next.BasePermission & Owned)
 	// Strip linear write rights.
 	if (next.BasePermission&ExclRead) == 0 && (nextTarget&(ExclWrite|Write)) == (ExclWrite|Write) {
 		nextTarget &^= Write | ExclWrite
