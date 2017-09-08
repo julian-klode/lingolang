@@ -102,3 +102,13 @@ func TestPermissionBasePermission(t *testing.T) {
 		})
 	}
 }
+
+func TestWildcardPermissionGetBasePermission(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("did not panic")
+		}
+	}()
+	var p *WildcardPermission
+	p.GetBasePermission()
+}

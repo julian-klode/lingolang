@@ -112,6 +112,8 @@ var testcasesAssignableTo = []assignableToTestCase{
 	{"ov (ov) func (om)", "ov (om) func (om)", true, true, true},
 	{"ov (om) func (om)", "ov (ov) func (om)", false, false, false},
 	{"ov struct { ov []ov }", "ov struct {ov [] ov}", true, true, true},
+
+	{"_", "om", false, false, false},
 }
 
 func TestAssignableTo(t *testing.T) {

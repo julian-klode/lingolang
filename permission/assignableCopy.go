@@ -118,3 +118,7 @@ func (p *FuncPermission) isCopyableTo(p2 Permission, state assignableState) bool
 func (p *InterfacePermission) isCopyableTo(p2 Permission, state assignableState) bool {
 	return refcopyableTo(p, p2, state)
 }
+
+func (p *WildcardPermission) isCopyableTo(p2 Permission, state assignableState) bool {
+	return false
+}

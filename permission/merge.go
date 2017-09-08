@@ -157,6 +157,8 @@ func (perm BasePermission) merge(p2 Permission, state *mergeState) Permission {
 	switch p2 := p2.(type) {
 	case BasePermission:
 		return state.mergeBase(perm, p2)
+	case *WildcardPermission:
+		return perm
 	default:
 		return nil
 	}
@@ -170,6 +172,8 @@ func (p *PointerPermission) merge(p2 Permission, state *mergeState) Permission {
 		next.BasePermission = state.mergeBase(p.BasePermission, p2.BasePermission)
 		next.Target = merge(p.Target, p2.Target, state)
 		return next
+	case *WildcardPermission:
+		return p
 	default:
 		return nil
 	}
@@ -183,6 +187,8 @@ func (p *ChanPermission) merge(p2 Permission, state *mergeState) Permission {
 		next.BasePermission = state.mergeBase(p.BasePermission, p2.BasePermission)
 		next.ElementPermission = merge(p.ElementPermission, p2.ElementPermission, state)
 		return next
+	case *WildcardPermission:
+		return p
 	default:
 		return nil
 	}
@@ -196,6 +202,8 @@ func (p *ArrayPermission) merge(p2 Permission, state *mergeState) Permission {
 		next.BasePermission = state.mergeBase(p.BasePermission, p2.BasePermission)
 		next.ElementPermission = merge(p.ElementPermission, p2.ElementPermission, state)
 		return next
+	case *WildcardPermission:
+		return p
 	default:
 		return nil
 	}
@@ -209,6 +217,8 @@ func (p *SlicePermission) merge(p2 Permission, state *mergeState) Permission {
 		next.BasePermission = state.mergeBase(p.BasePermission, p2.BasePermission)
 		next.ElementPermission = merge(p.ElementPermission, p2.ElementPermission, state)
 		return next
+	case *WildcardPermission:
+		return p
 	default:
 		return nil
 	}
@@ -223,6 +233,8 @@ func (p *MapPermission) merge(p2 Permission, state *mergeState) Permission {
 		next.KeyPermission = merge(p.KeyPermission, p2.KeyPermission, state)
 		next.ValuePermission = merge(p.ValuePermission, p2.ValuePermission, state)
 		return next
+	case *WildcardPermission:
+		return p
 	default:
 		return nil
 	}
@@ -242,6 +254,8 @@ func (p *StructPermission) merge(p2 Permission, state *mergeState) Permission {
 			next.Fields[i] = merge(p.Fields[i], p2.Fields[i], state)
 		}
 		return next
+	case *WildcardPermission:
+		return p
 	default:
 		return nil
 	}
@@ -282,6 +296,8 @@ func (p *FuncPermission) merge(p2 Permission, state *mergeState) Permission {
 			}
 		}
 		return next
+	case *WildcardPermission:
+		return p
 	default:
 		return nil
 	}
@@ -303,7 +319,13 @@ func (p *InterfacePermission) merge(p2 Permission, state *mergeState) Permission
 			}
 		}
 		return next
+	case *WildcardPermission:
+		return p
 	default:
 		return nil
 	}
+}
+
+func (p *WildcardPermission) merge(p2 Permission, state *mergeState) Permission {
+	return p2
 }

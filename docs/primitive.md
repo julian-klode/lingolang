@@ -22,6 +22,14 @@ There are some important shortcuts:
 * `m` (short for _mutable_) is `rwRW`
 * `v` (short for _value_) is `rW`
 
+## Wildcard permissions
+A wildcard permission `_` can be specified in place of a real permission. A
+wildcard permission cannot be assigned from or assigned to, and it is neither
+linear nor non-linear. Wildcard permissions can be merged with or converted
+from/to other permissions, yielding the other permission - they are the neutral
+element of permission operations. They are useful in annotations only, and can
+be used to say: "keep the default here".
+
 ## Primitive operations
 Lingo defines 6 primitive operations on which the checking is build. This subsection describes how the apply to primitive values, the next subsection describes additional requirements on more complex values.
 

@@ -34,6 +34,7 @@ const (
 	TokenBraceLeft                     // The character '{'
 	TokenBraceRight                    // The character '}'
 	TokenSemicolon                     // The character ';'
+	TokenWildcard                      // The character '_'
 )
 
 var tokenTypeString = map[TokenType]string{
@@ -55,6 +56,7 @@ var tokenTypeString = map[TokenType]string{
 	TokenBraceLeft:    "operator '{'",
 	TokenBraceRight:   "operator '}'",
 	TokenSemicolon:    "operator ';'",
+	TokenWildcard:     "operator '_'",
 }
 
 func (typ TokenType) String() string {
@@ -133,6 +135,8 @@ func (sc *Scanner) Scan() Token {
 			return Token{TokenComma, ","}
 		case ch == ';':
 			return Token{TokenSemicolon, ";"}
+		case ch == '_':
+			return Token{TokenWildcard, "_"}
 		case unicode.IsLetter(ch):
 			sc.unreadRune()
 			tok := sc.scanWhile(TokenWord, unicode.IsLetter)

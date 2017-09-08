@@ -147,3 +147,7 @@ func (p *InterfacePermission) convertToBase(p2 BasePermission, state *convertToB
 
 	return next
 }
+
+func (p *WildcardPermission) convertToBase(p2 BasePermission, state *convertToBaseState) Permission {
+	return p2
+}

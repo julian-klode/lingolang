@@ -28,6 +28,8 @@ func MakePermission(i interface{}) (Permission, error) {
 }
 
 var testcasesConvert = []convertTestCase{
+	{"or", "_", "or", ""},
+	{"_", "or", "or", ""},
 	{"or", "r", "r", ""},
 	{"r", "or", "or", ""},
 	{"a", "or", "or", ""},

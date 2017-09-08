@@ -48,8 +48,11 @@ func (p *Parser) Parse() (perm Permission, err error) {
 // arbitrary garbage at the end, use Parse() to make sure that does not
 // happen
 //
-// @syntax inner <- basePermission [func | map | chan | pointer | sliceOrArray]
+// @syntax inner <- '_' | basePermission [func | map | chan | pointer | sliceOrArray]
 func (p *Parser) parseInner() Permission {
+	if _, ok := p.sc.Accept(TokenWildcard); ok {
+		return &WildcardPermission{}
+	}
 	basePerm := p.parseBasePermission()
 
 	switch tok := p.sc.Peek(); tok.Type {

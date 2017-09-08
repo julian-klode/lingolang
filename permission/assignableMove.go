@@ -159,3 +159,7 @@ func (p *InterfacePermission) isMovableTo(p2 Permission, state assignableState) 
 		return false
 	}
 }
+
+func (p *WildcardPermission) isMovableTo(p2 Permission, state assignableState) bool {
+	return false
+}

@@ -61,6 +61,16 @@ var testcasesMerge = []mergeTestCase{
 	{Union, "om struct { om }", "om", nil, "Cannot merge"},
 	{Union, "om func()", "om", nil, "Cannot merge"},
 	{Union, "om interface {}", "om", nil, "Cannot merge"},
+	/* Wildcard cases */
+	{Union, "om chan om", "_", "om chan om", ""},
+	{Union, "om interface {}", "_", "om interface{}", ""},
+	{Union, "om func ()", "_", "om func ()", ""},
+	{Union, "om struct {om}", "_", "om struct {om}", ""},
+	{Union, "om map[om] om", "_", "om map[om] om", ""},
+	{Union, "om * om", "_", "om * om", ""},
+	{Union, "om [] om", "_", "om [] om", ""},
+	{Union, "om [1] om", "_", "om [1] om", ""},
+	{Union, "om", "_", "om", ""},
 }
 
 func TestMergeTo(t *testing.T) {

@@ -6,6 +6,8 @@
 // correctness.
 package permission
 
+import "errors"
+
 // BasePermission represents a set of read, write, owned, and exclusive flags,
 // describing how a value may be used.
 type BasePermission int
@@ -193,4 +195,14 @@ type InterfacePermission struct {
 // GetBasePermission gets the base permission
 func (p *InterfacePermission) GetBasePermission() BasePermission {
 	return p.BasePermission
+}
+
+// A wildcard permission can be merged or converted to/from anything and
+// yields the other thing.
+type WildcardPermission struct {
+}
+
+// GetBasePermission gets the base permission
+func (p *WildcardPermission) GetBasePermission() BasePermission {
+	panic(errors.New("Wildcard does not have a base permission"))
 }

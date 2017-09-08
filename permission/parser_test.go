@@ -155,6 +155,7 @@ var testCasesParser = map[string]Permission{
 			LinearValue,
 		},
 	},
+	"_": &WildcardPermission{},
 }
 
 func helper() (perm Permission, err error) {
