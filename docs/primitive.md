@@ -114,7 +114,7 @@ A struct can be _copied_, _moved_, or _referenced_ if its elements can be.
 
 ### Arrays
 ```go
-// @cap <base> [<integer>]<permission>
+// @cap <base> ['_'|<integer>]<permission>
 type ArrayType [1]ElementType
 array[0] = value
 value = array[0]
@@ -122,6 +122,10 @@ value = array[0]
 An array is a fixed-size sequence of objects placed in one contiguous memory region.
 
 An array can be _copied_, _moved_, or _referenced_ if its elements can be.
+
+The size of an array is not used in permissions, but a value needs to be
+specified to differentiate arrays from slices. That value might just be
+the `_` placeholder.
 
 ### Slices
 ```go

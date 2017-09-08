@@ -166,7 +166,7 @@ func (p *Parser) parseFieldList(sep TokenType) []Permission {
 // @syntax sliceOrArray <- '[' [NUMBER] ']' inner
 func (p *Parser) parseSliceOrArray(bp BasePermission) Permission {
 	p.sc.Expect(TokenBracketLeft)
-	_, isArray := p.sc.Accept(TokenNumber)
+	_, isArray := p.sc.Accept(TokenNumber, TokenWildcard)
 	p.sc.Expect(TokenBracketRight)
 
 	rhs := p.parseInner()

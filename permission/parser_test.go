@@ -40,6 +40,10 @@ var testCasesParser = map[string]Permission{
 		BasePermission:    Mutable,
 		ElementPermission: Any,
 	},
+	"m [_] a": &ArrayPermission{
+		BasePermission:    Mutable,
+		ElementPermission: Any,
+	},
 	"m map[v]l": &MapPermission{
 		BasePermission:  Mutable,
 		KeyPermission:   Value,
