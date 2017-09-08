@@ -90,6 +90,16 @@ func TestMergeTo(t *testing.T) {
 			case testCase.err == "" && err != nil:
 				t.Errorf("Expected nil error, got %v", err)
 			}
+			realResultRev, err := testCase.testfun(goal, perm)
+			if !reflect.DeepEqual(realResultRev, result) {
+				t.Errorf("Unexpected result %v, expected %v (%v)", realResultRev, result, testCase.result)
+			}
+			switch {
+			case testCase.err != "" && (err == nil || !strings.Contains(err.Error(), testCase.err)):
+				t.Errorf("Expected an error containing %s, got %v", testCase.err, err)
+			case testCase.err == "" && err != nil:
+				t.Errorf("Expected nil error, got %v", err)
+			}
 		})
 	}
 }
