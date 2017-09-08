@@ -197,8 +197,9 @@ func (p *InterfacePermission) GetBasePermission() BasePermission {
 	return p.BasePermission
 }
 
-// A wildcard permission can be merged or converted to/from anything and
-// yields the other thing.
+// WildcardPermission is a permission that can be merged or converted to/from
+// anything and yields the other thing - it is the neutral element for
+// intersection, union, and conversion.
 type WildcardPermission struct {
 }
 
