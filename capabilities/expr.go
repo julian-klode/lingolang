@@ -118,7 +118,13 @@ func (i *Interpreter) visitIndexExpr(st Store, e *ast.IndexExpr) (permission.Per
 		st = i.Release(e, st, deps2)
 		return p1.ElementPermission, deps1, st
 	case *permission.MapPermission:
-		if permission.CopyableTo(p2, p1.KeyPermission) || permission.MovableTo(p2, p1.KeyPermission) {
+		// Ensures(map): If the key can be copied, we don't borrow it.
+		copy := permission.CopyableTo(p2, p1.KeyPermission)
+		if copy {
+			st = i.Release(e, st, deps2)
+		}
+
+		if copy || permission.MovableTo(p2, p1.KeyPermission) {
 			return p1.ValuePermission, deps1, st
 		}
 	}
