@@ -4,6 +4,7 @@
 package capabilities
 
 import (
+	"fmt"
 	"go/ast"
 
 	"github.com/julian-klode/lingolang/permission"
@@ -25,34 +26,34 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 	}
 	switch e := e.(type) {
 	case *ast.BadExpr:
-		panic("Bad expression")
+		i.Error(e, "Bad expression")
 	case *ast.BasicLit:
-		panic("basic literal")
+		i.Error(e, "basic literal")
 	case *ast.BinaryExpr:
 		return i.visitBinaryExpr(st, e)
 	case *ast.CallExpr:
-		panic("call")
+		i.Error(e, "call")
 	case *ast.CompositeLit:
-		panic("composite literal")
+		i.Error(e, "composite literal")
 	case *ast.FuncLit:
-		panic("fun lit")
+		i.Error(e, "fun lit")
 	case *ast.Ident:
 		return i.visitIdent(st, e)
 		//return st.Assign(e, to)
 	case *ast.IndexExpr:
-		panic("index expr")
+		i.Error(e, "index expr")
 	case *ast.ParenExpr:
 		return i.VisitExpr(st, e.X)
 	case *ast.SelectorExpr:
-		panic("index expr")
+		i.Error(e, "index expr")
 	case *ast.SliceExpr:
-		panic("slice")
+		i.Error(e, "slice")
 	case *ast.StarExpr:
-		panic("star")
+		i.Error(e, "star")
 	case *ast.TypeAssertExpr:
-		panic("type Assert")
+		i.Error(e, "type Assert")
 	case *ast.UnaryExpr:
-		panic("unary")
+		i.Error(e, "unary")
 	default:
 		e.End()
 	}
@@ -68,9 +69,13 @@ func (i *Interpreter) Release(node ast.Node, st Store, undo []Borrowed) Store {
 }
 
 // Assert asserts that the base permissions of subject are a superset or the same as has.
+func (i *Interpreter) Error(node ast.Node, format string, args ...interface{}) {
+	panic(fmt.Errorf("%v: In %s: %s", node.Pos(), node, fmt.Sprintf(format, args...)))
+}
+
 func (i *Interpreter) Assert(node ast.Node, subject permission.Permission, has permission.BasePermission) {
 	if has&^subject.GetBasePermission() != 0 {
-		panic("Not good")
+		i.Error(node, "Required permissions %s, but only have %s", has, subject)
 	}
 }
 
@@ -129,5 +134,6 @@ func (i *Interpreter) visitIndexExpr(st Store, e *ast.IndexExpr) (permission.Per
 		}
 	}
 
-	panic("Indexing unknown type")
+	i.Error(e, "Indexing unknown type")
+	return nil, nil, nil
 }
