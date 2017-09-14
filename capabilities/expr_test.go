@@ -22,29 +22,28 @@ func recoverErrorOrFail(t *testing.T, message string) {
 func TestVisitBinaryExpr(t *testing.T) {
 	st := NewStore()
 	i := &Interpreter{}
+	e, _ := parser.ParseExpr("a + b")
 
-	e, _ := parser.ParseExpr("a + a")
-	st = st.Define(e.(*ast.BinaryExpr).X.(*ast.Ident), permission.Read)
-	st = st.Define(e.(*ast.BinaryExpr).Y.(*ast.Ident), permission.Read)
+	t.Run("ok", func(t *testing.T) {
+		st = st.Define(e.(*ast.BinaryExpr).X.(*ast.Ident), permission.Read)
+		st = st.Define(e.(*ast.BinaryExpr).Y.(*ast.Ident), permission.Read)
 
-	perm, deps, store := i.VisitExpr(st, e)
+		perm, deps, store := i.VisitExpr(st, e)
 
-	if len(deps) != 0 {
-		t.Errorf("Expected no dependencies, received %v", deps)
-	}
-	if perm != permission.Mutable {
-		t.Errorf("Expected mutable, received %v", perm)
-	}
-	if !store.Equal(st) {
-		t.Errorf("Expected no change to store but was %v and is %v", st, store)
-	}
+		if len(deps) != 0 {
+			t.Errorf("Expected no dependencies, received %v", deps)
+		}
+		if perm != permission.Mutable {
+			t.Errorf("Expected mutable, received %v", perm)
+		}
+		if !store.Equal(st) {
+			t.Errorf("Expected no change to store but was %v and is %v", st, store)
+		}
+	})
 
 	t.Run("lhsUnreadable", func(t *testing.T) {
 		defer recoverErrorOrFail(t, "In a: Required permissions r, but only have w")
-		st := NewStore()
-		i := &Interpreter{}
 
-		e, _ := parser.ParseExpr("a + b")
 		st = st.Define(e.(*ast.BinaryExpr).X.(*ast.Ident), permission.Write)
 		st = st.Define(e.(*ast.BinaryExpr).Y.(*ast.Ident), permission.Read)
 
@@ -52,10 +51,7 @@ func TestVisitBinaryExpr(t *testing.T) {
 	})
 	t.Run("rhsUnreadable", func(t *testing.T) {
 		defer recoverErrorOrFail(t, "In b: Required permissions r, but only have w")
-		st := NewStore()
-		i := &Interpreter{}
 
-		e, _ := parser.ParseExpr("a + b")
 		st = st.Define(e.(*ast.BinaryExpr).X.(*ast.Ident), permission.Read)
 		st = st.Define(e.(*ast.BinaryExpr).Y.(*ast.Ident), permission.Write)
 
