@@ -35,12 +35,15 @@ func TestVisitBinaryExpr(t *testing.T) {
 
 }
 
+func recoverErrorOrFail(t *testing.T, message string) {
+	if e := recover(); e == nil || !strings.Contains(fmt.Sprint(e), message) {
+		t.Fatalf("Unexpected error %s", e)
+	}
+}
+
 func TestVisitBinaryExpr_notreadable(t *testing.T) {
-	defer func() {
-		if e := recover(); e == nil || !strings.Contains(fmt.Sprint(e), "In b: Required permissions r, but only have w") {
-			t.Fatalf("Unexpected error %s", e)
-		}
-	}()
+	defer recoverErrorOrFail(t, "In b: Required permissions r, but only have w")
+
 	st := NewStore()
 	i := &Interpreter{}
 
