@@ -13,6 +13,12 @@ import (
 	"github.com/julian-klode/lingolang/permission"
 )
 
+func recoverErrorOrFail(t *testing.T, message string) {
+	if e := recover(); e == nil || !strings.Contains(fmt.Sprint(e), message) {
+		t.Fatalf("Unexpected error -- %s -- expected it to contain -- %s --", e, message)
+	}
+}
+
 func TestVisitBinaryExpr(t *testing.T) {
 	st := NewStore()
 	i := &Interpreter{}
@@ -33,23 +39,26 @@ func TestVisitBinaryExpr(t *testing.T) {
 		t.Errorf("Expected no change to store but was %v and is %v", st, store)
 	}
 
-}
+	t.Run("lhsUnreadable", func(t *testing.T) {
+		defer recoverErrorOrFail(t, "In a: Required permissions r, but only have w")
+		st := NewStore()
+		i := &Interpreter{}
 
-func recoverErrorOrFail(t *testing.T, message string) {
-	if e := recover(); e == nil || !strings.Contains(fmt.Sprint(e), message) {
-		t.Fatalf("Unexpected error %s", e)
-	}
-}
+		e, _ := parser.ParseExpr("a + b")
+		st = st.Define(e.(*ast.BinaryExpr).X.(*ast.Ident), permission.Write)
+		st = st.Define(e.(*ast.BinaryExpr).Y.(*ast.Ident), permission.Read)
 
-func TestVisitBinaryExpr_notreadable(t *testing.T) {
-	defer recoverErrorOrFail(t, "In b: Required permissions r, but only have w")
+		i.VisitExpr(st, e)
+	})
+	t.Run("rhsUnreadable", func(t *testing.T) {
+		defer recoverErrorOrFail(t, "In b: Required permissions r, but only have w")
+		st := NewStore()
+		i := &Interpreter{}
 
-	st := NewStore()
-	i := &Interpreter{}
+		e, _ := parser.ParseExpr("a + b")
+		st = st.Define(e.(*ast.BinaryExpr).X.(*ast.Ident), permission.Read)
+		st = st.Define(e.(*ast.BinaryExpr).Y.(*ast.Ident), permission.Write)
 
-	e, _ := parser.ParseExpr("a + b")
-	st = st.Define(e.(*ast.BinaryExpr).X.(*ast.Ident), permission.Read)
-	st = st.Define(e.(*ast.BinaryExpr).Y.(*ast.Ident), permission.Write)
-
-	i.VisitExpr(st, e)
+		i.VisitExpr(st, e)
+	})
 }
