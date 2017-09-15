@@ -91,6 +91,8 @@ func TestVisitIndexExpr(t *testing.T) {
 		{"mutableMapNoCopyKey", "om map[om * om]om", "om * om", "om", []string{"a"}, "n map[n * r]n", "n * r"},
 		// a regular writable pointer is copyable. but beware: that's unsafe.
 		{"mutableMap", "om map[orw * orw]om", "orw * orw", "om", []string{"a"}, "n map[n * rw]n", "orw * orw"},
+		// we pass a mutable key where we only need r/o, the key is consumed.
+		{"mutableMap", "om map[or * or]om", "om * om", "om", []string{"a"}, "n map[n * r]n", "n * r"},
 	}
 
 	st := NewStore()
@@ -112,7 +114,7 @@ func TestVisitIndexExpr(t *testing.T) {
 
 			// Check dependencies
 			depsAsString := make([]string, len(deps))
-			for i, _ := range deps {
+			for i := range deps {
 				depsAsString[i] = deps[i].id.Name
 			}
 
