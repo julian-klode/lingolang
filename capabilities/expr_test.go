@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/parser"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -57,4 +58,73 @@ func TestVisitBinaryExpr(t *testing.T) {
 
 		i.VisitExpr(st, e)
 	})
+}
+
+func newPermission(input interface{}) permission.Permission {
+	switch input := input.(type) {
+	case string:
+		perm, err := permission.NewParser(input).Parse()
+		if err != nil {
+			panic(err)
+		}
+		return perm
+	case permission.Permission:
+		return input
+	}
+	panic("Not reachable")
+}
+
+func TestVisitIndexExpr(t *testing.T) {
+	testCases := []struct {
+		name         string
+		lhs          interface{}
+		rhs          interface{}
+		result       interface{}
+		dependencies []string
+		lhsAfter     interface{}
+		rhsAfter     interface{}
+	}{
+		{"mutableSlice", "om[]om", "om", "om", []string{"a"}, "n[]n", "om"},
+		{"mutableArray", "om[_]om", "om", "om", []string{"a"}, "n[_]n", "om"},
+		{"mutableMap", "om map[om]om", "om", "om", []string{"a"}, "n map[n]n", "om"},
+		// mutable map, non-copyable key: Item was moved into the map, it's gone now.
+		{"mutableMap", "om map[om * om]om", "om * om", "om", []string{"a"}, "n map[n * r]n", "n * r"},
+	}
+
+	st := NewStore()
+	i := &Interpreter{}
+	e, _ := parser.ParseExpr("a[b]")
+	lhs := e.(*ast.IndexExpr).X.(*ast.Ident)
+	rhs := e.(*ast.IndexExpr).Index.(*ast.Ident)
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			st = st.Define(lhs, newPermission(test.lhs))
+			st = st.Define(rhs, newPermission(test.rhs))
+
+			perm, deps, store := i.VisitExpr(st, e)
+
+			if !reflect.DeepEqual(newPermission(test.result), perm) {
+				t.Errorf("Evaluated to %v, expected %v", perm, newPermission(test.result))
+			}
+
+			// Check dependencies
+			depsAsString := make([]string, len(deps))
+			for i, _ := range deps {
+				depsAsString[i] = deps[i].id.Name
+			}
+
+			if !reflect.DeepEqual(depsAsString, test.dependencies) {
+				t.Errorf("Found dependencies %v, expected %v", depsAsString, test.dependencies)
+			}
+
+			if !reflect.DeepEqual(store.GetEffective(lhs), newPermission(test.lhsAfter)) {
+				t.Errorf("Found lhs after = %v, expected %v", store.GetEffective(lhs), newPermission(test.lhsAfter))
+			}
+			if !reflect.DeepEqual(store.GetEffective(rhs), newPermission(test.rhsAfter)) {
+				t.Errorf("Found lhs after = %v, expected %v", store.GetEffective(rhs), newPermission(test.rhsAfter))
+			}
+		})
+
+	}
 }

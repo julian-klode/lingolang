@@ -41,7 +41,7 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 		return i.visitIdent(st, e)
 		//return st.Assign(e, to)
 	case *ast.IndexExpr:
-		i.Error(e, "index expr")
+		return i.visitIndexExpr(st, e)
 	case *ast.ParenExpr:
 		return i.VisitExpr(st, e.X)
 	case *ast.SelectorExpr:
@@ -62,8 +62,12 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 
 // Release Releases all borrowed objects, and restores their previous permissions.
 func (i *Interpreter) Release(node ast.Node, st Store, undo []Borrowed) Store {
+	var err error
 	for _, b := range undo {
-		st.SetEffective(b.id, b.perm)
+		st, err = st.SetEffective(b.id, b.perm)
+		if err != nil {
+			i.Error(node, "Cannot release borrowed variable %s: %s", b.id, err)
+		}
 	}
 	return st
 }
@@ -82,7 +86,14 @@ func (i *Interpreter) Assert(node ast.Node, subject permission.Permission, has p
 func (i *Interpreter) visitIdent(st Store, e *ast.Ident) (permission.Permission, []Borrowed, Store) {
 	perm := st.GetEffective(e)
 	borrowed := []Borrowed{{e, perm}}
-	st.SetEffective(e, &permission.WildcardPermission{})
+	dead, err := permission.ConvertTo(perm, permission.None)
+	if err != nil {
+		i.Error(e, "Cannot borrow identifier: %s", err)
+	}
+	st, err = st.SetEffective(e, dead)
+	if err != nil {
+		i.Error(e, "Cannot borrow identifier: %s", err)
+	}
 	return perm, borrowed, st
 }
 
@@ -132,6 +143,8 @@ func (i *Interpreter) visitIndexExpr(st Store, e *ast.IndexExpr) (permission.Per
 		if copy || permission.MovableTo(p2, p1.KeyPermission) {
 			return p1.ValuePermission, deps1, st
 		}
+
+		i.Error(e, "Cannot move or copy from %s to %s", p2, p1.KeyPermission)
 	}
 
 	i.Error(e, "Indexing unknown type")
