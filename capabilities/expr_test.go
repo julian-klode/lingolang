@@ -88,7 +88,9 @@ func TestVisitIndexExpr(t *testing.T) {
 		{"mutableArray", "om[_]om", "om", "om", []string{"a"}, "n[_]n", "om"},
 		{"mutableMap", "om map[om]om", "om", "om", []string{"a"}, "n map[n]n", "om"},
 		// mutable map, non-copyable key: Item was moved into the map, it's gone now.
-		{"mutableMap", "om map[om * om]om", "om * om", "om", []string{"a"}, "n map[n * r]n", "n * r"},
+		{"mutableMapNoCopyKey", "om map[om * om]om", "om * om", "om", []string{"a"}, "n map[n * r]n", "n * r"},
+		// a regular writable pointer is copyable. but beware: that's unsafe.
+		{"mutableMap", "om map[orw * orw]om", "orw * orw", "om", []string{"a"}, "n map[n * rw]n", "orw * orw"},
 	}
 
 	st := NewStore()
