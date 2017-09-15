@@ -86,7 +86,7 @@ func TestStore_getset(t *testing.T) {
 	if block.GetMaximum(b) != nil {
 		t.Fatalf("%v has max perm %v expected %v", b, block.GetMaximum(b), nil)
 	}
-	err := block.SetMaximum(a, permission.ReadOnly)
+	block, err := block.SetMaximum(a, permission.ReadOnly)
 	if err != nil {
 		t.Fatalf("setting maximum produced error %v", err)
 	}
@@ -105,7 +105,7 @@ func TestStore_SetEffectiveSetMaximum(t *testing.T) {
 	block = block.Define(a, permission.Mutable)
 	block = block.Define(b, permission.ReadOnly)
 
-	err := block.SetEffective(a, permission.None)
+	block, err := block.SetEffective(a, permission.None)
 	if err != nil {
 		t.Fatalf("setting effective produced error %v", err)
 	}
@@ -115,7 +115,7 @@ func TestStore_SetEffectiveSetMaximum(t *testing.T) {
 	if block.GetMaximum(a) != permission.Mutable {
 		t.Fatalf("%v has max perm %v expected %v", a, block.GetMaximum(a), permission.Mutable)
 	}
-	err = block.SetEffective(b, permission.Mutable)
+	block, err = block.SetEffective(b, permission.Mutable)
 	if err != nil {
 		t.Fatalf("setting effective produced error %v", err)
 	}
@@ -127,17 +127,20 @@ func TestStore_SetEffectiveSetMaximum(t *testing.T) {
 	}
 
 	// Check that setting an invalid maximum does not change value
-	err = block.SetMaximum(b, &permission.InterfacePermission{BasePermission: permission.ReadOnly})
+	block1, err := block.SetMaximum(b, &permission.InterfacePermission{BasePermission: permission.ReadOnly})
+	if block1 != nil {
+		t.Errorf("setting max produced a block")
+	}
 	if err == nil {
 		t.Errorf("setting max produced no error despite max being other shape")
 	} else if !strings.Contains(err.Error(), "restrict effective") {
 		t.Errorf("received error %s when setting iface max with primitive eff, expected restrictment error", err)
 	}
-	if block.GetEffective(b) != permission.ReadOnly {
-		t.Fatalf("%v has effective perm %v expected %v", b, block.GetEffective(b), permission.ReadOnly)
-	}
 	if block.GetMaximum(b) != permission.ReadOnly {
 		t.Fatalf("%v has max perm %v expected %v", b, block.GetMaximum(b), permission.ReadOnly)
+	}
+	if block.GetEffective(b) != permission.ReadOnly {
+		t.Fatalf("%v has effective perm %v expected %v", b, block.GetEffective(b), permission.ReadOnly)
 	}
 	if block.GetEffective(b) != permission.ReadOnly {
 		t.Fatalf("%v has effective perm %v expected %v", b, block.GetEffective(b), permission.ReadOnly)
@@ -150,7 +153,10 @@ func TestStore_SetEffectiveSetMaximum(t *testing.T) {
 	// anything
 	complexPerm := &permission.InterfacePermission{BasePermission: permission.ReadOnly}
 	block[0].max = complexPerm
-	err = block.SetEffective(b, permission.Mutable)
+	block1, err = block.SetEffective(b, permission.Mutable)
+	if block1 != nil {
+		t.Errorf("setting effective produced a result despite max being other shape")
+	}
 	if err == nil {
 		t.Errorf("setting effective produced no error despite max being other shape")
 	} else if !strings.Contains(err.Error(), "restrict effective") {

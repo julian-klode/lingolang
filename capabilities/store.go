@@ -96,17 +96,18 @@ func (st Store) Define(ident *ast.Ident, perm permission.Permission) Store {
 //
 // The effective permission is limited to the maximum permission that the
 // variable can have.
-//
-// TODO(jak): Make copy on write?
-func (st Store) SetEffective(ident *ast.Ident, perm permission.Permission) error {
+func (st Store) SetEffective(ident *ast.Ident, perm permission.Permission) (Store, error) {
+	st1 := make(Store, len(st))
+	copy(st1, st)
+	st = st1
 	for i, v := range st {
 		if v.ident == ident {
 			eff, err := permission.Intersect(st[i].max, perm)
 			if err != nil {
-				return fmt.Errorf("Cannot restrict effective permission of %s to new max: %s", v.ident, err.Error())
+				return nil, fmt.Errorf("Cannot restrict effective permission of %s to new max: %s", v.ident, err.Error())
 			}
 			st[i].eff = eff
-			return nil
+			return st, nil
 		}
 	}
 	panic("Program error: Setting a nonexisting variable")
@@ -117,17 +118,19 @@ func (st Store) SetEffective(ident *ast.Ident, perm permission.Permission) error
 // Lowering the maximum permission also lowers the effective permission if
 // they would otherwise exceed the maximum.
 //
-// TODO(jak): Make copy on write?
-func (st Store) SetMaximum(ident *ast.Ident, perm permission.Permission) error {
+func (st Store) SetMaximum(ident *ast.Ident, perm permission.Permission) (Store, error) {
+	st1 := make(Store, len(st))
+	copy(st1, st)
+	st = st1
 	for i, v := range st {
 		if v.ident == ident {
 			eff, err := permission.Intersect(st[i].eff, perm)
 			if err != nil {
-				return fmt.Errorf("Cannot restrict effective permission of %s to new max: %s", v.ident, err.Error())
+				return nil, fmt.Errorf("Cannot restrict effective permission of %s to new max: %s", v.ident, err.Error())
 			}
 			st[i].eff = eff
 			st[i].max = perm
-			return nil
+			return st, nil
 		}
 	}
 	panic("Program error: Setting a nonexisting variable")
