@@ -81,6 +81,19 @@ func newPermission(input interface{}) permission.Permission {
 
 type errorResult string
 
+func TestVisitIdent(t *testing.T) {
+	st := Store{
+		{ast.NewIdent("x"), newPermission("om[]om"), newPermission("om")},
+	}
+	i := &Interpreter{}
+	runFuncRecover(t, "Unknown variable", func() {
+		i.VisitExpr(st, ast.NewIdent("a"))
+	})
+	runFuncRecover(t, "Cannot restrict effective permission", func() {
+		i.VisitExpr(st, st[0].ident)
+	})
+}
+
 func TestVisitIndexExpr(t *testing.T) {
 	testCases := []struct {
 		name         string
