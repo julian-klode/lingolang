@@ -20,6 +20,11 @@ func recoverErrorOrFail(t *testing.T, message string) {
 	}
 }
 
+func runFuncRecover(t *testing.T, message string, block func()) {
+	defer recoverErrorOrFail(t, message)
+	block()
+}
+
 func TestVisitBinaryExpr(t *testing.T) {
 	st := NewStore()
 	i := &Interpreter{}
@@ -74,6 +79,8 @@ func newPermission(input interface{}) permission.Permission {
 	panic("Not reachable")
 }
 
+type errorResult string
+
 func TestVisitIndexExpr(t *testing.T) {
 	testCases := []struct {
 		name         string
@@ -90,9 +97,13 @@ func TestVisitIndexExpr(t *testing.T) {
 		// mutable map, non-copyable key: Item was moved into the map, it's gone now.
 		{"mutableMapNoCopyKey", "om map[om * om]om", "om * om", "om", []string{"a"}, "n map[n * r]n", "n * r"},
 		// a regular writable pointer is copyable. but beware: that's unsafe.
-		{"mutableMap", "om map[orw * orw]om", "orw * orw", "om", []string{"a"}, "n map[n * rw]n", "orw * orw"},
+		{"mutableMapCopyablePointerKey", "om map[orw * orw]om", "orw * orw", "om", []string{"a"}, "n map[n * rw]n", "orw * orw"},
 		// we pass a mutable key where we only need r/o, the key is consumed.
-		{"mutableMap", "om map[or * or]om", "om * om", "om", []string{"a"}, "n map[n * r]n", "n * r"},
+		{"mutableMapFreeze", "om map[or * or]om", "om * om", "om", []string{"a"}, "n map[n * r]n", "n * r"},
+		{"notIndexable", "or", "ov", errorResult("Indexing unknown"), nil, "", ""},
+		{"keyNotReadable", "om[] om", "ow", errorResult("Required permission"), nil, "", ""},
+		{"indexableNotReadable", "on[] on", "or", errorResult("Required permission"), nil, "", ""},
+		{"mutableMapInvalidKey", "or map[om * om]ov", "ov * ov", errorResult("move or copy"), nil, "", ""},
 	}
 
 	st := NewStore()
@@ -105,6 +116,13 @@ func TestVisitIndexExpr(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			st = st.Define(lhs, newPermission(test.lhs))
 			st = st.Define(rhs, newPermission(test.rhs))
+
+			if eResult, ok := test.result.(errorResult); ok {
+				runFuncRecover(t, string(eResult), func() {
+					i.VisitExpr(st, e)
+				})
+				return
+			}
 
 			perm, deps, store := i.VisitExpr(st, e)
 
