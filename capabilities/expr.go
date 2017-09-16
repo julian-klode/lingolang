@@ -48,7 +48,7 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 	case *ast.SelectorExpr:
 		return i.Error(e, "selector expressions not yet implemented")
 	case *ast.SliceExpr:
-		return i.Error(e, "slicing not yet implemented")
+		return i.visitSliceExpr(st, e)
 	case *ast.StarExpr:
 		return i.visitStarExpr(st, e)
 	case *ast.TypeAssertExpr:
@@ -212,4 +212,33 @@ func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr) (permission.Permi
 		return i.Error(e, "Cannot call non-function object %v", fun)
 	}
 
+}
+
+func (i *Interpreter) visitSliceExpr(st Store, e *ast.SliceExpr) (permission.Permission, []Borrowed, Store) {
+	arr, arrDeps, st := i.VisitExpr(st, e.X)
+	low, lowDeps, st := i.VisitExpr(st, e.Low)
+	high, highDeps, st := i.VisitExpr(st, e.High)
+	max, maxDeps, st := i.VisitExpr(st, e.Max)
+
+	if e.Low != nil {
+		i.Assert(e.Low, low, permission.Read)
+	}
+	if e.High != nil {
+		i.Assert(e.High, high, permission.Read)
+	}
+	if e.Max != nil {
+		i.Assert(e.Max, max, permission.Read)
+	}
+
+	st = i.Release(e, st, maxDeps)
+	st = i.Release(e, st, highDeps)
+	st = i.Release(e, st, lowDeps)
+
+	switch arr := arr.(type) {
+	case *permission.ArrayPermission:
+		return &permission.SlicePermission{BasePermission: permission.Owned | permission.Mutable, ElementPermission: arr.ElementPermission}, arrDeps, st
+	case *permission.SlicePermission:
+		return &permission.SlicePermission{BasePermission: permission.Owned | permission.Mutable, ElementPermission: arr.ElementPermission}, arrDeps, st
+	}
+	return i.Error(e, "Cannot create slice of %v - not sliceable", arr)
 }
