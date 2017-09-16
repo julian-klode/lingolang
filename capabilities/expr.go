@@ -27,7 +27,7 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 	}
 	switch e := e.(type) {
 	case *ast.BadExpr:
-		i.Error(e, "Bad expression")
+		return i.Error(e, "Reached a bad expression - this should not happen")
 	case *ast.BasicLit:
 		return i.visitBasicLit(st, e)
 	case *ast.BinaryExpr:
@@ -35,9 +35,9 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 	case *ast.CallExpr:
 		return i.visitCallExpr(st, e)
 	case *ast.CompositeLit:
-		i.Error(e, "composite literal")
+		return i.Error(e, "composite literal not yet implemented")
 	case *ast.FuncLit:
-		i.Error(e, "fun lit")
+		return i.Error(e, "function literals not yet implemented")
 	case *ast.Ident:
 		return i.visitIdent(st, e)
 		//return st.Assign(e, to)
@@ -46,13 +46,13 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 	case *ast.ParenExpr:
 		return i.VisitExpr(st, e.X)
 	case *ast.SelectorExpr:
-		i.Error(e, "index expr")
+		return i.Error(e, "selector expressions not yet implemented")
 	case *ast.SliceExpr:
-		i.Error(e, "slice")
+		return i.Error(e, "slicing not yet implemented")
 	case *ast.StarExpr:
 		return i.visitStarExpr(st, e)
 	case *ast.TypeAssertExpr:
-		i.Error(e, "type Assert")
+		return i.Error(e, "type assertion not yet implemented")
 	case *ast.UnaryExpr:
 		return i.visitUnaryExpr(st, e)
 	}
