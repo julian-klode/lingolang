@@ -92,7 +92,9 @@ func TestVisitExpr(t *testing.T) {
 		{"-b", "mutableNegation", nil, "om", "om", []string{}, nil, "om"},
 		{"&b", "mutableNegation", nil, "om", "om * om", []string{"b"}, nil, "n"},
 		{"&b", "mutableNegation", nil, "or", "om * or", []string{"b"}, nil, "n"},
-
+		// Parens
+		{"(b)", "parenMut", nil, "om", "om", []string{"b"}, nil, "n"},
+		{"(b)", "parenPoint", nil, "om * om", "om * om", []string{"b"}, nil, "n * r"},
 		// Function calls
 		{"a(b)", "call1", "om func(om * om) or", "om * om", "or", []string{}, "om func(om * om) or", "n * r"},
 		{"a(b)", "call1", "om func(om) or", "om", "or", []string{}, "om func(om) or", "om"},
