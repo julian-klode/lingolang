@@ -26,8 +26,6 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 		return permission.None, nil, st
 	}
 	switch e := e.(type) {
-	case *ast.BadExpr:
-		return i.Error(e, "Reached a bad expression - this should not happen")
 	case *ast.BasicLit:
 		return i.visitBasicLit(st, e)
 	case *ast.BinaryExpr:
@@ -56,7 +54,7 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 	case *ast.UnaryExpr:
 		return i.visitUnaryExpr(st, e)
 	}
-	return nil, nil, nil
+	return i.Error(e, "Reached a bad expression %v - this should not happen", e)
 }
 
 // Release Releases all borrowed objects, and restores their previous permissions.

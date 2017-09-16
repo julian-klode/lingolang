@@ -178,3 +178,11 @@ func TestVisitExpr(t *testing.T) {
 
 	}
 }
+
+func TestVisitExpr_bad(t *testing.T) {
+	var i Interpreter
+	var st Store
+	runFuncRecover(t, "bad expr", func() {
+		i.VisitExpr(st, &ast.BadExpr{})
+	})
+}
