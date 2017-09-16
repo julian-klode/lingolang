@@ -113,7 +113,6 @@ func (i *Interpreter) visitBinaryExpr(st Store, e *ast.BinaryExpr) (permission.P
 	st = i.Release(e, st, ldeps)
 	st = i.Release(e, st, rdeps)
 	return permission.Owned | permission.Mutable, nil, st
-
 }
 
 // An index expression has the form A[B] and needs read permissions for both A and
@@ -179,6 +178,4 @@ func (i *Interpreter) visitUnaryExpr(st Store, e *ast.UnaryExpr) (permission.Per
 		st = i.Release(e, st, deps1)
 		return permission.Owned | permission.Mutable, nil, st
 	}
-
-	return i.Error(e, "Trying to dereference non-pointer %v", p1)
 }
