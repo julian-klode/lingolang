@@ -163,3 +163,59 @@ func TestVisitIndexExpr(t *testing.T) {
 
 	}
 }
+
+func TestVisitStarExpr(t *testing.T) {
+	testCases := []struct {
+		name         string
+		lhs          interface{}
+		rhs          interface{}
+		result       interface{}
+		dependencies []string
+		lhsAfter     interface{}
+		rhsAfter     interface{}
+	}{
+		{"mutablePointer", "", "om * om", "om", []string{"b"}, "", "n * r"},
+		{"mutablePointerReadTarget", "", "om * or", "or", []string{"b"}, "", "n * r"},
+		{"readOnlyPointer", "", "or * or", "or", []string{"b"}, "", "n * r"},
+		{"noPointer", "", "or", errorResult("non-pointer"), []string{"b"}, "", "n * r"},
+	}
+
+	st := NewStore()
+	i := &Interpreter{}
+	e, _ := parser.ParseExpr("*b")
+	rhs := e.(*ast.StarExpr).X.(*ast.Ident)
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			st = st.Define(rhs, newPermission(test.rhs))
+
+			if eResult, ok := test.result.(errorResult); ok {
+				runFuncRecover(t, string(eResult), func() {
+					i.VisitExpr(st, e)
+				})
+				return
+			}
+
+			perm, deps, store := i.VisitExpr(st, e)
+
+			if !reflect.DeepEqual(newPermission(test.result), perm) {
+				t.Errorf("Evaluated to %v, expected %v", perm, newPermission(test.result))
+			}
+
+			// Check dependencies
+			depsAsString := make([]string, len(deps))
+			for i := range deps {
+				depsAsString[i] = deps[i].id.Name
+			}
+
+			if !reflect.DeepEqual(depsAsString, test.dependencies) {
+				t.Errorf("Found dependencies %v, expected %v", depsAsString, test.dependencies)
+			}
+
+			if !reflect.DeepEqual(store.GetEffective(rhs), newPermission(test.rhsAfter)) {
+				t.Errorf("Found lhs after = %v, expected %v", store.GetEffective(rhs), newPermission(test.rhsAfter))
+			}
+		})
+
+	}
+}

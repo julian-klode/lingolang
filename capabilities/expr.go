@@ -49,7 +49,7 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 	case *ast.SliceExpr:
 		i.Error(e, "slice")
 	case *ast.StarExpr:
-		i.Error(e, "star")
+		return i.visitStarExpr(st, e)
 	case *ast.TypeAssertExpr:
 		i.Error(e, "type Assert")
 	case *ast.UnaryExpr:
@@ -73,7 +73,7 @@ func (i *Interpreter) Release(node ast.Node, st Store, undo []Borrowed) Store {
 }
 
 // Assert asserts that the base permissions of subject are a superset or the same as has.
-func (i *Interpreter) Error(node ast.Node, format string, args ...interface{}) {
+func (i *Interpreter) Error(node ast.Node, format string, args ...interface{}) (permission.Permission, []Borrowed, Store) {
 	panic(fmt.Errorf("%v: In %s: %s", node.Pos(), node, fmt.Sprintf(format, args...)))
 }
 
@@ -152,4 +152,16 @@ func (i *Interpreter) visitIndexExpr(st Store, e *ast.IndexExpr) (permission.Per
 
 	i.Error(e, "Indexing unknown type")
 	return nil, nil, nil
+}
+
+func (i *Interpreter) visitStarExpr(st Store, e *ast.StarExpr) (permission.Permission, []Borrowed, Store) {
+	p1, deps1, st := i.VisitExpr(st, e.X)
+	i.Assert(e.X, p1, permission.Read)
+
+	switch p1 := p1.(type) {
+	case *permission.PointerPermission:
+		return p1.Target, deps1, st
+	}
+
+	return i.Error(e, "Trying to dereference non-pointer %v", p1)
 }
