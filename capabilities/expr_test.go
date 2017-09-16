@@ -39,8 +39,6 @@ func newPermission(input interface{}) permission.Permission {
 	panic("Not reachable")
 }
 
-type errorResult string
-
 func TestVisitIdent(t *testing.T) {
 	st := Store{
 		{ast.NewIdent("x"), newPermission("om[]om"), newPermission("om")},
@@ -55,6 +53,8 @@ func TestVisitIdent(t *testing.T) {
 }
 
 func TestVisitExpr(t *testing.T) {
+	type errorResult string
+
 	testCases := []struct {
 		expr         string
 		name         string
