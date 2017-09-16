@@ -92,6 +92,12 @@ func TestVisitExpr(t *testing.T) {
 		{"-b", "mutableNegation", nil, "om", "om", []string{}, nil, "om"},
 		{"&b", "mutableNegation", nil, "om", "om * om", []string{"b"}, nil, "n"},
 		{"&b", "mutableNegation", nil, "or", "om * or", []string{"b"}, nil, "n"},
+
+		// Function calls
+		{"a(b)", "call1", "om func(om * om) or", "om * om", "or", []string{}, "om func(om * om) or", "n * r"},
+		{"a(b)", "call1", "om func(om) or", "om", "or", []string{}, "om func(om) or", "om"},
+		{"a(b)", "call1", "om func(om)", "om", "n", []string{}, "om func(om)", "om"},
+		{"a(b)", "call1", "om func(om) n", "om", "n", []string{}, "om func(om) n", "om"},
 	}
 
 	for _, test := range testCases {
@@ -148,7 +154,7 @@ func TestVisitExpr(t *testing.T) {
 				t.Errorf("Found lhs after = %v, expected %v", store.GetEffective(lhs), newPermission(test.lhsAfter))
 			}
 			if rhs != nil && !reflect.DeepEqual(store.GetEffective(rhs), newPermission(test.rhsAfter)) {
-				t.Errorf("Found lhs after = %v, expected %v", store.GetEffective(rhs), newPermission(test.rhsAfter))
+				t.Errorf("Found rhs after = %v, expected %v", store.GetEffective(rhs), newPermission(test.rhsAfter))
 			}
 		})
 

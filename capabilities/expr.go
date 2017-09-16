@@ -33,7 +33,7 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 	case *ast.BinaryExpr:
 		return i.visitBinaryExpr(st, e)
 	case *ast.CallExpr:
-		i.Error(e, "call")
+		return i.visitCallExpr(st, e)
 	case *ast.CompositeLit:
 		i.Error(e, "composite literal")
 	case *ast.FuncLit:
@@ -178,4 +178,36 @@ func (i *Interpreter) visitUnaryExpr(st Store, e *ast.UnaryExpr) (permission.Per
 		st = i.Release(e, st, deps1)
 		return permission.Owned | permission.Mutable, nil, st
 	}
+}
+
+func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr) (permission.Permission, []Borrowed, Store) {
+	fun, funDeps, st := i.VisitExpr(st, e.Fun)
+
+	switch fun := fun.(type) {
+	case *permission.FuncPermission:
+		for j, arg := range e.Args {
+			argPerm, argDeps, store := i.VisitExpr(st, arg)
+			st = store
+
+			if permission.CopyableTo(argPerm, fun.Params[j]) {
+				st = i.Release(e, st, argDeps)
+			} else if !permission.MovableTo(argPerm, fun.Params[j]) {
+				return i.Error(arg, "Cannot copy or move to parameter: Needed %#v, received %#v", fun.Params[j], argPerm)
+			}
+
+		}
+
+		// Call is done, release function permissions
+		i.Release(e, st, funDeps)
+
+		// FIXME: Multiple function results missing :(
+		if len(fun.Results) > 0 {
+			return fun.Results[0], nil, st
+		} else {
+			return permission.None, nil, st
+		}
+	default:
+		return i.Error(e, "Cannot call non-function object %v", fun)
+	}
+
 }
