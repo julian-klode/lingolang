@@ -112,7 +112,7 @@ func (i *Interpreter) visitBinaryExpr(st Store, e *ast.BinaryExpr) (permission.P
 	st = i.Release(e, st, ldeps)
 	st = i.Release(e, st, rdeps)
 
-	return permission.Mutable, nil, st
+	return permission.Owned | permission.Mutable, nil, st
 }
 
 // An index expression has the form A[B] and needs read permissions for both A and
