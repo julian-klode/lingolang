@@ -55,8 +55,6 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 		i.Error(e, "type Assert")
 	case *ast.UnaryExpr:
 		return i.visitUnaryExpr(st, e)
-	default:
-		e.End()
 	}
 	return nil, nil, nil
 }
