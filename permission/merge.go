@@ -103,6 +103,16 @@ func ConvertTo(perm Permission, goal Permission) (result Permission, err error) 
 	return
 }
 
+// ConvertToBase converts a permission to a base permission, by limiting all
+// inner permissions to make things consistent.
+func ConvertToBase(perm Permission, goal BasePermission) Permission {
+	result := convertToBase(perm, goal, (*convertToBaseState)(&mergeState{make(map[mergeStateKey]Permission), mergeConversion}))
+	if reflect.DeepEqual(result, perm) {
+		result = perm
+	}
+	return result
+}
+
 // Intersect takes two permissions and returns a permission that is a subset
 // of both. An intersection can be used to join permissions from two branches:
 // Given if { v has permission A } else { v has permission B }, the permission

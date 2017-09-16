@@ -144,6 +144,12 @@ func TestConvertTo(t *testing.T) {
 				t.Fatalf("Invalid result %v", testCase.result)
 			}
 
+			if goal, ok := goal.(BasePermission); ok {
+				realResult := ConvertToBase(perm, goal)
+				if !reflect.DeepEqual(realResult, result) {
+					t.Errorf("Unexpected result %v, expected %v (%v)", realResult, result, testCase.result)
+				}
+			}
 			realResult, err := ConvertTo(perm, goal)
 			if !reflect.DeepEqual(realResult, result) {
 				t.Errorf("Unexpected result %v, expected %v (%v)", realResult, result, testCase.result)
