@@ -6,6 +6,7 @@ package capabilities
 import (
 	"fmt"
 	"go/ast"
+	"go/token"
 
 	"github.com/julian-klode/lingolang/permission"
 )
@@ -53,7 +54,7 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 	case *ast.TypeAssertExpr:
 		i.Error(e, "type Assert")
 	case *ast.UnaryExpr:
-		i.Error(e, "unary")
+		return i.visitUnaryExpr(st, e)
 	default:
 		e.End()
 	}
@@ -111,8 +112,8 @@ func (i *Interpreter) visitBinaryExpr(st Store, e *ast.BinaryExpr) (permission.P
 	// Ensures: Undo = nil
 	st = i.Release(e, st, ldeps)
 	st = i.Release(e, st, rdeps)
-
 	return permission.Owned | permission.Mutable, nil, st
+
 }
 
 // An index expression has the form A[B] and needs read permissions for both A and
@@ -161,6 +162,22 @@ func (i *Interpreter) visitStarExpr(st Store, e *ast.StarExpr) (permission.Permi
 	switch p1 := p1.(type) {
 	case *permission.PointerPermission:
 		return p1.Target, deps1, st
+	}
+
+	return i.Error(e, "Trying to dereference non-pointer %v", p1)
+}
+func (i *Interpreter) visitUnaryExpr(st Store, e *ast.UnaryExpr) (permission.Permission, []Borrowed, Store) {
+	p1, deps1, st := i.VisitExpr(st, e.X)
+	i.Assert(e.X, p1, permission.Read)
+
+	switch e.Op {
+	case token.AND:
+		return &permission.PointerPermission{
+			BasePermission: permission.Owned | permission.Mutable,
+			Target:         p1}, deps1, st
+	default:
+		st = i.Release(e, st, deps1)
+		return permission.Owned | permission.Mutable, nil, st
 	}
 
 	return i.Error(e, "Trying to dereference non-pointer %v", p1)
