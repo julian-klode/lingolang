@@ -98,6 +98,12 @@ func TestVisitExpr(t *testing.T) {
 		{"a(b)", "call1", "om func(om) or", "om", "or", []string{}, "om func(om) or", "om"},
 		{"a(b)", "call1", "om func(om)", "om", "n", []string{}, "om func(om)", "om"},
 		{"a(b)", "call1", "om func(om) n", "om", "n", []string{}, "om func(om) n", "om"},
+		// Basic lit
+		{"127", "basicLitInt", nil, nil, "om", []string{}, nil, nil},
+		{"127.1", "basicLitFloat", nil, nil, "om", []string{}, nil, nil},
+		{"0i", "basicLitImag", nil, nil, "om", []string{}, nil, nil},
+		{"'c'", "basicLitChar", nil, nil, "om", []string{}, nil, nil},
+		{"\"string\"", "basicLitString", nil, nil, "om", []string{}, nil, nil},
 	}
 
 	for _, test := range testCases {
@@ -120,6 +126,7 @@ func TestVisitExpr(t *testing.T) {
 				}
 				return true
 			})
+
 			if lhs != nil {
 				st = st.Define(lhs, newPermission(test.lhs))
 			}

@@ -29,7 +29,7 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 	case *ast.BadExpr:
 		i.Error(e, "Bad expression")
 	case *ast.BasicLit:
-		i.Error(e, "basic literal")
+		return i.visitBasicLit(st, e)
 	case *ast.BinaryExpr:
 		return i.visitBinaryExpr(st, e)
 	case *ast.CallExpr:
@@ -178,6 +178,10 @@ func (i *Interpreter) visitUnaryExpr(st Store, e *ast.UnaryExpr) (permission.Per
 		st = i.Release(e, st, deps1)
 		return permission.Owned | permission.Mutable, nil, st
 	}
+}
+
+func (i *Interpreter) visitBasicLit(st Store, e *ast.BasicLit) (permission.Permission, []Borrowed, Store) {
+	return permission.Owned | permission.Mutable, nil, st
 }
 
 func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr) (permission.Permission, []Borrowed, Store) {
