@@ -109,6 +109,7 @@ func TestVisitExpr(t *testing.T) {
 		// Slice
 		{"a[:]", "sliceAllArr", "om [_]ov", nil, "om []ov", []string{"a"}, "n [_]n", nil},
 		{"a[:]", "sliceAllSlice", "om []ov", nil, "om []ov", []string{"a"}, "n []n", nil},
+		{"a[:]", "sliceAllSliceRo", "or []or", nil, "or []or", []string{"a"}, "n []n", nil},
 		{"a[:b]", "sliceHigh", "om []ov", "om", "om []ov", []string{"a"}, "n []n", "om"},
 		{"a[b:2:3]", "sliceMin", "om []ov", "om", "om []ov", []string{"a"}, "n []n", "om"},
 		{"a[1:2:b]", "sliceMax", "om []ov", "om", "om []ov", []string{"a"}, "n []n", "om"},

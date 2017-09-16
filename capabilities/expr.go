@@ -238,7 +238,7 @@ func (i *Interpreter) visitSliceExpr(st Store, e *ast.SliceExpr) (permission.Per
 	case *permission.ArrayPermission:
 		return &permission.SlicePermission{BasePermission: permission.Owned | permission.Mutable, ElementPermission: arr.ElementPermission}, arrDeps, st
 	case *permission.SlicePermission:
-		return &permission.SlicePermission{BasePermission: permission.Owned | permission.Mutable, ElementPermission: arr.ElementPermission}, arrDeps, st
+		return arr, arrDeps, st
 	}
 	return i.Error(e, "Cannot create slice of %v - not sliceable", arr)
 }
