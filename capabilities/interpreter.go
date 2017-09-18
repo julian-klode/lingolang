@@ -198,6 +198,7 @@ func (i *Interpreter) visitBasicLit(st Store, e *ast.BasicLit) (permission.Permi
 func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr) (permission.Permission, []Borrowed, Store) {
 	fun, funDeps, st := i.VisitExpr(st, e.Fun)
 
+	var accumulatedUnownedDeps []Borrowed
 	switch fun := fun.(type) {
 	case *permission.FuncPermission:
 		for j, arg := range e.Args {
@@ -206,14 +207,19 @@ func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr) (permission.Permi
 
 			if permission.CopyableTo(argPerm, fun.Params[j]) {
 				st = i.Release(e, st, argDeps)
-			} else if !permission.MovableTo(argPerm, fun.Params[j]) {
+			} else if permission.MovableTo(argPerm, fun.Params[j]) {
+				if fun.Params[j].GetBasePermission()&permission.Owned == 0 {
+					accumulatedUnownedDeps = append(accumulatedUnownedDeps, argDeps...)
+				}
+			} else {
 				return i.Error(arg, "Cannot copy or move to parameter: Needed %#v, received %#v", fun.Params[j], argPerm)
 			}
 
 		}
 
 		// Call is done, release function permissions
-		i.Release(e, st, funDeps)
+		st = i.Release(e, st, accumulatedUnownedDeps) // TODO(jak): Is order important?
+		st = i.Release(e, st, funDeps)
 
 		if len(fun.Results) == 1 {
 			return fun.Results[0], nil, st
