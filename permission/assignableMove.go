@@ -37,7 +37,7 @@ func (perm BasePermission) isMovableTo(p2 Permission, state assignableState) boo
 	if !ok {
 		return false
 	}
-	return perm2&^perm == 0
+	return perm&Read != 0 && perm2&^perm == 0
 }
 
 func (p *PointerPermission) isMovableTo(p2 Permission, state assignableState) bool {
@@ -108,7 +108,7 @@ func (p *FuncPermission) isMovableTo(p2 Permission, state assignableState) bool 
 	switch p2 := p2.(type) {
 	case *FuncPermission:
 		// Ownership needs to be respected
-		if !movableTo(p.BasePermission&Owned, p2.BasePermission&Owned, state) {
+		if p.BasePermission&Owned == 0 && p2.BasePermission&Owned != 0 {
 			return false
 		}
 		// We cannot assign a mutable function to a value function, but vice
