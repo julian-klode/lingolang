@@ -190,7 +190,7 @@ func TestStore_panic(t *testing.T) {
 func TestStore_Merge(t *testing.T) {
 	// Test case 1: Succesful merge
 	st1 := make(Store, 1)
-	st1[0].ident = ast.NewIdent("a")
+	st1[0].name = "a"
 	st1[0].eff = &permission.InterfacePermission{BasePermission: permission.ReadOnly}
 	st1[0].max = &permission.InterfacePermission{BasePermission: permission.Mutable}
 	st11, err := st1.Merge(st1)
@@ -201,7 +201,7 @@ func TestStore_Merge(t *testing.T) {
 	}
 	// Test case 2 a) Incompatible effective permissions
 	st2a := make(Store, 1)
-	st2a[0].ident = st1[0].ident
+	st2a[0].name = st1[0].name
 	st2a[0].eff = permission.ReadOnly
 	st2a[0].max = permission.Mutable
 	st12a, err := st1.Merge(st2a)
@@ -213,7 +213,7 @@ func TestStore_Merge(t *testing.T) {
 
 	// Test case 2 b) Incompatible effective permissions
 	st2b := make(Store, 1)
-	st2b[0].ident = st1[0].ident
+	st2b[0].name = st1[0].name
 	st2b[0].eff = st1[0].eff
 	st2b[0].max = permission.Mutable
 	st12b, err := st1.Merge(st2b)
@@ -225,7 +225,7 @@ func TestStore_Merge(t *testing.T) {
 
 	// Test case 3: Different identifiers
 	st3 := make(Store, 1)
-	st3[0].ident = ast.NewIdent("b")
+	st3[0].name = "b"
 	st3[0].eff = permission.ReadOnly
 	st3[0].max = permission.Mutable
 	st13, err := st1.Merge(st3)

@@ -17,9 +17,9 @@ import (
 // effective, and a maximum one. As a special case, if ident is nil, the
 // item acts marks the beginning of a new frame.
 type Store []struct {
-	ident *ast.Ident
-	eff   permission.Permission
-	max   permission.Permission
+	name string
+	eff  permission.Permission
+	max  permission.Permission
 }
 
 // NewStore returns a new, empty Store
@@ -50,7 +50,7 @@ func (st Store) BeginBlock() Store {
 // EndBlock returns a slice of the input describing the parent block.
 func (st Store) EndBlock() Store {
 	for i, v := range st {
-		if v.ident == nil {
+		if v.name == "" {
 			return st[i+1:]
 		}
 	}
@@ -64,17 +64,17 @@ func (st Store) Merge(st2 Store) (Store, error) {
 	st3 := make(Store, len(st))
 
 	for i, v := range st {
-		if st[i].ident != st2[i].ident {
-			return nil, fmt.Errorf("Invalid merge: Different identifiers %s vs %s at position %d", st[i].ident, st2[i].ident, i)
+		if st[i].name != st2[i].name {
+			return nil, fmt.Errorf("Invalid merge: Different identifiers %s vs %s at position %d", st[i].name, st2[i].name, i)
 		}
-		st3[i].ident = st[i].ident
+		st3[i].name = st[i].name
 		st3[i].eff, err = permission.Intersect(st[i].eff, st2[i].eff)
 		if err != nil {
-			return nil, fmt.Errorf("Cannot merge effective permissions %s and %s of %s: %s", st[i].eff, st2[i].eff, v.ident, err)
+			return nil, fmt.Errorf("Cannot merge effective permissions %s and %s of %s: %s", st[i].eff, st2[i].eff, v.name, err)
 		}
 		st3[i].max, err = permission.Intersect(st[i].max, st2[i].max)
 		if err != nil {
-			return nil, fmt.Errorf("Cannot merge maximum permissions %s and %s of %s: %s", st[i].max, st2[i].max, v.ident, err)
+			return nil, fmt.Errorf("Cannot merge maximum permissions %s and %s of %s: %s", st[i].max, st2[i].max, v.name, err)
 		}
 	}
 	return st3, nil
@@ -83,7 +83,7 @@ func (st Store) Merge(st2 Store) (Store, error) {
 // Define defines an identifier in the current block.
 func (st Store) Define(ident *ast.Ident, perm permission.Permission) Store {
 	var st2 = make(Store, len(st)+1)
-	st2[0].ident = ident
+	st2[0].name = ident.Name
 	st2[0].max = perm
 	st2[0].eff = perm
 	for i, v := range st {
@@ -101,10 +101,10 @@ func (st Store) SetEffective(ident *ast.Ident, perm permission.Permission) (Stor
 	copy(st1, st)
 	st = st1
 	for i, v := range st {
-		if v.ident == ident {
+		if v.name == ident.Name {
 			eff, err := permission.Intersect(st[i].max, perm)
 			if err != nil {
-				return nil, fmt.Errorf("Cannot restrict effective permission of %s to new max: %s", v.ident, err.Error())
+				return nil, fmt.Errorf("Cannot restrict effective permission of %s to new max: %s", v.name, err.Error())
 			}
 			st[i].eff = eff
 			return st, nil
@@ -123,10 +123,10 @@ func (st Store) SetMaximum(ident *ast.Ident, perm permission.Permission) (Store,
 	copy(st1, st)
 	st = st1
 	for i, v := range st {
-		if v.ident == ident {
+		if v.name == ident.Name {
 			eff, err := permission.Intersect(st[i].eff, perm)
 			if err != nil {
-				return nil, fmt.Errorf("Cannot restrict effective permission of %s to new max: %s", v.ident, err.Error())
+				return nil, fmt.Errorf("Cannot restrict effective permission of %s to new max: %s", v.name, err.Error())
 			}
 			st[i].eff = eff
 			st[i].max = perm
@@ -139,7 +139,7 @@ func (st Store) SetMaximum(ident *ast.Ident, perm permission.Permission) (Store,
 // GetEffective returns the effective permission for the identifier
 func (st Store) GetEffective(ident *ast.Ident) permission.Permission {
 	for _, v := range st {
-		if v.ident == ident {
+		if v.name == ident.Name {
 			return v.eff
 		}
 	}
@@ -149,7 +149,7 @@ func (st Store) GetEffective(ident *ast.Ident) permission.Permission {
 // GetMaximum returns the maximum permission for the identifier
 func (st Store) GetMaximum(ident *ast.Ident) permission.Permission {
 	for _, v := range st {
-		if v.ident == ident {
+		if v.name == ident.Name {
 			return v.max
 		}
 	}

@@ -41,14 +41,14 @@ func newPermission(input interface{}) permission.Permission {
 
 func TestVisitIdent(t *testing.T) {
 	st := Store{
-		{ast.NewIdent("x"), newPermission("om[]om"), newPermission("om")},
+		{"x", newPermission("om[]om"), newPermission("om")},
 	}
 	i := &Interpreter{}
 	runFuncRecover(t, "Unknown variable", func() {
 		i.VisitExpr(st, ast.NewIdent("a"))
 	})
 	runFuncRecover(t, "Cannot restrict effective permission", func() {
-		i.VisitExpr(st, st[0].ident)
+		i.VisitExpr(st, ast.NewIdent("x"))
 	})
 }
 
@@ -199,8 +199,8 @@ func TestRelease(t *testing.T) {
 	var st Store
 	runFuncRecover(t, "not release borrowed variable", func() {
 		st = st.Define(ast.NewIdent("a"), newPermission("om"))
-		i.Release(st[0].ident, st, []Borrowed{
-			{st[0].ident, newPermission("om * om")},
+		i.Release(ast.NewIdent("a"), st, []Borrowed{
+			{ast.NewIdent("a"), newPermission("om * om")},
 		})
 	})
 }
