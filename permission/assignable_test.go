@@ -19,6 +19,7 @@ type assignableToTestCase struct {
 var testcasesAssignableTo = []assignableToTestCase{
 	// Basic types
 	{"om", "om", true, false, true},
+	{"ow", "ow", true, true, false}, // TODO: Move should be false too
 	{"ov", "ov", true, true, true},
 	{"om", "ov", true, false, true},
 	{"ov", "om", false, false, true},
