@@ -219,3 +219,8 @@ type TuplePermission struct {
 func (p *TuplePermission) GetBasePermission() BasePermission {
 	return p.BasePermission
 }
+
+// IsLinear checks if a permission is linear.
+func IsLinear(p Permission) bool {
+	return p.GetBasePermission().isLinear()
+}

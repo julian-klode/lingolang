@@ -67,6 +67,10 @@ func TestPermissionIsLinear(t *testing.T) {
 			if result != testCase.expected {
 				t.Errorf("Unexpected result %v, expected %v", result, testCase.expected)
 			}
+			result = IsLinear(p1)
+			if result != testCase.expected {
+				t.Errorf("Unexpected result %v, expected %v", result, testCase.expected)
+			}
 		})
 	}
 }

@@ -205,14 +205,28 @@ func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr) (permission.Permi
 			argPerm, argDeps, store := i.VisitExpr(st, arg)
 			st = store
 
-			if permission.CopyableTo(argPerm, fun.Params[j]) {
+			switch {
+			// If the value can be copied into the caller, we don't need to borrow it
+			case permission.CopyableTo(argPerm, fun.Params[j]):
 				st = i.Release(e, st, argDeps)
-			} else if permission.MovableTo(argPerm, fun.Params[j]) {
-				if fun.Params[j].GetBasePermission()&permission.Owned == 0 {
-					accumulatedUnownedDeps = append(accumulatedUnownedDeps, argDeps...)
-				}
-			} else {
+
+			// The value cannot be moved either, error out.
+			case !permission.MovableTo(argPerm, fun.Params[j]):
 				return i.Error(arg, "Cannot copy or move to parameter: Needed %#v, received %#v", fun.Params[j], argPerm)
+
+			// All borrows for unowned parameters are released after the call is done.
+			case fun.Params[j].GetBasePermission()&permission.Owned == 0:
+				accumulatedUnownedDeps = append(accumulatedUnownedDeps, argDeps...)
+
+			// Write and exclusive permissions are stripped when converting a value from linear to non-linear
+			case permission.IsLinear(argPerm) && !permission.IsLinear(fun.Params[j]):
+				for _, b := range argDeps {
+					b := Borrowed{
+						id:   b.id,
+						perm: permission.ConvertToBase(b.perm, b.perm.GetBasePermission()&^(permission.ExclRead|permission.ExclWrite|permission.Write)),
+					}
+					accumulatedUnownedDeps = append(accumulatedUnownedDeps, b)
+				}
 			}
 
 		}
