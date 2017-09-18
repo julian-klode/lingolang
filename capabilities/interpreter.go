@@ -220,13 +220,10 @@ func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr) (permission.Permi
 
 			// Write and exclusive permissions are stripped when converting a value from linear to non-linear
 			case permission.IsLinear(argPerm) && !permission.IsLinear(fun.Params[j]):
-				for _, b := range argDeps {
-					b := Borrowed{
-						id:   b.id,
-						perm: permission.ConvertToBase(b.perm, b.perm.GetBasePermission()&^(permission.ExclRead|permission.ExclWrite|permission.Write)),
-					}
-					accumulatedUnownedDeps = append(accumulatedUnownedDeps, b)
+				for i := range argDeps {
+					argDeps[i].perm = permission.ConvertToBase(argDeps[i].perm, argDeps[i].perm.GetBasePermission()&^(permission.ExclRead|permission.ExclWrite|permission.Write))
 				}
+				st = i.Release(e, st, argDeps)
 			}
 
 		}

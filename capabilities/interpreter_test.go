@@ -110,9 +110,12 @@ func TestVisitExpr(t *testing.T) {
 		{"(b)", "parenPoint", nil, "om * om", "om * om", []string{"b"}, nil, "n * r"},
 		// Function calls
 		{"a(b)", "callMutableNoCopy", "om func(om * om) or", "om * om", "or", []string{}, "om func(om * om) or", "n * r"},
+		{"a(b, b)", "callMutableNoCopy", "om func(om * om, om * om) or", "om * om", errorResult("Cannot copy or move"), []string{}, "om func(om * om, om * om) or", "n * r"},
 		{"a(b)", "callMutableNoCopyUnowned", "om func(m * m) or", "om * om", "or", []string{}, "om func(m * m) or", "om * om"},
 		{"a(b)", "callMutableNoCopyUnownedToUnownedReadable", "om func(r * r) or", "om * om", "or", []string{}, "om func(r * r) or", "om * om"},
+		{"a(b, b)", "callMutableNoCopyUnownedToUnownedReadable", "om func(r * r, r * r) or", "om * om", errorResult("Cannot copy or move"), []string{}, "om func(r * r, r * r) or", "om * om"},
 		{"a(b)", "callMutableNoCopyUnownedToOwnedReadable", "om func(or * or) or", "om * om", "or", []string{}, "om func(or * or) or", "or * or"},
+		{"a(b, b)", "callMutableNoCopyUnownedToOwnedReadable", "om func(or * or, or * or) or", "om * om", "or", []string{}, "om func(or * or, or * or) or", "or * or"},
 		{"a(b)", "callMutableCopy", "om func(om) or", "om", "or", []string{}, "om func(om) or", "om"},
 		{"a(b)", "callMutableNoRet", "om func(om)", "om", tuplePermission{"om"}, []string{}, "om func(om)", "om"},
 		{"a(b)", "callMutableNoRet", "om func(om) (ov, oa)", "om", tuplePermission{"om", "ov", "oa"}, []string{}, "om func(om) (ov, oa)", "om"},
