@@ -9,10 +9,12 @@ import (
 	"go/types"
 	"reflect"
 	"testing"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 // newInterfaceWithMethod creates a recursive interface permission
-func newInterfaceWithMethod() *InterfacePermission {
+func newInterfaceWithMethod() Permission {
 	iface := &InterfacePermission{
 		BasePermission: Mutable,
 		Methods: []Permission{
@@ -23,9 +25,10 @@ func newInterfaceWithMethod() *InterfacePermission {
 			},
 		},
 	}
-	iface.Methods[0].(*FuncPermission).Receivers = []Permission{iface}
-	iface.Methods[0].(*FuncPermission).Results = []Permission{iface}
-	return iface
+	named := &NamedPermission{Name: "t", Underlying: iface}
+	iface.Methods[0].(*FuncPermission).Receivers = []Permission{named}
+	iface.Methods[0].(*FuncPermission).Results = []Permission{named}
+	return named
 }
 
 // testCases contains tests for the permission parser.
@@ -126,8 +129,11 @@ func TestNewFromType(t *testing.T) {
 				return
 			}
 			perm := NewTypeMapper().NewFromType(typ)
+			if _, ok := expected.(*NamedPermission); !ok {
+				perm = perm.(*NamedPermission).Underlying
+			}
 			if !reflect.DeepEqual(perm, expected) {
-				t.Errorf("Input %s: Unexpected permission %#v, expected %#v - error: %v", input, perm, expected, err)
+				t.Errorf("Input %s: Unexpected permission %s, expected %s - error: %v", input, spew.Sdump(perm), spew.Sdump(expected), err)
 			}
 		})
 	}

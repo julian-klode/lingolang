@@ -208,3 +208,15 @@ type WildcardPermission struct {
 func (p *WildcardPermission) GetBasePermission() BasePermission {
 	panic(errors.New("Wildcard does not have a base permission"))
 }
+
+// NamedPermission represents a named type with associated methods.
+type NamedPermission struct {
+	Name       string               // a name, totally useless
+	Underlying Permission           // struct or whatever
+	Interface  *InterfacePermission // Associated methods
+}
+
+// GetBasePermission gets the base permission
+func (p *NamedPermission) GetBasePermission() BasePermission {
+	return p.Underlying.GetBasePermission()
+}

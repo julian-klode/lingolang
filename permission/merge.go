@@ -339,3 +339,26 @@ func (p *InterfacePermission) merge(p2 Permission, state *mergeState) Permission
 func (p *WildcardPermission) merge(p2 Permission, state *mergeState) Permission {
 	return p2
 }
+
+func (p *NamedPermission) merge(p2 Permission, state *mergeState) Permission {
+	switch p2 := p2.(type) {
+	case *NamedPermission:
+		return &NamedPermission{
+			Name:       p.Name,
+			Underlying: merge(p.Underlying, p2.Underlying, state),
+			Interface:  merge(p.Interface, p2.Interface, state).(*InterfacePermission),
+		}
+	case *InterfacePermission:
+		return &NamedPermission{
+			Name:       p.Name,
+			Underlying: ConvertToBase(p.Interface, p2.GetBasePermission()),
+			Interface:  merge(p.Interface, p2, state).(*InterfacePermission),
+		}
+	default:
+		return &NamedPermission{
+			Name:       p.Name,
+			Underlying: merge(p.Underlying, p2, state),
+			Interface:  ConvertToBase(p.Interface, p2.GetBasePermission()).(*InterfacePermission),
+		}
+	}
+}

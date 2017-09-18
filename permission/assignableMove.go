@@ -163,3 +163,7 @@ func (p *InterfacePermission) isMovableTo(p2 Permission, state assignableState) 
 func (p *WildcardPermission) isMovableTo(p2 Permission, state assignableState) bool {
 	return false
 }
+
+func (p *NamedPermission) isMovableTo(p2 Permission, state assignableState) bool {
+	return p.Underlying.isMovableTo(p2, state) || p.Interface.isMovableTo(p2, state)
+}

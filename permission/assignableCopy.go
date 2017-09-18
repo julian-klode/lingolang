@@ -122,3 +122,7 @@ func (p *InterfacePermission) isCopyableTo(p2 Permission, state assignableState)
 func (p *WildcardPermission) isCopyableTo(p2 Permission, state assignableState) bool {
 	return false
 }
+
+func (p *NamedPermission) isCopyableTo(p2 Permission, state assignableState) bool {
+	return p.Underlying.isCopyableTo(p2, state) || p.Interface.isCopyableTo(p2, state)
+}

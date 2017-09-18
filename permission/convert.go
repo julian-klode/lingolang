@@ -151,3 +151,11 @@ func (p *InterfacePermission) convertToBase(p2 BasePermission, state *convertToB
 func (p *WildcardPermission) convertToBase(p2 BasePermission, state *convertToBaseState) Permission {
 	return p2
 }
+
+func (p *NamedPermission) convertToBase(p2 BasePermission, state *convertToBaseState) Permission {
+	return &NamedPermission{
+		Name:       p.Name,
+		Underlying: p.Underlying.convertToBase(p2, state),
+		Interface:  p.Interface.convertToBase(p2, state).(*InterfacePermission),
+	}
+}

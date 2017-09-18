@@ -48,6 +48,16 @@ func (typeMapper TypeMapper) NewFromType(t0 types.Type) (result Permission) {
 		return typeMapper.newFromInterfaceType(t)
 	case *types.Basic:
 		return basicPermission
+	case *types.Named:
+		var iface *InterfacePermission
+		underlying := typeMapper.NewFromType(t.Underlying())
+		if t.NumMethods() > 0 {
+			iface := &InterfacePermission{BasePermission: underlying.GetBasePermission()}
+			for i := 0; i < t.NumMethods(); i++ {
+				iface.Methods = append(iface.Methods, typeMapper.NewFromType(t.Method(i).Type()))
+			}
+		}
+		return &NamedPermission{t.Obj().Name(), underlying, iface}
 	default:
 		// Fall through to the underlying type.
 		t0 = t.Underlying()
