@@ -100,15 +100,29 @@ func (i *Interpreter) visitIdent(st Store, e *ast.Ident) (permission.Permission,
 
 // visitBinaryExpr - A binary expression is either logical, arithmetic, or a comparison.
 func (i *Interpreter) visitBinaryExpr(st Store, e *ast.BinaryExpr) (permission.Permission, []Borrowed, Store) {
-	lhs, ldeps, st := i.VisitExpr(st, e.X)
-	rhs, rdeps, st := i.VisitExpr(st, e.Y)
-
-	// Requires: LHS, RHS readable
+	var err error
+	// We first evaluate the LHS, and then RHS after the LHS. If this is a logical
+	// operator, the result is the intersection of LHS & (RHS after LHS), because
+	// it might be possible that only LHS is evaluated. Otherwise, both sides are
+	// always evaluated, so the result is RHS after LHS.
+	lhs, ldeps, stl := i.VisitExpr(st, e.X)
+	stl = i.Release(e, stl, ldeps)
 	i.Assert(e.X, lhs, permission.Read)
+
+	rhs, rdeps, str := i.VisitExpr(stl, e.Y)
+	str = i.Release(e, str, rdeps)
 	i.Assert(e.Y, rhs, permission.Read)
-	// Ensures: Undo = nil
-	st = i.Release(e, st, ldeps)
-	st = i.Release(e, st, rdeps)
+
+	switch e.Op {
+	case token.LAND, token.LOR:
+		st, err = stl.Merge(str)
+		if err != nil {
+			return i.Error(e, "Cannot merge different outcomes of logical operator")
+		}
+	default:
+		st = str
+	}
+
 	return permission.Owned | permission.Mutable, nil, st
 }
 

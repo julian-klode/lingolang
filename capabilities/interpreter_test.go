@@ -66,6 +66,7 @@ func TestVisitExpr(t *testing.T) {
 		rhsAfter     interface{}
 	}{
 		// ------------------- Binary expressions ----------------------------
+		{"b&&b", "binarySingleIdent", "", "om", "om", []string{}, "", "om"},
 		{"a+b", "binaryOk", "or", "or", "om", []string{}, "or", "or"},
 		{"a+b", "binaryLhsUnreadable", "ow", "or", errorResult("In a: Required permissions r, but only have ow"), []string{}, "or", "or"},
 		{"a+b", "binaryLhsUnreadable", "or", "ow", errorResult("In b: Required permissions r, but only have ow"), []string{}, "or", "or"},
