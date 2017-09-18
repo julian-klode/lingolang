@@ -151,3 +151,18 @@ func (p *InterfacePermission) convertToBase(p2 BasePermission, state *convertToB
 func (p *WildcardPermission) convertToBase(p2 BasePermission, state *convertToBaseState) Permission {
 	return p2
 }
+
+func (p *TuplePermission) convertToBase(p2 BasePermission, state *convertToBaseState) Permission {
+	next := &TuplePermission{}
+	state.register(next, p, p2)
+
+	next.BasePermission = p.BasePermission.convertToBaseBase(p2)
+	if p.Elements != nil {
+		next.Elements = make([]Permission, len(p.Elements))
+		for i := 0; i < len(p.Elements); i++ {
+			next.Elements[i] = convertToBase(p.Elements[i], next.BasePermission, state)
+		}
+	}
+
+	return next
+}

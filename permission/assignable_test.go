@@ -4,12 +4,13 @@
 package permission
 
 import (
+	"fmt"
 	"testing"
 )
 
 type assignableToTestCase struct {
-	from        string
-	to          string
+	from        interface{}
+	to          interface{}
 	assignable  bool
 	refcopyable bool
 	copyable    bool
@@ -114,18 +115,29 @@ var testcasesAssignableTo = []assignableToTestCase{
 	{"ov struct { ov []ov }", "ov struct {ov [] ov}", true, true, true},
 	{"om * om", "m * m", true, false, false},
 	{"_", "om", false, false, false},
+
+	// Tuples
+	{tuplePermission{"om", "om"}, tuplePermission{"om", "ov"}, true, false, true},
+	{tuplePermission{"om", "ov"}, tuplePermission{"om", "om"}, false, false, true},
+	{tuplePermission{"om", "ov"}, tuplePermission{"ov", "ov"}, true, false, true},
+	{tuplePermission{"ov", "ov"}, tuplePermission{"om", "ov"}, false, false, true},
+	{tuplePermission{"ov", "ov"}, tuplePermission{"ov", "ov"}, true, true, true},
+	{tuplePermission{"ov", "om * om"}, tuplePermission{"ov", "om * om"}, true, false, false},
+	{tuplePermission{"or", "or"}, tuplePermission{"or", "or"}, true, true, true},
+	{tuplePermission{"or", "or"}, tuplePermission{"or", "or", "ov"}, false, false, false},
+	{tuplePermission{"or", "or"}, "ov", false, false, false},
 }
 
 func TestAssignableTo(t *testing.T) {
 
 	for _, testCase := range testcasesAssignableTo {
 		testCase := testCase
-		t.Run(testCase.from+"=> "+testCase.to, func(t *testing.T) {
-			p1, err := NewParser(testCase.from).Parse()
+		t.Run(fmt.Sprint(testCase.from)+"=> "+fmt.Sprint(testCase.to), func(t *testing.T) {
+			p1, err := MakePermission(testCase.from)
 			if err != nil {
 				t.Fatalf("Invalid from: %v", err)
 			}
-			p2, err := NewParser(testCase.to).Parse()
+			p2, err := MakePermission(testCase.to)
 			if err != nil {
 				t.Fatalf("Invalid to: %v", err)
 			}

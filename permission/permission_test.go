@@ -3,7 +3,10 @@
 
 package permission
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 var testcasesPermissionString = []struct {
 	perm     BasePermission
@@ -69,8 +72,8 @@ func TestPermissionIsLinear(t *testing.T) {
 }
 
 var testcasesPermissionBasePermission = []struct {
-	perm string
-	base string
+	perm interface{}
+	base interface{}
 }{
 	{"on", "on"},
 	{"ov chan on", "ov"},
@@ -81,17 +84,18 @@ var testcasesPermissionBasePermission = []struct {
 	{"om struct { on }", "om"},
 	{"or interface{}", "or"},
 	{"or func()", "or"},
+	{tuplePermission{"or"}, "or"},
 }
 
 func TestPermissionBasePermission(t *testing.T) {
 	for _, testCase := range testcasesPermissionBasePermission {
 		testCase := testCase
-		t.Run(testCase.perm, func(t *testing.T) {
-			p1, err := NewParser(testCase.perm).Parse()
+		t.Run(fmt.Sprint(testCase.perm), func(t *testing.T) {
+			p1, err := MakePermission(testCase.perm)
 			if err != nil {
 				t.Fatalf("Invalid perm: %v", err)
 			}
-			p2, err := NewParser(testCase.base).Parse()
+			p2, err := MakePermission(testCase.base)
 			if err != nil {
 				t.Fatalf("Invalid base: %v", err)
 			}

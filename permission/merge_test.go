@@ -71,6 +71,7 @@ var testcasesMerge = []mergeTestCase{
 	{Union, "om [] om", "_", "om [] om", ""},
 	{Union, "om [1] om", "_", "om [1] om", ""},
 	{Union, "om", "_", "om", ""},
+	{Union, tuplePermission{"om"}, "_", tuplePermission{"om"}, ""},
 }
 
 func TestMergeTo(t *testing.T) {

@@ -174,3 +174,20 @@ func (p *InterfacePermission) isRefcopyableTo(p2 Permission, state assignableSta
 func (p *WildcardPermission) isRefcopyableTo(p2 Permission, state assignableState) bool {
 	return false
 }
+
+func (p *TuplePermission) isRefcopyableTo(p2 Permission, state assignableState) bool {
+	switch p2 := p2.(type) {
+	case *TuplePermission:
+		if len(p.Elements) != len(p2.Elements) || !refcopyableTo(p.BasePermission, p2.BasePermission, state) {
+			return false
+		}
+		for i := range p.Elements {
+			if !refcopyableTo(p.Elements[i], p2.Elements[i], state) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}

@@ -339,3 +339,26 @@ func (p *InterfacePermission) merge(p2 Permission, state *mergeState) Permission
 func (p *WildcardPermission) merge(p2 Permission, state *mergeState) Permission {
 	return p2
 }
+
+func (p *TuplePermission) merge(p2 Permission, state *mergeState) Permission {
+	switch p2 := p2.(type) {
+	case *TuplePermission:
+		next := &TuplePermission{}
+		state.register(next, p, p2)
+		next.BasePermission = state.mergeBase(p.BasePermission, p2.BasePermission)
+		if len(p.Elements) != len(p2.Elements) {
+			panic(mergeError(fmt.Errorf("Cannot merge tuples %v and %v: Different number of elements: %d vs %d", p, p2, len(p.Elements), len(p2.Elements))))
+		}
+		if p.Elements != nil {
+			next.Elements = make([]Permission, len(p.Elements))
+			for i := 0; i < len(p.Elements); i++ {
+				next.Elements[i] = merge(p.Elements[i], p2.Elements[i], state)
+			}
+		}
+		return next
+	case *WildcardPermission:
+		return p
+	default:
+		return nil
+	}
+}

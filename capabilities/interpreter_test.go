@@ -25,6 +25,8 @@ func runFuncRecover(t *testing.T, message string, block func()) {
 	block()
 }
 
+type tuplePermission []string
+
 func newPermission(input interface{}) permission.Permission {
 	switch input := input.(type) {
 	case string:
@@ -35,6 +37,15 @@ func newPermission(input interface{}) permission.Permission {
 		return perm
 	case permission.Permission:
 		return input
+	case tuplePermission:
+		base := newPermission(input[0])
+		var others []permission.Permission
+		for _, s := range input[1:] {
+			o := newPermission(s)
+			others = append(others, o)
+		}
+
+		return &permission.TuplePermission{base.(permission.BasePermission), others}
 	}
 	panic("Not reachable")
 }
@@ -67,6 +78,7 @@ func TestVisitExpr(t *testing.T) {
 	}{
 		// ------------------- Binary expressions ----------------------------
 		{"b&&b", "binarySingleIdent", "", "om", "om", []string{}, "", "om"},
+
 		{"a+b", "binaryOk", "or", "or", "om", []string{}, "or", "or"},
 		{"a+b", "binaryLhsUnreadable", "ow", "or", errorResult("In a: Required permissions r, but only have ow"), []string{}, "or", "or"},
 		{"a+b", "binaryLhsUnreadable", "or", "ow", errorResult("In b: Required permissions r, but only have ow"), []string{}, "or", "or"},
@@ -99,7 +111,8 @@ func TestVisitExpr(t *testing.T) {
 		// Function calls
 		{"a(b)", "callMutableNoCopy", "om func(om * om) or", "om * om", "or", []string{}, "om func(om * om) or", "n * r"},
 		{"a(b)", "callMutableCopy", "om func(om) or", "om", "or", []string{}, "om func(om) or", "om"},
-		{"a(b)", "callMutableNoRet", "om func(om)", "om", "n", []string{}, "om func(om)", "om"},
+		{"a(b)", "callMutableNoRet", "om func(om)", "om", tuplePermission{"om"}, []string{}, "om func(om)", "om"},
+		{"a(b)", "callMutableNoRet", "om func(om) (ov, oa)", "om", tuplePermission{"om", "ov", "oa"}, []string{}, "om func(om) (ov, oa)", "om"},
 		{"a(b)", "callMutableIncompat", "om func(om * om)", "or * or", errorResult("not copy or move"), []string{}, "om func(om)", "or * or"},
 
 		{"a(b)", "callRetValue", "om func(om) n", "om", "n", []string{}, "om func(om) n", "om"},

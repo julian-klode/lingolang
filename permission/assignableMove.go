@@ -163,3 +163,20 @@ func (p *InterfacePermission) isMovableTo(p2 Permission, state assignableState) 
 func (p *WildcardPermission) isMovableTo(p2 Permission, state assignableState) bool {
 	return false
 }
+
+func (p *TuplePermission) isMovableTo(p2 Permission, state assignableState) bool {
+	switch p2 := p2.(type) {
+	case *TuplePermission:
+		if len(p.Elements) != len(p2.Elements) || !movableTo(p.BasePermission, p2.BasePermission, state) {
+			return false
+		}
+		for i := range p.Elements {
+			if !movableTo(p.Elements[i], p2.Elements[i], state) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}

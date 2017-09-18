@@ -208,3 +208,14 @@ type WildcardPermission struct {
 func (p *WildcardPermission) GetBasePermission() BasePermission {
 	panic(errors.New("Wildcard does not have a base permission"))
 }
+
+// TuplePermission is used for the result of function calls.
+type TuplePermission struct {
+	BasePermission BasePermission
+	Elements       []Permission
+}
+
+// GetBasePermission gets the base permission
+func (p *TuplePermission) GetBasePermission() BasePermission {
+	return p.BasePermission
+}

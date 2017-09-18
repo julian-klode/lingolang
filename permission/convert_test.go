@@ -14,6 +14,8 @@ type convertTestCase struct {
 	err    string
 }
 
+type tuplePermission []string
+
 func MakePermission(i interface{}) (Permission, error) {
 	if i == nil {
 		return nil, nil
@@ -23,6 +25,21 @@ func MakePermission(i interface{}) (Permission, error) {
 		return v, nil
 	case string:
 		return NewParser(v).Parse()
+	case tuplePermission:
+		base, err := NewParser(v[0]).Parse()
+		if err != nil {
+			return nil, err
+		}
+		var others []Permission
+		for _, s := range v[1:] {
+			o, err := NewParser(s).Parse()
+			if err != nil {
+				return nil, err
+			}
+			others = append(others, o)
+		}
+
+		return &TuplePermission{base.(BasePermission), others}, nil
 	}
 	return nil, fmt.Errorf("Not a permission: %v", i)
 }
@@ -91,6 +108,11 @@ var testcasesConvert = []convertTestCase{
 	// Two exceptions: Interfaces (methods are special) and pointers
 	{"ol interface { om func () }", "ol", "ol interface { om func() }", ""},
 	{"ol * om", "ol", "ol * om", ""},
+
+	{tuplePermission{"om", "om"}, "or", tuplePermission{"or", "or"}, ""},
+	{tuplePermission{"om", "om"}, tuplePermission{"or", "on"}, tuplePermission{"or", "on"}, ""},
+	{tuplePermission{"om", "om"}, tuplePermission{"or", "on", "ov"}, nil, "1 vs 2"},
+	{tuplePermission{"om", "om"}, "or * or", nil, "compatible"},
 }
 
 func MakeRecursivePointer(innerWritable bool) Permission {

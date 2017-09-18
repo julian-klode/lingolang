@@ -215,12 +215,10 @@ func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr) (permission.Permi
 		// Call is done, release function permissions
 		i.Release(e, st, funDeps)
 
-		// FIXME: Multiple function results missing :(
-		if len(fun.Results) > 0 {
+		if len(fun.Results) == 1 {
 			return fun.Results[0], nil, st
-		} else {
-			return permission.None, nil, st
 		}
+		return &permission.TuplePermission{BasePermission: permission.Owned | permission.Mutable, Elements: fun.Results}, nil, st
 	default:
 		return i.Error(e, "Cannot call non-function object %v", fun)
 	}
