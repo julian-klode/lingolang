@@ -5,7 +5,6 @@ package capabilities
 
 import (
 	"fmt"
-	"go/ast"
 	"strings"
 	"testing"
 
@@ -66,8 +65,8 @@ func TestStore_getset(t *testing.T) {
 	st := NewStore()
 	block := st.BeginBlock()
 	unblock := block.EndBlock()
-	a := ast.NewIdent("a")
-	b := ast.NewIdent("b")
+	a := "a"
+	b := "b"
 
 	block = block.Define(a, permission.Mutable)
 	if !unblock.Equal(st) {
@@ -100,8 +99,8 @@ func TestStore_getset(t *testing.T) {
 
 func TestStore_SetEffectiveSetMaximum(t *testing.T) {
 	block := NewStore()
-	a := ast.NewIdent("a")
-	b := ast.NewIdent("b")
+	a := "a"
+	b := "b"
 	block = block.Define(a, permission.Mutable)
 	block = block.Define(b, permission.ReadOnly)
 
@@ -182,8 +181,8 @@ func TestStore_panic(t *testing.T) {
 		fun()
 	}
 	st := NewStore()
-	shouldPanic("setMaximum", "nonexisting", func() { st.SetMaximum(ast.NewIdent("a"), permission.Mutable) })
-	shouldPanic("setEffective", "nonexisting", func() { st.SetEffective(ast.NewIdent("a"), permission.Mutable) })
+	shouldPanic("setMaximum", "nonexisting", func() { st.SetMaximum("a", permission.Mutable) })
+	shouldPanic("setEffective", "nonexisting", func() { st.SetEffective("a", permission.Mutable) })
 	shouldPanic("EndBlock without block", "Not inside a block", func() { NewStore().EndBlock() })
 }
 

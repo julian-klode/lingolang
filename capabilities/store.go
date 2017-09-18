@@ -5,7 +5,6 @@ package capabilities
 
 import (
 	"fmt"
-	"go/ast"
 	"reflect"
 
 	"github.com/julian-klode/lingolang/permission"
@@ -81,9 +80,9 @@ func (st Store) Merge(st2 Store) (Store, error) {
 }
 
 // Define defines an identifier in the current block.
-func (st Store) Define(ident *ast.Ident, perm permission.Permission) Store {
+func (st Store) Define(name string, perm permission.Permission) Store {
 	var st2 = make(Store, len(st)+1)
-	st2[0].name = ident.Name
+	st2[0].name = name
 	st2[0].max = perm
 	st2[0].eff = perm
 	for i, v := range st {
@@ -96,12 +95,12 @@ func (st Store) Define(ident *ast.Ident, perm permission.Permission) Store {
 //
 // The effective permission is limited to the maximum permission that the
 // variable can have.
-func (st Store) SetEffective(ident *ast.Ident, perm permission.Permission) (Store, error) {
+func (st Store) SetEffective(name string, perm permission.Permission) (Store, error) {
 	st1 := make(Store, len(st))
 	copy(st1, st)
 	st = st1
 	for i, v := range st {
-		if v.name == ident.Name {
+		if v.name == name {
 			eff, err := permission.Intersect(st[i].max, perm)
 			if err != nil {
 				return nil, fmt.Errorf("Cannot restrict effective permission of %s to new max: %s", v.name, err.Error())
@@ -118,12 +117,12 @@ func (st Store) SetEffective(ident *ast.Ident, perm permission.Permission) (Stor
 // Lowering the maximum permission also lowers the effective permission if
 // they would otherwise exceed the maximum.
 //
-func (st Store) SetMaximum(ident *ast.Ident, perm permission.Permission) (Store, error) {
+func (st Store) SetMaximum(name string, perm permission.Permission) (Store, error) {
 	st1 := make(Store, len(st))
 	copy(st1, st)
 	st = st1
 	for i, v := range st {
-		if v.name == ident.Name {
+		if v.name == name {
 			eff, err := permission.Intersect(st[i].eff, perm)
 			if err != nil {
 				return nil, fmt.Errorf("Cannot restrict effective permission of %s to new max: %s", v.name, err.Error())
@@ -137,9 +136,9 @@ func (st Store) SetMaximum(ident *ast.Ident, perm permission.Permission) (Store,
 }
 
 // GetEffective returns the effective permission for the identifier
-func (st Store) GetEffective(ident *ast.Ident) permission.Permission {
+func (st Store) GetEffective(name string) permission.Permission {
 	for _, v := range st {
-		if v.name == ident.Name {
+		if v.name == name {
 			return v.eff
 		}
 	}
@@ -147,9 +146,9 @@ func (st Store) GetEffective(ident *ast.Ident) permission.Permission {
 }
 
 // GetMaximum returns the maximum permission for the identifier
-func (st Store) GetMaximum(ident *ast.Ident) permission.Permission {
+func (st Store) GetMaximum(name string) permission.Permission {
 	for _, v := range st {
-		if v.name == ident.Name {
+		if v.name == name {
 			return v.max
 		}
 	}

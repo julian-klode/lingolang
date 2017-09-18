@@ -146,10 +146,10 @@ func TestVisitExpr(t *testing.T) {
 			})
 
 			if lhs != nil {
-				st = st.Define(lhs, newPermission(test.lhs))
+				st = st.Define(lhs.Name, newPermission(test.lhs))
 			}
 			if rhs != nil {
-				st = st.Define(rhs, newPermission(test.rhs))
+				st = st.Define(rhs.Name, newPermission(test.rhs))
 			}
 
 			if eResult, ok := test.result.(errorResult); ok {
@@ -175,11 +175,11 @@ func TestVisitExpr(t *testing.T) {
 				t.Errorf("Found dependencies %v, expected %v", depsAsString, test.dependencies)
 			}
 
-			if lhs != nil && !reflect.DeepEqual(store.GetEffective(lhs), newPermission(test.lhsAfter)) {
-				t.Errorf("Found lhs after = %v, expected %v", store.GetEffective(lhs), newPermission(test.lhsAfter))
+			if lhs != nil && !reflect.DeepEqual(store.GetEffective(lhs.Name), newPermission(test.lhsAfter)) {
+				t.Errorf("Found lhs after = %v, expected %v", store.GetEffective(lhs.Name), newPermission(test.lhsAfter))
 			}
-			if rhs != nil && !reflect.DeepEqual(store.GetEffective(rhs), newPermission(test.rhsAfter)) {
-				t.Errorf("Found rhs after = %v, expected %v", store.GetEffective(rhs), newPermission(test.rhsAfter))
+			if rhs != nil && !reflect.DeepEqual(store.GetEffective(rhs.Name), newPermission(test.rhsAfter)) {
+				t.Errorf("Found rhs after = %v, expected %v", store.GetEffective(rhs.Name), newPermission(test.rhsAfter))
 			}
 		})
 
@@ -198,7 +198,7 @@ func TestRelease(t *testing.T) {
 	var i Interpreter
 	var st Store
 	runFuncRecover(t, "not release borrowed variable", func() {
-		st = st.Define(ast.NewIdent("a"), newPermission("om"))
+		st = st.Define("a", newPermission("om"))
 		i.Release(ast.NewIdent("a"), st, []Borrowed{
 			{ast.NewIdent("a"), newPermission("om * om")},
 		})

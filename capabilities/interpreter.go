@@ -65,7 +65,7 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 func (i *Interpreter) Release(node ast.Node, st Store, undo []Borrowed) Store {
 	var err error
 	for _, b := range undo {
-		st, err = st.SetEffective(b.id, b.perm)
+		st, err = st.SetEffective(b.id.Name, b.perm)
 		if err != nil {
 			i.Error(node, "Cannot release borrowed variable %s: %s", b.id, err)
 		}
@@ -85,13 +85,13 @@ func (i *Interpreter) Assert(node ast.Node, subject permission.Permission, has p
 }
 
 func (i *Interpreter) visitIdent(st Store, e *ast.Ident) (permission.Permission, []Borrowed, Store) {
-	perm := st.GetEffective(e)
+	perm := st.GetEffective(e.Name)
 	if perm == nil {
 		i.Error(e, "Cannot borow %s: Unknown variable", e)
 	}
 	borrowed := []Borrowed{{e, perm}}
 	dead := permission.ConvertToBase(perm, permission.None)
-	st, err := st.SetEffective(e, dead)
+	st, err := st.SetEffective(e.Name, dead)
 	if err != nil {
 		i.Error(e, "Cannot borrow identifier: %s", err)
 	}
