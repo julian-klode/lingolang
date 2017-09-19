@@ -7,6 +7,70 @@ import (
 	"testing"
 )
 
+type tuplePermission []string
+
+func MakePermission(i interface{}) (Permission, error) {
+	if i == nil {
+		return nil, nil
+	}
+	switch v := i.(type) {
+	case Permission:
+		return v, nil
+	case string:
+		return NewParser(v).Parse()
+	case tuplePermission:
+		base, err := NewParser(v[0]).Parse()
+		if err != nil {
+			return nil, err
+		}
+		var others []Permission
+		for _, s := range v[1:] {
+			o, err := NewParser(s).Parse()
+			if err != nil {
+				return nil, err
+			}
+			others = append(others, o)
+		}
+
+		return &TuplePermission{base.(BasePermission), others}, nil
+	}
+	return nil, fmt.Errorf("Not a permission: %v", i)
+}
+
+func MakeRecursivePointer(innerWritable bool) Permission {
+	if innerWritable {
+		p := &PointerPermission{
+			BasePermission: Owned | Mutable,
+		}
+		p.Target = p
+		return p
+	}
+
+	p0 := &PointerPermission{
+		BasePermission: Owned | Read,
+	}
+	p0.Target = p0
+	return &PointerPermission{
+		BasePermission: Owned | Mutable,
+		Target:         p0,
+	}
+
+}
+func MakeRecursiveStruct(innerWritable bool) Permission {
+	if innerWritable {
+		p := &StructPermission{
+			BasePermission: Owned | Mutable,
+		}
+		p.Fields = []Permission{&PointerPermission{Owned | Mutable, p}}
+		return p
+	}
+	p0 := &StructPermission{
+		BasePermission: Owned | Read,
+	}
+	p0.Fields = []Permission{&PointerPermission{Owned | Read, p0}}
+	return &StructPermission{BasePermission: Owned | Mutable, Fields: []Permission{&PointerPermission{Owned | Read, p0}}}
+}
+
 type mergeTestCase struct {
 	testfun mergeAction
 	perm    interface{}
@@ -98,6 +162,74 @@ var testcasesMerge = []mergeTestCase{
 	{mergeUnion, tuplePermission{"om"}, "_", tuplePermission{"om"}, ""},
 	{mergeStrictConversion, "om * om", "or", "or * or", ""},
 	{mergeStrictConversion, "om * om", "om", "om * om", ""},
+	{mergeConversion, "or", "_", "or", ""},
+	{mergeConversion, "_", "or", "or", ""},
+	{mergeConversion, "or", "r", "r", ""},
+	{mergeConversion, "r", "or", "or", ""},
+	{mergeConversion, "a", "or", "or", ""},
+	{mergeConversion, "a", "on * on", nil, "compatible"},
+	{mergeConversion, "om * om", "or", "or * or", ""},
+	{mergeConversion, "om * om", "ol", "ol * om", ""},
+	{mergeConversion, "om * om", "ol", "ol * om", ""},
+	{mergeConversion, "or * a", "or", "or * oa", ""},
+	{mergeConversion, "or * r", "or", "or * or", ""},
+	{mergeConversion, "r * or", "r", "r * r", ""},
+	{mergeConversion, "or * om", "or", "or * or", ""},           // inconsistent: non-linear ptr to lin val
+	{mergeConversion, "om * om * om", "or", "or * or * or", ""}, // inconsistent: non-linear ptr to lin val
+	{mergeConversion, "or * ov", "or", "or * ov", ""},           // this is consistent ov=orW is not linear
+	{mergeConversion, "or * owR", "or", "or * owR", ""},         // consistent: owR is not linear
+	{mergeConversion, "or * om", "or * ov", "or * ov", ""},
+	{mergeConversion, "or * om", "or chan or", nil, "compatible"},
+	{mergeConversion, "om chan om", "or", "or chan or", ""},
+	{mergeConversion, "om chan om", "or chan or", "or chan or", ""},
+	{mergeConversion, "om chan om", "or * on", nil, "compatible"},
+	{mergeConversion, "om []om", "or", "or []or", ""},
+	{mergeConversion, "om []om", "or []or", "or []or", ""},
+	{mergeConversion, "om []om", "or * on", nil, "compatible"},
+	{mergeConversion, "om [1]om", "or", "or [1]or", ""},
+	{mergeConversion, "om [1]om", "or [1]or", "or [1]or", ""},
+	{mergeConversion, "om [1]om", "or * on", nil, "compatible"},
+	{mergeConversion, "om map[om]om", "or", "or map[or]or", ""},
+	{mergeConversion, "om map[om]om", "or map[or]or", "or map[or]or", ""},
+	{mergeConversion, "om map[om]om", "or * on", nil, "compatible"},
+	{mergeConversion, "om struct { om }", "or", "or struct {or}", ""},
+	{mergeConversion, "om struct { om }", "or struct {on}", "or struct {on}", ""},
+	{mergeConversion, "om struct { om }", "or struct {on; ov}", nil, "1 vs 2"},
+	{mergeConversion, "om struct { om }", "or * or", nil, "compatible"},
+	{mergeConversion, "om func (om) ol", "or", "or func (om) ol", ""},
+	{mergeConversion, "om func (om, om) ol", "or", "or func (om, om) ol", ""},
+	{mergeConversion, "om func (om, om) ol", "or func (om, om) ol", "or func (om, om) ol", ""},
+	{mergeConversion, "om (om) func (om) ol", "or", "or (om) func (om) ol", ""},
+	{mergeConversion, "om (om) func (om) om", "or (or) func (or) or", "or (or) func (or) or", ""},
+	{mergeConversion, "om (om) func (om) om", "or (or) func (or)", nil, "number of results"},
+	{mergeConversion, "om (om) func (om) om", "or (or) func () om", nil, "number of parameters"},
+	{mergeConversion, "om (om) func (om) om", "or func (or) om", nil, "number of receivers"},
+	{mergeConversion, "om (om) func (om) om", "or chan om", nil, "compatible"},
+	{mergeConversion, "om interface { }", "or", "or interface { }", ""},
+	{mergeConversion, "om interface { }", "om struct {om}", nil, "compatible"},
+	{mergeConversion, "om interface { om (om) func () }", "or", "or interface { om (om) func () }", ""},                               // unsafe
+	{mergeConversion, "om interface { om (om) func () }", "or interface { ov (om) func () }", "or interface { ov (om) func () }", ""}, // unsafe
+	{mergeConversion, "om interface { om (om) func () }", "or interface { ov (om) func (); ov (om)  func () }", nil, "number of methods"},
+	{mergeConversion, MakeRecursivePointer(true), "om", MakeRecursivePointer(true), ""},
+	{mergeConversion, MakeRecursivePointer(true), "om * or", MakeRecursivePointer(false), ""},
+	{mergeConversion, MakeRecursiveStruct(true), "om struct { om * om }", MakeRecursiveStruct(true), ""},
+	{mergeConversion, MakeRecursiveStruct(true), "om struct { or * or }", MakeRecursiveStruct(false), ""},
+	{mergeConversion, MakeRecursiveStruct(true), "om struct { or }", MakeRecursiveStruct(false), ""},
+
+	// Linear values containing mutable stuff should not happen
+	{mergeConversion, "ol []om", "ol", "ol []ol", ""},
+	{mergeConversion, "ol [_]om", "ol", "ol [_]ol", ""},
+	{mergeConversion, "ol map[om]om", "ol", "ol map[ol]ol", ""},
+	{mergeConversion, "ol struct { om }", "ol", "ol struct { ol }", ""},
+	{mergeConversion, "ol chan om", "ol", "ol chan ol", ""},
+	// Two exceptions: Interfaces (methods are special) and pointers
+	{mergeConversion, "ol interface { om func () }", "ol", "ol interface { om func() }", ""},
+	{mergeConversion, "ol * om", "ol", "ol * om", ""},
+
+	{mergeConversion, tuplePermission{"om", "om"}, "or", tuplePermission{"or", "or"}, ""},
+	{mergeConversion, tuplePermission{"om", "om"}, tuplePermission{"or", "on"}, tuplePermission{"or", "on"}, ""},
+	{mergeConversion, tuplePermission{"om", "om"}, tuplePermission{"or", "on", "ov"}, nil, "1 vs 2"},
+	{mergeConversion, tuplePermission{"om", "om"}, "or * or", nil, "compatible"},
 }
 
 func TestMergeTo(t *testing.T) {
@@ -115,6 +247,12 @@ func TestMergeTo(t *testing.T) {
 			result, err := MakePermission(testCase.result)
 			if err != nil {
 				t.Fatalf("Invalid result %v", testCase.result)
+			}
+			if goal, ok := goal.(BasePermission); ok && testCase.testfun == mergeConversion {
+				realResult := ConvertToBase(perm, goal)
+				if !reflect.DeepEqual(realResult, result) {
+					t.Errorf("Unexpected result %v, expected %v (%v)", realResult, result, testCase.result)
+				}
 			}
 
 			for i, mergeFunc := range adapt(testCase.testfun) {
@@ -152,4 +290,15 @@ func TestMergeBase_panic(t *testing.T) {
 	}()
 	st := mergeState{action: -1}
 	st.mergeBase(None, None)
+}
+
+// TestConvertTo_panic checks that code actually panics on stuff that should
+// not be returned as errors.
+func TestConvertTo_panic(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("The code did not panic")
+		}
+	}()
+	ConvertTo(nil, nil)
 }
