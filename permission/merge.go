@@ -21,6 +21,7 @@ type mergeAction int
 
 const (
 	mergeConversion mergeAction = iota
+	mergeStrictConversion
 	mergeIntersection
 	mergeUnion
 )
@@ -58,7 +59,7 @@ func (state *mergeState) contravariant() *mergeState {
 
 func (state *mergeState) mergeBase(p1, p2 BasePermission) BasePermission {
 	switch state.action {
-	case mergeConversion:
+	case mergeConversion, mergeStrictConversion:
 		return p2
 	case mergeIntersection:
 		return p1 & p2
@@ -101,6 +102,19 @@ func ConvertTo(perm Permission, goal Permission) (result Permission, err error) 
 		result = perm
 	}
 	return
+}
+
+// StrictConvertToBase makes sure that the actual permissions of the object
+// only depend on the goal - all base permissions are replaced by the goal.
+//
+// This is necessary to ensure safe conversions from interfaces to concrete
+// types.
+func StrictConvertToBase(perm Permission, goal BasePermission) Permission {
+	result := convertToBase(perm, goal, (*convertToBaseState)(&mergeState{make(map[mergeStateKey]Permission), mergeStrictConversion}))
+	if reflect.DeepEqual(result, perm) {
+		result = perm
+	}
+	return result
 }
 
 // ConvertToBase converts a permission to a base permission, by limiting all
@@ -151,7 +165,7 @@ func merge(perm Permission, goal Permission, state *mergeState) Permission {
 		// FIXME(jak): Temporary code, need to refactor convert to base.
 		goalAsBase, goalIsBase := goal.(BasePermission)
 		_, permIsBase := perm.(BasePermission)
-		if state.action == mergeConversion && !permIsBase && goalIsBase {
+		if (state.action == mergeConversion || state.action == mergeStrictConversion) && !permIsBase && goalIsBase {
 			result = perm.convertToBase(goalAsBase, (*convertToBaseState)(state))
 		} else {
 			result = perm.merge(goal, state)

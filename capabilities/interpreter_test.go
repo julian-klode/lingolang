@@ -116,6 +116,7 @@ func TestVisitExpr(t *testing.T) {
 		{"a(b, b)", "callMutableNoCopyUnownedToUnownedReadable", "om func(r * r, r * r) or", "om * om", errorResult("Cannot copy or move"), []string{}, "om func(r * r, r * r) or", "om * om"},
 		{"a(b)", "callMutableNoCopyUnownedToOwnedReadable", "om func(or * or) or", "om * om", "or", []string{}, "om func(or * or) or", "or * or"},
 		{"a(b, b)", "callMutableNoCopyUnownedToOwnedReadable", "om func(or * or, or * or) or", "om * om", "or", []string{}, "om func(or * or, or * or) or", "or * or"},
+		{"a(b)", "callMutableNoCopyUnownedToOwnedReadable", "om func(or * owr) or", "om * om", "or", []string{}, "om func(or * owr) or", "or * or"},
 		{"a(b)", "callMutableCopy", "om func(om) or", "om", "or", []string{}, "om func(om) or", "om"},
 		{"a(b)", "callMutableNoRet", "om func(om)", "om", tuplePermission{"om"}, []string{}, "om func(om)", "om"},
 		{"a(b)", "callMutableNoRet", "om func(om) (ov, oa)", "om", tuplePermission{"om", "ov", "oa"}, []string{}, "om func(om) (ov, oa)", "om"},

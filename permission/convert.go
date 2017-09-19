@@ -11,11 +11,11 @@ type convertToBaseState mergeState
 
 // register registers a new result for a given permission and goal.
 func (state *convertToBaseState) register(result, perm, goal Permission) {
-	state.state[mergeStateKey{perm, goal, mergeConversion}] = result
+	state.state[mergeStateKey{perm, goal, state.action}] = result
 }
 
 func convertToBase(perm Permission, goal BasePermission, state *convertToBaseState) Permission {
-	key := mergeStateKey{perm, goal, mergeConversion}
+	key := mergeStateKey{perm, goal, state.action}
 	result, ok := state.state[key]
 	if !ok {
 		result = perm.convertToBase(goal, state)
@@ -36,19 +36,24 @@ func (p *PointerPermission) convertToBase(p2 BasePermission, state *convertToBas
 	state.register(next, p, p2)
 
 	next.BasePermission = p.BasePermission.convertToBaseBase(p2)
-	// If we loose linearity of the pointer, the target we are pointing
-	// to is not linear anymore either. For writes, we drop the write
-	// permission.
-	nextTarget := p.Target.GetBasePermission()&^Owned | (next.BasePermission & Owned)
-	// Strip linear write rights.
-	if (next.BasePermission&ExclRead) == 0 && (nextTarget&(ExclWrite|Write)) == (ExclWrite|Write) {
-		nextTarget &^= Write | ExclWrite
+	switch state.action {
+	case mergeConversion:
+		// If we loose linearity of the pointer, the target we are pointing
+		// to is not linear anymore either. For writes, we drop the write
+		// permission.
+		nextTarget := p.Target.GetBasePermission()&^Owned | (next.BasePermission & Owned)
+		// Strip linear write rights.
+		if (next.BasePermission&ExclRead) == 0 && (nextTarget&(ExclWrite|Write)) == (ExclWrite|Write) {
+			nextTarget &^= Write | ExclWrite
+		}
+		// Strip linearity from linear read rights
+		if (next.BasePermission&ExclRead) == 0 && (nextTarget&(ExclRead|Read)) == (ExclRead|Read) {
+			nextTarget &^= ExclRead
+		}
+		next.Target = convertToBase(p.Target, nextTarget, state)
+	case mergeStrictConversion:
+		next.Target = convertToBase(p.Target, next.BasePermission, state)
 	}
-	// Strip linearity from linear read rights
-	if (next.BasePermission&ExclRead) == 0 && (nextTarget&(ExclRead|Read)) == (ExclRead|Read) {
-		nextTarget &^= ExclRead
-	}
-	next.Target = convertToBase(p.Target, nextTarget, state)
 
 	return next
 }

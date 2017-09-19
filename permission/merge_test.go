@@ -8,70 +8,96 @@ import (
 )
 
 type mergeTestCase struct {
-	testfun func(p1, p2 Permission) (Permission, error)
+	testfun mergeAction
 	perm    interface{}
 	goal    interface{}
 	result  interface{}
 	err     string
 }
 
+type mergeFunc func(p1, p2 Permission) (Permission, error)
+
+func reverse(f mergeFunc) mergeFunc {
+	return func(p1, p2 Permission) (Permission, error) {
+		return f(p2, p1)
+	}
+}
+
+func adapt(ma mergeAction) []mergeFunc {
+	switch ma {
+	case mergeUnion:
+		return []mergeFunc{Union, reverse(Union)}
+	case mergeIntersection:
+		return []mergeFunc{Intersect, reverse(Intersect)}
+	case mergeConversion:
+		return []mergeFunc{ConvertTo}
+	case mergeStrictConversion:
+		return []mergeFunc{func(p1, p2 Permission) (Permission, error) {
+			return StrictConvertToBase(p1, p2.(BasePermission)), nil
+		}}
+	}
+	panic("Should not happen")
+}
+
 var testcasesMerge = []mergeTestCase{
-	{Intersect, "orw", "or", "or", ""},
-	{Union, "orw", "or", "orw", ""},
-	{Intersect, "om", "or", "or", ""},
-	{Intersect, "m", "or", "r", ""},
-	{Intersect, "om * om", "or * or", "or * or", ""},
-	{Intersect, "om * om", "ol * om", "ol * om", ""},
-	{Intersect, "om chan om", "or chan or", "or chan or", ""},
-	{Intersect, "or chan or", "om chan om", "or chan or", ""},
-	{Intersect, "om []om", "or []or", "or []or", ""},
-	{Intersect, "or []or", "om []om", "or []or", ""},
-	{Intersect, "om [1]om", "or [1]or", "or [1]or", ""},
-	{Intersect, "or [1]or", "om [1]om", "or [1]or", ""},
-	{Intersect, "om map[om]om", "or map[or]or", "or map[or]or", ""},
-	{Intersect, "or map[or]or", "om map[om]om", "or map[or]or", ""},
-	{Intersect, "om struct { om }", "or struct { or }", "or struct { or }", ""},
-	{Intersect, "om struct { om }", "or struct { or; or }", nil, "number of fields"},
-	{Intersect, "om (om) func(om) om", "or (or) func(or) or", "om (om) func(om) or", ""},
-	{Intersect, "om func(om)", "or func(or)", "om func(om)", ""},
-	{Union, "om func(om)", "or func(or)", "or func(or)", ""},
-	{Intersect, "om func(om, om)", "or func(or)", nil, "number of parameters"},
-	{Intersect, "om func()(om, om)", "or func()(or)", nil, "number of results"},
-	{Intersect, "om (om)func()", "or func()", nil, "number of receivers"},
-	{Intersect, "om func()", "or func()", "om func()", ""},
-	{Intersect, "om interface{}", "or interface{}", "or interface{}", ""},
-	{Intersect, "om interface{}", "or interface{om (om) func()}", nil, "number of methods"},
-	{Intersect, "om interface{om (om) func()}", "or interface{or (or) func()}", "or interface { om (om) func()}", ""},
+	{mergeIntersection, "orw", "or", "or", ""},
+	{mergeUnion, "orw", "or", "orw", ""},
+	{mergeIntersection, "om", "or", "or", ""},
+	{mergeIntersection, "m", "or", "r", ""},
+	{mergeIntersection, "om * om", "or * or", "or * or", ""},
+	{mergeIntersection, "om * om", "ol * om", "ol * om", ""},
+	{mergeIntersection, "om chan om", "or chan or", "or chan or", ""},
+	{mergeIntersection, "or chan or", "om chan om", "or chan or", ""},
+	{mergeIntersection, "om []om", "or []or", "or []or", ""},
+	{mergeIntersection, "or []or", "om []om", "or []or", ""},
+	{mergeIntersection, "om [1]om", "or [1]or", "or [1]or", ""},
+	{mergeIntersection, "or [1]or", "om [1]om", "or [1]or", ""},
+	{mergeIntersection, "om map[om]om", "or map[or]or", "or map[or]or", ""},
+	{mergeIntersection, "or map[or]or", "om map[om]om", "or map[or]or", ""},
+	{mergeIntersection, "om struct { om }", "or struct { or }", "or struct { or }", ""},
+	{mergeIntersection, "om struct { om }", "or struct { or; or }", nil, "number of fields"},
+	{mergeIntersection, "om (om) func(om) om", "or (or) func(or) or", "om (om) func(om) or", ""},
+	{mergeIntersection, "om func(om)", "or func(or)", "om func(om)", ""},
+	{mergeUnion, "om func(om)", "or func(or)", "or func(or)", ""},
+	{mergeIntersection, "om func(om, om)", "or func(or)", nil, "number of parameters"},
+	{mergeIntersection, "om func()(om, om)", "or func()(or)", nil, "number of results"},
+	{mergeIntersection, "om (om)func()", "or func()", nil, "number of receivers"},
+	{mergeIntersection, "om func()", "or func()", "om func()", ""},
+	{mergeIntersection, "om interface{}", "or interface{}", "or interface{}", ""},
+	{mergeIntersection, "om interface{}", "or interface{om (om) func()}", nil, "number of methods"},
+	{mergeIntersection, "om interface{om (om) func()}", "or interface{or (or) func()}", "or interface { om (om) func()}", ""},
 	// nil cases: Incompatible permission types
-	{Intersect, "om", "or * or", nil, "Cannot merge"},
-	{Intersect, "om * om", "om", nil, "Cannot merge"},
-	{Intersect, "om chan om", "om", nil, "Cannot merge"},
-	{Intersect, "om []om", "om", nil, "Cannot merge"},
-	{Intersect, "om [1]om", "om", nil, "Cannot merge"},
-	{Intersect, "om map[om]om", "om", nil, "Cannot merge"},
-	{Intersect, "om struct { om }", "om", nil, "Cannot merge"},
-	{Intersect, "om func()", "om", nil, "Cannot merge"},
-	{Intersect, "om interface {}", "om", nil, "Cannot merge"},
-	{Union, "om", "or * or", nil, "Cannot merge"},
-	{Union, "om * om", "om", nil, "Cannot merge"},
-	{Union, "om chan om", "om", nil, "Cannot merge"},
-	{Union, "om []om", "om", nil, "Cannot merge"},
-	{Union, "om [1]om", "om", nil, "Cannot merge"},
-	{Union, "om map[om]om", "om", nil, "Cannot merge"},
-	{Union, "om struct { om }", "om", nil, "Cannot merge"},
-	{Union, "om func()", "om", nil, "Cannot merge"},
-	{Union, "om interface {}", "om", nil, "Cannot merge"},
+	{mergeIntersection, "om", "or * or", nil, "Cannot merge"},
+	{mergeIntersection, "om * om", "om", nil, "Cannot merge"},
+	{mergeIntersection, "om chan om", "om", nil, "Cannot merge"},
+	{mergeIntersection, "om []om", "om", nil, "Cannot merge"},
+	{mergeIntersection, "om [1]om", "om", nil, "Cannot merge"},
+	{mergeIntersection, "om map[om]om", "om", nil, "Cannot merge"},
+	{mergeIntersection, "om struct { om }", "om", nil, "Cannot merge"},
+	{mergeIntersection, "om func()", "om", nil, "Cannot merge"},
+	{mergeIntersection, "om interface {}", "om", nil, "Cannot merge"},
+	{mergeUnion, "om", "or * or", nil, "Cannot merge"},
+	{mergeUnion, "om * om", "om", nil, "Cannot merge"},
+	{mergeUnion, "om chan om", "om", nil, "Cannot merge"},
+	{mergeUnion, "om []om", "om", nil, "Cannot merge"},
+	{mergeUnion, "om [1]om", "om", nil, "Cannot merge"},
+	{mergeUnion, "om map[om]om", "om", nil, "Cannot merge"},
+	{mergeUnion, "om struct { om }", "om", nil, "Cannot merge"},
+	{mergeUnion, "om func()", "om", nil, "Cannot merge"},
+	{mergeUnion, "om interface {}", "om", nil, "Cannot merge"},
 	/* Wildcard cases */
-	{Union, "om chan om", "_", "om chan om", ""},
-	{Union, "om interface {}", "_", "om interface{}", ""},
-	{Union, "om func ()", "_", "om func ()", ""},
-	{Union, "om struct {om}", "_", "om struct {om}", ""},
-	{Union, "om map[om] om", "_", "om map[om] om", ""},
-	{Union, "om * om", "_", "om * om", ""},
-	{Union, "om [] om", "_", "om [] om", ""},
-	{Union, "om [1] om", "_", "om [1] om", ""},
-	{Union, "om", "_", "om", ""},
-	{Union, tuplePermission{"om"}, "_", tuplePermission{"om"}, ""},
+	{mergeUnion, "om chan om", "_", "om chan om", ""},
+	{mergeUnion, "om interface {}", "_", "om interface{}", ""},
+	{mergeUnion, "om func ()", "_", "om func ()", ""},
+	{mergeUnion, "om struct {om}", "_", "om struct {om}", ""},
+	{mergeUnion, "om map[om] om", "_", "om map[om] om", ""},
+	{mergeUnion, "om * om", "_", "om * om", ""},
+	{mergeUnion, "om [] om", "_", "om [] om", ""},
+	{mergeUnion, "om [1] om", "_", "om [1] om", ""},
+	{mergeUnion, "om", "_", "om", ""},
+	{mergeUnion, tuplePermission{"om"}, "_", tuplePermission{"om"}, ""},
+	{mergeStrictConversion, "om * om", "or", "or * or", ""},
+	{mergeStrictConversion, "om * om", "om", "om * om", ""},
 }
 
 func TestMergeTo(t *testing.T) {
@@ -91,25 +117,17 @@ func TestMergeTo(t *testing.T) {
 				t.Fatalf("Invalid result %v", testCase.result)
 			}
 
-			realResult, err := testCase.testfun(perm, goal)
-			if !reflect.DeepEqual(realResult, result) {
-				t.Errorf("Unexpected result %v, expected %v (%v)", realResult, result, testCase.result)
-			}
-			switch {
-			case testCase.err != "" && (err == nil || !strings.Contains(err.Error(), testCase.err)):
-				t.Errorf("Expected an error containing %s, got %v", testCase.err, err)
-			case testCase.err == "" && err != nil:
-				t.Errorf("Expected nil error, got %v", err)
-			}
-			realResultRev, err := testCase.testfun(goal, perm)
-			if !reflect.DeepEqual(realResultRev, result) {
-				t.Errorf("Unexpected result %v, expected %v (%v)", realResultRev, result, testCase.result)
-			}
-			switch {
-			case testCase.err != "" && (err == nil || !strings.Contains(err.Error(), testCase.err)):
-				t.Errorf("Expected an error containing %s, got %v", testCase.err, err)
-			case testCase.err == "" && err != nil:
-				t.Errorf("Expected nil error, got %v", err)
+			for i, mergeFunc := range adapt(testCase.testfun) {
+				realResult, err := mergeFunc(perm, goal)
+				if !reflect.DeepEqual(realResult, result) {
+					t.Errorf("%d: Unexpected result %v, expected %v (%v)", i, realResult, result, testCase.result)
+				}
+				switch {
+				case testCase.err != "" && (err == nil || !strings.Contains(err.Error(), testCase.err)):
+					t.Errorf("%d: Expected an error containing %s, got %v", i, testCase.err, err)
+				case testCase.err == "" && err != nil:
+					t.Errorf("%d: Expected nil error, got %v", i, err)
+				}
 			}
 		})
 	}
