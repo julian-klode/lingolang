@@ -1,5 +1,5 @@
-# Introduction
-Lingo defines several types of permissions, the base permission and product permissions for structs, functions, and so on. Product permissions always inherit the rules for base permissions.
+# Permissions for Go
+Lingo, short for "linear go", defines several types of permissions, the base permission and product permissions for structs, functions, and so on. Product permissions always inherit the rules for base permissions.
 
 The following permissions are defined:
 

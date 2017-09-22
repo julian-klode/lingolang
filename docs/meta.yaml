@@ -1,16 +1,26 @@
 ---
 subject: 'Programming Languages'
-title:  'Linear Typing for Go'
-date: 01.01.2018
-subtitle: 'Master''s Thesis'
+title:  |
+ Linear Typing for Go
+date: 03.01.2018
+subtitle: |
+ A loose adaption of capabilities for sharing. \
+ \
+ Master's Thesis
 documentclass: scrreprt
 #classoption: twoside
+header-includes:
+ - \usepackage[draft]{graphicx}
 links-as-notes: true
 toc: true
-author: Julian Andres Klode (Philipps-Universität-Marburg)
+highlight-style: monochrome
+author: |
+ Julian Andres Klode \
+ Philipps-Universität Marburg
+reference-section-title: References
 abstract: |
  Go is a programming language aimed at writing highly-concurrent software
- like web servers. In concurrent programs, exchanging data between concurrent
+ like web server  s. In concurrent programs, exchanging data between concurrent
  calculations (goroutines) is essential.
 
  Go embraces a culture of "Don't communicate by sharing memory, share memory
