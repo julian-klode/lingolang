@@ -89,8 +89,7 @@ transformations from one data structure to another.
 There is a way to express mutability or side effects in functional programming: Haskell and some other
 languages use a construct called monads[@launchbury1995state].
 A monad is a data structur  e that essentially represents a computation. For example, an array monad could have
-operations 'modifying' an array that compute a new monad that when 'executed' produces a final array
-- it is essentially a form of embedded language. TODO: How is a monad composed
+operations 'modifying' an array that compute a new monad that when 'executed' produces a final array - it is essentially a form of embedded language. TODO: How is a monad composed
 
 Monads solve the problem of referential transparency: A function with the same input will
 produce the same output (a function operating on a monad produces a new monad describing any
@@ -145,13 +144,13 @@ Given four objects `a`, `b`, `x`, `y`, with `a`, `b` having fields `x` referenci
 
 This means that while `a` and `b` can have different _views_ on `x`, they must have the same one for `y`.
 
-Permissions might also be overly flexible: Should we really care about exclusive identity, or values that have no permission at all? There are 9 flags with two values each, so for a primitive value we end up with $2^9 = 512$ possible permissions.
+Permissions might also be overly flexible: Should we really care about exclusive identity, or values that have no permission at all? There are 7 flags with two values each, so for a primitive value we end up with $2^7 = 128$ possible permissions.
 
-## Other approaches
+## Fractional permissions
 Another approach to linear values is fractional permissions[@Boyland:2003:CIF:1760267.1760273] and fractional permissions without fractions[@Heule:2011:FPW:2076674.2076675].
 In the fractional permission world, an object starts out with a permission of 1, and each time it is borrowed, the permissions are split. A permission of 1 can write, other permissions can only read.
 
-Fractional permissions have one advantage over the permission approach outline in the previous section: They can be recombined. The approach is otherwise far less flexible though, offering only 2 possible kinds of values (writable and not-writable) rather than the $2^9$ possible combinations of permissions.
+Fractional permissions have one advantage over the permission approach outline in the previous section: They can be recombined. The approach is otherwise far less flexible though, offering only 2 possible kinds of values (writable and not-writable) rather than the $2^7$ possible combinations of permissions.
 
 ## Tying it all together
 Go's easy-to-use abstraction of concurrent programming with goroutines and channels are incredibly useful. One of the common proverbs in Go is "Don't communicate by sharing memory, share memory by communicating." (Rob Pike), that is
