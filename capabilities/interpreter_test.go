@@ -35,6 +35,22 @@ func newPermission(input interface{}) permission.Permission {
 		if err != nil {
 			panic(err)
 		}
+
+		if iface, ok := perm.(*permission.InterfacePermission); ok {
+			// Step 1: Replace receivers with pointer to iface, keep receivers in list
+			originalReceivers := make([]permission.Permission, len(iface.Methods))
+			for i := range iface.Methods {
+				originalReceivers[i] = iface.Methods[i].(*permission.FuncPermission).Receivers[0]
+				iface.Methods[i].(*permission.FuncPermission).Receivers[0] = perm
+			}
+			// Step 2: Convert receivers to specified ones.
+			for i := range iface.Methods {
+				iface.Methods[i].(*permission.FuncPermission).Receivers[0], err = permission.ConvertTo(perm, originalReceivers[i])
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
 		return perm
 	case permission.Permission:
 		return input
