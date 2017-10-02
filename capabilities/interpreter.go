@@ -100,6 +100,34 @@ func (i *Interpreter) visitIdent(st Store, e *ast.Ident) (permission.Permission,
 	return perm, borrowed, st
 }
 
+func (i *Interpreter) moveOrCopy(e ast.Expr, st Store, from, to permission.Permission, deps []Borrowed) (Store, []Borrowed, error) {
+	switch {
+	// If the value can be copied into the caller, we don't need to borrow it
+	case permission.CopyableTo(from, to):
+		st = i.Release(e, st, deps)
+		deps = nil
+	// The value cannot be moved either, error out.
+	case !permission.MovableTo(from, to):
+		return nil, nil, fmt.Errorf("Cannot copy or move: Needed %#v, received %#v", to, from)
+
+	// All borrows for unowned parameters are released after the call is done.
+	case to.GetBasePermission()&permission.Owned == 0:
+	// Write and exclusive permissions are stripped when converting a value from linear to non-linear
+	case permission.IsLinear(from) && !permission.IsLinear(to):
+		for i := range deps {
+			deps[i].perm = permission.ConvertToBase(deps[i].perm, deps[i].perm.GetBasePermission()&^(permission.ExclRead|permission.ExclWrite|permission.Write))
+		}
+		st = i.Release(e, st, deps)
+		deps = nil
+	// The value was moved, so all its deps are lost
+	default:
+		deps = nil
+	}
+
+	return st, deps, nil
+
+}
+
 // visitBinaryExpr - A binary expression is either logical, arithmetic, or a comparison.
 func (i *Interpreter) visitBinaryExpr(st Store, e *ast.BinaryExpr) (permission.Permission, []Borrowed, Store) {
 	var err error
@@ -204,6 +232,8 @@ func (i *Interpreter) visitBasicLit(st Store, e *ast.BasicLit) (permission.Permi
 }
 
 func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr) (permission.Permission, []Borrowed, Store) {
+	var err error
+
 	fun, funDeps, st := i.VisitExpr(st, e.Fun)
 
 	var accumulatedUnownedDeps []Borrowed
@@ -213,27 +243,12 @@ func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr) (permission.Permi
 			argPerm, argDeps, store := i.VisitExpr(st, arg)
 			st = store
 
-			switch {
-			// If the value can be copied into the caller, we don't need to borrow it
-			case permission.CopyableTo(argPerm, fun.Params[j]):
-				st = i.Release(e, st, argDeps)
-
-			// The value cannot be moved either, error out.
-			case !permission.MovableTo(argPerm, fun.Params[j]):
+			st, argDeps, err = i.moveOrCopy(e, st, argPerm, fun.Params[j], argDeps)
+			if err != nil {
 				return i.Error(arg, "Cannot copy or move to parameter: Needed %#v, received %#v", fun.Params[j], argPerm)
-
-			// All borrows for unowned parameters are released after the call is done.
-			case fun.Params[j].GetBasePermission()&permission.Owned == 0:
-				accumulatedUnownedDeps = append(accumulatedUnownedDeps, argDeps...)
-
-			// Write and exclusive permissions are stripped when converting a value from linear to non-linear
-			case permission.IsLinear(argPerm) && !permission.IsLinear(fun.Params[j]):
-				for i := range argDeps {
-					argDeps[i].perm = permission.ConvertToBase(argDeps[i].perm, argDeps[i].perm.GetBasePermission()&^(permission.ExclRead|permission.ExclWrite|permission.Write))
-				}
-				st = i.Release(e, st, argDeps)
 			}
 
+			accumulatedUnownedDeps = append(accumulatedUnownedDeps, argDeps...)
 		}
 
 		// Call is done, release function permissions
