@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"go/ast"
 	"go/parser"
+	"go/token"
+	"go/types"
 	"reflect"
 	"strings"
 	"testing"
@@ -80,11 +82,21 @@ func TestVisitIdent(t *testing.T) {
 	})
 }
 
+func TestHelper(t *testing.T) {
+	p := newPermission("ov interface{ ov (ov) func () }")
+	spew.Printf("p = %v, receiver=%v\n", p, p.(*permission.InterfacePermission).Methods[0].(*permission.FuncPermission).Receivers)
+}
+
 func TestVisitExpr(t *testing.T) {
 	type errorResult string
 
+	type scenario struct {
+		setup string
+		expr  string
+	}
+
 	testCases := []struct {
-		expr         string
+		expr         interface{}
 		name         string
 		lhs          interface{}
 		rhs          interface{}
@@ -95,7 +107,6 @@ func TestVisitExpr(t *testing.T) {
 	}{
 		// ------------------- Binary expressions ----------------------------
 		{"b&&b", "binarySingleIdent", "", "om", "om", []string{}, "", "om"},
-
 		{"a+b", "binaryOk", "or", "or", "om", []string{}, "or", "or"},
 		{"a+b", "binaryLhsUnreadable", "ow", "or", errorResult("In a: Required permissions r, but only have ow"), []string{}, "or", "or"},
 		{"a+b", "binaryLhsUnreadable", "or", "ow", errorResult("In b: Required permissions r, but only have ow"), []string{}, "or", "or"},
@@ -159,8 +170,16 @@ func TestVisitExpr(t *testing.T) {
 		// TODO
 		{"T {1}", "compositeLit", "om", "om", errorResult("not yet implemented"), nil, nil, nil},
 		{"func() {}", "funcLit", "om", "om", errorResult("not yet implemented"), nil, nil, nil},
-		{"a.b", "selector", "om", "om", errorResult("not yet implemented"), nil, nil, nil},
-		{"a.(b)", "selector", "om", "om", errorResult("not yet implemented"), nil, nil, nil},
+		{"a.(b)", "type cast", "om", "om", errorResult("not yet implemented"), nil, nil, nil},
+		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterface", "ov interface{ ov (ov) func () }", "_", "ov func ()", []string{}, "ov interface{ ov (ov) func () }", "_"},
+		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterfaceUnowned", "ov interface{ ov (v) func () }", "_", "v func ()", []string{}, "ov interface{ ov (v) func () }", "_"},
+		{scenario{"type a interface{ b()}", "a.b"}, "selectMethodExpressionInterfaceUnowned", "ov interface{ ov (v) func () }", "_", errorResult("not yet implemented"), []string{}, "ov interface{ ov (v) func () }", "_"},
+		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterfaceCantBind", "ov interface{ ov (om) func () }", "_", errorResult("not bind receiver"), []string{}, "ov interface{ ov (ov) func () }", "_"},
+		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterfaceIncompatibleLHS", "_", "_", errorResult("unknown type on left side"), []string{}, "ov interface{ ov (ov) func () }", "_"},
+		{scenario{"var a struct { b int }", "a.b"}, "selectStructMember", "ov struct { ov }", "_", "ov", []string{"a"}, "n struct { n }", "_"},
+		{scenario{"var a struct { b int }", "a.b"}, "selectStructMemberNotStruct", "ov", "_", errorResult("non-struct"), []string{"a"}, "n struct { n }", "_"},
+		{scenario{"type b struct { x, c int }\nvar a struct { b }", "a.c"}, "selectStructMemberEmbedded", "ov struct { ov struct { on; ov } }", "_", "ov", []string{"a"}, "n struct { n struct { n; n } }", "_"},
+		{scenario{"type b struct { x, c int }\nvar a struct { *b }", "a.c"}, "selectStructMemberEmbeddedPointer", "ov struct { ov * ov struct { on; ov } }", "_", "ov", []string{"a"}, "n struct { n * v struct { n; v } }", "_"},
 	}
 
 	for _, test := range testCases {
@@ -172,7 +191,32 @@ func TestVisitExpr(t *testing.T) {
 
 			var lhs *ast.Ident
 			var rhs *ast.Ident
-			e, _ := parser.ParseExpr(test.expr)
+			var e ast.Expr
+
+			switch expr := test.expr.(type) {
+			case string:
+				e, _ = parser.ParseExpr(expr)
+			case scenario:
+				fset := token.NewFileSet()
+				file, err := parser.ParseFile(fset, "test", "package test\n\n"+expr.setup+"\n\nvar x="+expr.expr, 0)
+				if err != nil {
+					t.Fatalf("Could not parse setup: %s", err)
+				}
+				info := types.Info{
+					Defs:       make(map[*ast.Ident]types.Object),
+					Selections: make(map[*ast.SelectorExpr]*types.Selection),
+				}
+				config := &types.Config{}
+				_, err = config.Check("test", fset, []*ast.File{file}, &info)
+				i.typesInfo = &info
+				if err != nil {
+					t.Fatalf("Could not parse setup: %s", err)
+				}
+				e = file.Decls[len(file.Decls)-1].(*ast.GenDecl).Specs[0].(*ast.ValueSpec).Values[0]
+			default:
+				panic(fmt.Errorf("Unsupported value %s, %v", e, e))
+			}
+
 			ast.Inspect(e, func(node ast.Node) bool {
 				if ident, ok := node.(*ast.Ident); ok {
 					switch ident.Name {
@@ -242,5 +286,12 @@ func TestRelease(t *testing.T) {
 		i.Release(ast.NewIdent("a"), st, []Borrowed{
 			{ast.NewIdent("a"), newPermission("om * om")},
 		})
+	})
+}
+
+func TestVisitSelectorExprOne_impossible(t *testing.T) {
+	i := &Interpreter{}
+	runFuncRecover(t, "nvalid kind", func() {
+		i.visitSelectorExprOne(nil, ast.NewIdent("error"), nil, -1, -42, nil)
 	})
 }

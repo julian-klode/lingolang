@@ -9,6 +9,7 @@ import (
 	"go/token"
 	"go/types"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/julian-klode/lingolang/permission"
 )
 
@@ -50,7 +51,7 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 	case *ast.ParenExpr:
 		return i.VisitExpr(st, e.X)
 	case *ast.SelectorExpr:
-		return i.Error(e, "selector expressions not yet implemented")
+		return i.visitSelectorExpr(st, e)
 	case *ast.SliceExpr:
 		return i.visitSliceExpr(st, e)
 	case *ast.StarExpr:
@@ -292,4 +293,71 @@ func (i *Interpreter) visitSliceExpr(st Store, e *ast.SliceExpr) (permission.Per
 		return arr, arrDeps, st
 	}
 	return i.Error(e, "Cannot create slice of %v - not sliceable", arr)
+}
+
+func (i *Interpreter) visitSelectorExpr(st Store, e *ast.SelectorExpr) (permission.Permission, []Borrowed, Store) {
+	selection := i.typesInfo.Selections[e]
+	path := selection.Index()
+	pathLen := len(path)
+	lhs, deps, st := i.VisitExpr(st, e.X)
+
+	for depth, index := range path {
+		kind := types.FieldVal
+		if depth == pathLen-1 {
+			kind = selection.Kind()
+		}
+		lhs, deps, st = i.visitSelectorExprOne(st, e, lhs, index, kind, deps)
+	}
+	return lhs, deps, st
+}
+
+func (i *Interpreter) visitSelectorExprOne(st Store, e ast.Expr, p permission.Permission, index int, kind types.SelectionKind, deps []Borrowed) (permission.Permission, []Borrowed, Store) {
+	var err error
+
+	switch kind {
+	case types.FieldVal:
+		/* A field value might be accessed through a pointer, fix it */
+		if ptr, ok := p.(*permission.PointerPermission); ok {
+			p = ptr.Target
+		}
+
+		strct, ok := p.(*permission.StructPermission)
+		if !ok {
+			return i.Error(e, "Cannot read field %s of non-struct type %#v", index, p)
+		}
+		return strct.Fields[index], deps, st
+	case types.MethodVal:
+		// TODO: NamedType
+		switch p := p.(type) {
+		case *permission.InterfacePermission:
+			target := p.Methods[index].(*permission.FuncPermission).Receivers[0]
+			if st, deps, err = i.moveOrCopy(e, st, p, target, deps); err != nil {
+				return i.Error(e, spew.Sprintf("Cannot bind receiver: %s in %v", err, p))
+			}
+
+			perm := p.Methods[index].(*permission.FuncPermission)
+			// If we are binding unowned, our function value must be unowned too.
+			if perm.Receivers[0].GetBasePermission()&permission.Owned == 0 {
+				perm = permission.ConvertToBase(perm, perm.GetBasePermission()&^permission.Owned).(*permission.FuncPermission)
+			}
+
+			return stripReceiver(perm), deps, st
+		default:
+			return i.Error(e, "Incompatible or unknown type on left side of method value for index %d", index)
+		}
+	case types.MethodExpr:
+		return i.Error(e, "Method expressions are not yet implemented - LHS is %#v", p)
+	}
+	return i.Error(e, "Invalid kind of selector expression")
+}
+
+// stripReceiver returns perm with an empty receiver list.
+func stripReceiver(perm *permission.FuncPermission) *permission.FuncPermission {
+	var perm2 permission.FuncPermission
+
+	perm2.BasePermission = perm.BasePermission
+	perm2.Name = perm.Name
+	perm2.Params = perm.Params
+	perm2.Results = perm.Results
+	return &perm2
 }
