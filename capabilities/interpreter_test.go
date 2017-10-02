@@ -101,6 +101,7 @@ func TestVisitExpr(t *testing.T) {
 		{"*b", "mutablePointerReadTarget", "", "om * or", "or", []string{"b"}, "", "n * r"},
 		{"*b", "readOnlyPointer", "", "or * or", "or", []string{"b"}, "", "n * r"},
 		{"*b", "noPointer", "", "or", errorResult("non-pointer"), []string{"b"}, "", "n * r"},
+		{scenario{"var b *int", "*b"}, "stareWithTypeInfo", "", "or", errorResult("non-pointer"), []string{"b"}, "", "n * r"},
 		// Unary expressions
 		{"-b", "mutableNegation", nil, "om", "om", []string{}, nil, "om"},
 		{"&b", "mutableNegation", nil, "om", "om * om", []string{"b"}, nil, "n"},

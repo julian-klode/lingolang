@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"go/types"
 
 	"github.com/julian-klode/lingolang/permission"
 )
 
 // Interpreter interprets a given statement or expression.
 type Interpreter struct {
+	typesInfo *types.Info
 }
 
 // Borrowed describes a variable that had to be borrowed from, along
@@ -169,12 +171,18 @@ func (i *Interpreter) visitStarExpr(st Store, e *ast.StarExpr) (permission.Permi
 	p1, deps1, st := i.VisitExpr(st, e.X)
 	i.Assert(e.X, p1, permission.Read)
 
+	var typ types.Type
+
+	if i.typesInfo != nil {
+		typ = i.typesInfo.TypeOf(e.X)
+	}
+
 	switch p1 := p1.(type) {
 	case *permission.PointerPermission:
 		return p1.Target, deps1, st
 	}
 
-	return i.Error(e, "Trying to dereference non-pointer %v", p1)
+	return i.Error(e, "Trying to dereference non-pointer %v of type %v", p1, typ)
 }
 func (i *Interpreter) visitUnaryExpr(st Store, e *ast.UnaryExpr) (permission.Permission, []Borrowed, Store) {
 	p1, deps1, st := i.VisitExpr(st, e.X)
