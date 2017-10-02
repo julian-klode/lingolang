@@ -11,11 +11,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/julian-klode/lingolang/permission"
 )
 
 func recoverErrorOrFail(t *testing.T, message string) {
-	if e := recover(); e == nil || !strings.Contains(fmt.Sprint(e), message) {
+	if e := recover(); (e == nil && message != "") || (e != nil && message == "") || !strings.Contains(fmt.Sprint(e), message) {
 		t.Fatalf("Unexpected error -- %s -- expected it to contain -- %s --", e, message)
 	}
 }
@@ -47,7 +48,7 @@ func newPermission(input interface{}) permission.Permission {
 
 		return &permission.TuplePermission{base.(permission.BasePermission), others}
 	}
-	panic("Not reachable")
+	panic(fmt.Errorf("Not reachable, unkown object %#v", input))
 }
 
 func TestVisitIdent(t *testing.T) {
@@ -149,6 +150,7 @@ func TestVisitExpr(t *testing.T) {
 	for _, test := range testCases {
 
 		t.Run(test.name, func(t *testing.T) {
+			defer recoverErrorOrFail(t, "")
 			st := NewStore()
 			i := &Interpreter{}
 
@@ -167,10 +169,10 @@ func TestVisitExpr(t *testing.T) {
 				return true
 			})
 
-			if lhs != nil {
+			if lhs != nil && test.lhs != nil {
 				st = st.Define(lhs.Name, newPermission(test.lhs))
 			}
-			if rhs != nil {
+			if rhs != nil && test.rhs != nil {
 				st = st.Define(rhs.Name, newPermission(test.rhs))
 			}
 
@@ -198,10 +200,10 @@ func TestVisitExpr(t *testing.T) {
 			}
 
 			if lhs != nil && !reflect.DeepEqual(store.GetEffective(lhs.Name), newPermission(test.lhsAfter)) {
-				t.Errorf("Found lhs after = %v, expected %v", store.GetEffective(lhs.Name), newPermission(test.lhsAfter))
+				t.Error(spew.Errorf("Found lhs after = %v, expected %v", store.GetEffective(lhs.Name), newPermission(test.lhsAfter)))
 			}
 			if rhs != nil && !reflect.DeepEqual(store.GetEffective(rhs.Name), newPermission(test.rhsAfter)) {
-				t.Errorf("Found rhs after = %v, expected %v", store.GetEffective(rhs.Name), newPermission(test.rhsAfter))
+				t.Error(spew.Errorf("Found rhs after = %v, expected %v", store.GetEffective(rhs.Name), newPermission(test.rhsAfter)))
 			}
 		})
 
