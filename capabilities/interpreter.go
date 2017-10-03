@@ -40,7 +40,7 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 	case *ast.CallExpr:
 		return i.visitCallExpr(st, e)
 	case *ast.CompositeLit:
-		return i.Error(e, "composite literal not yet implemented")
+		return i.visitCompositeLit(st, e)
 	case *ast.FuncLit:
 		return i.Error(e, "function literals not yet implemented")
 	case *ast.Ident:
@@ -360,4 +360,57 @@ func stripReceiver(perm *permission.FuncPermission) *permission.FuncPermission {
 	perm2.Params = perm.Params
 	perm2.Results = perm.Results
 	return &perm2
+}
+
+func (i *Interpreter) visitCompositeLit(st Store, e *ast.CompositeLit) (permission.Permission, []Borrowed, Store) {
+	var err error
+	// TODO: Types should be stored differently, possibly just wrapped in a *permission.Type or something.
+	typPermAsPerm, deps, st := i.VisitExpr(st, e.Type)
+	typPerm, ok := typPermAsPerm.(*permission.StructPermission)
+	st = i.Release(e, st, deps)
+	deps = nil
+	if !ok {
+		return i.Error(e.Type, "Expected struct permission when constructing value via composite literal")
+	}
+
+	if i.typesInfo == nil {
+		return i.Error(e, "Need typesInfo to evaluate composite literals")
+	}
+	typAndVal, ok := i.typesInfo.Types[e]
+	if !ok {
+		return i.Error(e, "Could not find type for composite literal")
+	}
+
+	for index, value := range e.Elts {
+		// Translate a key value expression to an index, value pair
+		if kve, ok := value.(*ast.KeyValueExpr); ok {
+			key, ok := kve.Key.(*ast.Ident)
+			if !ok {
+				return i.Error(kve, "No key found\n")
+			}
+
+			strct := typAndVal.Type.Underlying().(*types.Struct)
+			for index = 0; index <= strct.NumFields(); index++ {
+				if strct.NumFields() == index {
+					return i.Error(kve, "Could not lookup key %v", key)
+				}
+
+				if strct.Field(index).Name() == key.Name {
+					break
+				}
+
+			}
+			value = kve.Value
+		}
+
+		valPerm, valDeps, store := i.VisitExpr(st, value)
+		st = store
+
+		if st, valDeps, err = i.moveOrCopy(e, st, valPerm, typPerm.Fields[index], valDeps); err != nil {
+			return i.Error(value, spew.Sprintf("Cannot bind field: %s in %v", err, typPerm.Fields[index]))
+		}
+		// FIXME(jak): This might conflict with some uses of dependencies which use A depends on B as B contains A.
+		deps = append(deps, valDeps...)
+	}
+	return typPerm, deps, st
 }

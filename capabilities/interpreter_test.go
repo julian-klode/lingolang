@@ -168,7 +168,6 @@ func TestVisitExpr(t *testing.T) {
 		{"a[1:2:b]", "sliceMax", "om []ov", "om", "om []ov", []string{"a"}, "n []n", "om"},
 		{"a[1:2:b]", "sliceInvalid", "om map[ov]ov", "om", errorResult("not sliceable"), []string{"a"}, "n []n", "om"},
 		// TODO
-		{"T {1}", "compositeLit", "om", "om", errorResult("not yet implemented"), nil, nil, nil},
 		{"func() {}", "funcLit", "om", "om", errorResult("not yet implemented"), nil, nil, nil},
 		{"a.(b)", "type cast", "om", "om", errorResult("not yet implemented"), nil, nil, nil},
 		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterface", "ov interface{ ov (ov) func () }", "_", "ov func ()", []string{}, "ov interface{ ov (ov) func () }", "_"},
@@ -180,6 +179,15 @@ func TestVisitExpr(t *testing.T) {
 		{scenario{"var a struct { b int }", "a.b"}, "selectStructMemberNotStruct", "ov", "_", errorResult("non-struct"), []string{"a"}, "n struct { n }", "_"},
 		{scenario{"type b struct { x, c int }\nvar a struct { b }", "a.c"}, "selectStructMemberEmbedded", "ov struct { ov struct { on; ov } }", "_", "ov", []string{"a"}, "n struct { n struct { n; n } }", "_"},
 		{scenario{"type b struct { x, c int }\nvar a struct { *b }", "a.c"}, "selectStructMemberEmbeddedPointer", "ov struct { ov * ov struct { on; ov } }", "_", "ov", []string{"a"}, "n struct { n * v struct { n; v } }", "_"},
+		// Composite literals
+		{scenario{"type a struct { x int }\nvar b int", "a{b}"}, "compositeLitIndexed", "ov struct { ov }", "ov", "ov struct { ov }", []string{}, "ov struct { ov }", "ov"},
+		{scenario{"type a struct { x int }\nvar b int", "a{x: b}"}, "compositeLitKeyed", "ov struct { ov }", "ov", "ov struct { ov }", []string{}, "ov struct { ov }", "ov"},
+		{scenario{"type a struct { x int }\nvar b int", "a{x: b}"}, "compositeLitKeyedUnowned", "v struct { v }", "ov", "v struct { v }", []string{}, "v struct { v }", "ov"},
+		{scenario{"type a struct { x int }\nvar b int", "a{b}"}, "compositeLitIndexedOwnedMutable", "om struct { om * om }", "om * om", "om struct { om * om }", []string{}, "om struct { om * om }", "n * r"},
+		{scenario{"type a struct { x int }\nvar b int", "a{b}"}, "compositeLitIndexedUnownedMutable", "m struct { m * m }", "om * om", "m struct { m * m }", []string{"b"}, "m struct { m * m }", "n * r"},
+		{scenario{"type a struct { x int }\nvar b int", "a{b}"}, "compositeLitErrorCannotBind", "m struct { m }", "_", errorResult("not bind field"), nil, nil, nil},
+		{scenario{"type a struct { x int }\nvar b int", "a{b}"}, "compositeLitErrorNoStruct", "m", "_", errorResult("xpected struct"), nil, nil, nil},
+		{"a{b}", "compositeLitErrorNoTypesInfo", "m struct { m }", "m", errorResult("typesInfo"), nil, nil, nil},
 	}
 
 	for _, test := range testCases {
@@ -205,6 +213,7 @@ func TestVisitExpr(t *testing.T) {
 				info := types.Info{
 					Defs:       make(map[*ast.Ident]types.Object),
 					Selections: make(map[*ast.SelectorExpr]*types.Selection),
+					Types:      make(map[ast.Expr]types.TypeAndValue),
 				}
 				config := &types.Config{}
 				_, err = config.Check("test", fset, []*ast.File{file}, &info)
@@ -293,5 +302,46 @@ func TestVisitSelectorExprOne_impossible(t *testing.T) {
 	i := &Interpreter{}
 	runFuncRecover(t, "nvalid kind", func() {
 		i.visitSelectorExprOne(nil, ast.NewIdent("error"), nil, -1, -42, nil)
+	})
+}
+
+func TestVisitCompositeLit_errors(t *testing.T) {
+	i := &Interpreter{}
+	var st Store
+
+	st = st.Define("T", newPermission("om struct {om}"))
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "test", "package test\n\n type T struct { x int }\n\nvar x= T { x: 5 }", 0)
+	if err != nil {
+		t.Fatalf("Could not parse setup: %s", err)
+	}
+	info := types.Info{
+		Defs:       make(map[*ast.Ident]types.Object),
+		Selections: make(map[*ast.SelectorExpr]*types.Selection),
+		Types:      make(map[ast.Expr]types.TypeAndValue),
+	}
+	config := &types.Config{}
+	_, err = config.Check("test", fset, []*ast.File{file}, &info)
+	i.typesInfo = &info
+	if err != nil {
+		t.Fatalf("Could not parse setup: %s", err)
+	}
+	e := file.Decls[len(file.Decls)-1].(*ast.GenDecl).Specs[0].(*ast.ValueSpec).Values[0].(*ast.CompositeLit)
+
+	runFuncRecover(t, "not find type", func() {
+		i.typesInfo = &types.Info{Defs: info.Defs, Selections: info.Selections}
+		i.visitCompositeLit(st, e)
+	})
+
+	runFuncRecover(t, "o key found", func() {
+		i.typesInfo = &info
+		e.Elts[0].(*ast.KeyValueExpr).Key = &ast.BadExpr{}
+		i.visitCompositeLit(st, e)
+	})
+
+	runFuncRecover(t, "ot lookup key", func() {
+		i.typesInfo = &info
+		e.Elts[0].(*ast.KeyValueExpr).Key = ast.NewIdent("foobar")
+		i.visitCompositeLit(st, e)
 	})
 }
