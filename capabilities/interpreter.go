@@ -162,6 +162,8 @@ func (i *Interpreter) visitBinaryExpr(st Store, e *ast.BinaryExpr) (permission.P
 // treat B as unowned, but in A[B] = C, B might need to be moved into A, therefore both
 // A and B will be dependencies of the result, at least for maps.
 func (i *Interpreter) visitIndexExpr(st Store, e *ast.IndexExpr) (permission.Permission, []Borrowed, Store) {
+	var err error
+
 	p1, deps1, st := i.VisitExpr(st, e.X)
 	p2, deps2, st := i.VisitExpr(st, e.Index)
 
@@ -180,16 +182,12 @@ func (i *Interpreter) visitIndexExpr(st Store, e *ast.IndexExpr) (permission.Per
 		return p1.ElementPermission, deps1, st
 	case *permission.MapPermission:
 		// Ensures(map): If the key can be copied, we don't borrow it.
-		copy := permission.CopyableTo(p2, p1.KeyPermission)
-		if copy {
-			st = i.Release(e, st, deps2)
-		}
 
-		if copy || permission.MovableTo(p2, p1.KeyPermission) {
-			return p1.ValuePermission, deps1, st
+		st, deps2, err = i.moveOrCopy(e, st, p2, p1.KeyPermission, deps2)
+		if err != nil {
+			return i.Error(e, "Cannot move or copy from %s to %s: %s", p2, p1.KeyPermission, err)
 		}
-
-		i.Error(e, "Cannot move or copy from %s to %s", p2, p1.KeyPermission)
+		return p1.ValuePermission, deps1, st
 	}
 
 	i.Error(e, "Indexing unknown type")

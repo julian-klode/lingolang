@@ -127,7 +127,7 @@ func TestVisitExpr(t *testing.T) {
 		// a regular writable pointer is copyable. but beware: that's unsafe.
 		{"a[b]", "mutableMapCopyablePointerKey", "om map[orw * orw]om", "orw * orw", "om", []string{"a"}, "n map[n * rw]n", "orw * orw"},
 		// we pass a mutable key where we only need r/o, the key is consumed.
-		{"a[b]", "mutableMapFreeze", "om map[or * or]om", "om * om", "om", []string{"a"}, "n map[n * r]n", "n * r"},
+		{"a[b]", "mutableMapFreeze", "om map[or * or]om", "om * om", "om", []string{"a"}, "n map[n * r]n", "or * or"},
 		{"a[b]", "notIndexable", "or", "ov", errorResult("Indexing unknown"), nil, "", ""},
 		{"a[b]", "keyNotReadable", "om[] om", "ow", errorResult("Required permission"), nil, "", ""},
 		{"a[b]", "indexableNotReadable", "on[] on", "or", errorResult("Required permission"), nil, "", ""},
