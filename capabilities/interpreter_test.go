@@ -95,6 +95,14 @@ func TestVisitExpr(t *testing.T) {
 		expr  string
 	}
 
+	valueInterface := newPermission("ov interface{ ov (ov) func () }")
+	valueMethodExpr := newPermission("ov func(ov)")
+	valueMethodExpr.(*permission.FuncPermission).Params[0] = valueInterface
+
+	unownedValueInterface := newPermission("ov interface{ ov (v) func () }")
+	unownedValueMethodExpr := newPermission("ov func(v)")
+	unownedValueMethodExpr.(*permission.FuncPermission).Params[0] = unownedValueInterface.(*permission.InterfacePermission).Methods[0].(*permission.FuncPermission).Receivers[0]
+
 	testCases := []struct {
 		expr         interface{}
 		name         string
@@ -170,15 +178,20 @@ func TestVisitExpr(t *testing.T) {
 		// TODO
 		{"func() {}", "funcLit", "om", "om", errorResult("not yet implemented"), nil, nil, nil},
 		{"a.(b)", "type cast", "om", "om", errorResult("not yet implemented"), nil, nil, nil},
+
+		// Selectors (1): Method values
 		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterface", "ov interface{ ov (ov) func () }", "_", "ov func ()", []string{}, "ov interface{ ov (ov) func () }", "_"},
 		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterfaceUnowned", "ov interface{ ov (v) func () }", "_", "v func ()", []string{}, "ov interface{ ov (v) func () }", "_"},
-		{scenario{"type a interface{ b()}", "a.b"}, "selectMethodExpressionInterfaceUnowned", "ov interface{ ov (v) func () }", "_", errorResult("not yet implemented"), []string{}, "ov interface{ ov (v) func () }", "_"},
 		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterfaceCantBind", "ov interface{ ov (om) func () }", "_", errorResult("not bind receiver"), []string{}, "ov interface{ ov (ov) func () }", "_"},
 		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterfaceIncompatibleLHS", "_", "_", errorResult("unknown type on left side"), []string{}, "ov interface{ ov (ov) func () }", "_"},
+		// Selectors (2): Structs
 		{scenario{"var a struct { b int }", "a.b"}, "selectStructMember", "ov struct { ov }", "_", "ov", []string{"a"}, "n struct { n }", "_"},
 		{scenario{"var a struct { b int }", "a.b"}, "selectStructMemberNotStruct", "ov", "_", errorResult("non-struct"), []string{"a"}, "n struct { n }", "_"},
 		{scenario{"type b struct { x, c int }\nvar a struct { b }", "a.c"}, "selectStructMemberEmbedded", "ov struct { ov struct { on; ov } }", "_", "ov", []string{"a"}, "n struct { n struct { n; n } }", "_"},
 		{scenario{"type b struct { x, c int }\nvar a struct { *b }", "a.c"}, "selectStructMemberEmbeddedPointer", "ov struct { ov * ov struct { on; ov } }", "_", "ov", []string{"a"}, "n struct { n * v struct { n; v } }", "_"},
+		// Selectors (3): Method expressions
+		{scenario{"type a interface{ b()}", "a.b"}, "selectMethodExprInterface", valueInterface, "_", valueMethodExpr, []string{}, valueInterface, "_"},
+		{scenario{"type a interface{ b()}", "a.b"}, "selectMethodExprInterfaceUnowned", unownedValueInterface, "_", unownedValueMethodExpr, []string{}, unownedValueInterface, "_"},
 		// Composite literals
 		{scenario{"type a struct { x int }\nvar b int", "a{b}"}, "compositeLitIndexed", "ov struct { ov }", "ov", "ov struct { ov }", []string{}, "ov struct { ov }", "ov"},
 		{scenario{"type a struct { x int }\nvar b int", "a{x: b}"}, "compositeLitKeyed", "ov struct { ov }", "ov", "ov struct { ov }", []string{}, "ov struct { ov }", "ov"},

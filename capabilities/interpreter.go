@@ -346,7 +346,13 @@ func (i *Interpreter) visitSelectorExprOne(st Store, e ast.Expr, p permission.Pe
 			return i.Error(e, "Incompatible or unknown type on left side of method value for index %d", index)
 		}
 	case types.MethodExpr:
-		return i.Error(e, "Method expressions are not yet implemented - LHS is %#v", p)
+		switch p := p.(type) {
+		case *permission.InterfacePermission:
+			st = i.Release(e, st, deps)
+			return pushReceiverToParams(p.Methods[index].(*permission.FuncPermission)), nil, st
+		default:
+			return i.Error(e, "Incompatible or unknown type on left side of method value for index %d", index)
+		}
 	}
 	return i.Error(e, "Invalid kind of selector expression")
 }
@@ -358,6 +364,16 @@ func stripReceiver(perm *permission.FuncPermission) *permission.FuncPermission {
 	perm2.BasePermission = perm.BasePermission
 	perm2.Name = perm.Name
 	perm2.Params = perm.Params
+	perm2.Results = perm.Results
+	return &perm2
+}
+
+func pushReceiverToParams(perm *permission.FuncPermission) *permission.FuncPermission {
+	var perm2 permission.FuncPermission
+
+	perm2.BasePermission = perm.BasePermission
+	perm2.Name = perm.Name
+	perm2.Params = append(append([]permission.Permission(nil), perm.Receivers...), perm.Params...)
 	perm2.Results = perm.Results
 	return &perm2
 }
