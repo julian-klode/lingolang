@@ -48,43 +48,6 @@ const (
 	None BasePermission = 0
 )
 
-// String renders the base permission in its Canonical form.
-func (perm BasePermission) String() string {
-	var result string
-	if perm&Owned != 0 {
-		result = "o"
-	}
-
-	switch perm &^ Owned {
-	case Mutable:
-		return result + "m"
-	case LinearValue:
-		return result + "l"
-	case Value:
-		return result + "v"
-	case ReadOnly:
-		return result + "r"
-	case Any &^ Owned:
-		return "a" // special case: any implies owned.
-	case None:
-		return result + "n"
-	default:
-		if perm&Read != 0 {
-			result += "r"
-		}
-		if perm&Write != 0 {
-			result += "w"
-		}
-		if perm&ExclRead != 0 {
-			result += "R"
-		}
-		if perm&ExclWrite != 0 {
-			result += "W"
-		}
-		return result
-	}
-}
-
 // isLinear checks if the type is linear
 func (perm BasePermission) isLinear() bool {
 	return (perm&(ExclWrite) != 0 && perm&Write != 0) || (perm&(ExclRead) != 0 && perm&Read != 0)
@@ -104,6 +67,8 @@ type Permission interface {
 	isCopyableTo(p2 Permission, state assignableState) bool
 	convertToBase(p2 BasePermission, state *convertToBaseState) Permission
 	merge(p2 Permission, state *mergeState) Permission
+	string(seen map[Permission]bool) string
+	String() string
 }
 
 // PointerPermission describes permissions on a pointer value.
