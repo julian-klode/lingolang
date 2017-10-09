@@ -139,6 +139,9 @@ func TestVisitExpr(t *testing.T) {
 		{"*b", "noPointer", "", "or", errorResult("non-pointer"), []string{"b"}, "", "n * r"},
 		{scenario{"var b *int", "*b"}, "stareWithTypeInfo", "", "or", errorResult("non-pointer"), []string{"b"}, "", "n * r"},
 		// Unary expressions
+		{"<-b", "unaryChannelRead", nil, "om chan om", "om", []string{}, nil, "om chan om"},
+		{"<-b", "unaryChannelReadLinear", nil, "om chan ol", "ol", []string{}, nil, "om chan ol"},
+		{"<-b", "unaryChannelReadNotChan", nil, "om", errorResult("xpected channel"), []string{}, nil, "om chan ol"},
 		{"-b", "mutableNegation", nil, "om", "om", []string{}, nil, "om"},
 		{"&b", "mutableNegation", nil, "om", "om * om", []string{"b"}, nil, "n"},
 		{"&b", "mutableNegation", nil, "or", "om * or", []string{"b"}, nil, "n"},

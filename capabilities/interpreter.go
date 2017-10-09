@@ -220,6 +220,14 @@ func (i *Interpreter) visitUnaryExpr(st Store, e *ast.UnaryExpr) (permission.Per
 		return &permission.PointerPermission{
 			BasePermission: permission.Owned | permission.Mutable,
 			Target:         p1}, deps1, st
+
+	case token.ARROW:
+		ch, ok := p1.(*permission.ChanPermission)
+		if !ok {
+			return i.Error(e.X, "Expected channel permission, received %v", ch)
+		}
+		st = i.Release(e, st, deps1)
+		return ch.ElementPermission, nil, st
 	default:
 		st = i.Release(e, st, deps1)
 		return permission.Owned | permission.Mutable, nil, st
