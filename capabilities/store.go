@@ -62,6 +62,13 @@ func (st Store) Merge(st2 Store) (Store, error) {
 	var err error
 	st3 := make(Store, len(st))
 
+	switch {
+	case st == nil:
+		return st2, nil
+	case st2 == nil:
+		return st, nil
+	}
+
 	for i, v := range st {
 		if st[i].name != st2[i].name {
 			return nil, fmt.Errorf("Invalid merge: Different identifiers %s vs %s at position %d", st[i].name, st2[i].name, i)
