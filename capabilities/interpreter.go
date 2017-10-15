@@ -8,6 +8,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"log"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/julian-klode/lingolang/permission"
@@ -454,12 +455,24 @@ type StmtExit struct {
 
 func (i *Interpreter) visitStmt(st Store, stmt ast.Stmt) []StmtExit {
 	switch stmt := stmt.(type) {
+	case nil:
+		return []StmtExit{{st, nil}}
 	case *ast.BlockStmt:
 		return i.visitBlockStmt(st, stmt)
+	case *ast.LabeledStmt:
+		return i.visitStmt(st, stmt.Stmt)
 	case *ast.CaseClause:
 		return i.visitCaseClause(st, stmt)
 	case *ast.BranchStmt:
 		return i.visitBranchStmt(st, stmt)
+	case *ast.ExprStmt:
+		_, deps, st := i.VisitExpr(st, stmt.X)
+		log.Printf("Evaluated expression to %v", deps)
+		log.Printf("Store a is now: %v", st.GetEffective("a"))
+		st = i.Release(stmt.X, st, deps)
+		return []StmtExit{{st, nil}}
+	case *ast.IfStmt:
+		return i.visitIfStmt(st, stmt)
 	case *ast.ReturnStmt:
 		return i.visitReturnStmt(st, stmt)
 	default:
@@ -487,12 +500,49 @@ func (i *Interpreter) visitCaseClause(st Store, stmt *ast.CaseClause) []StmtExit
 	return i.visitStmtList(mergedStore, stmt.Body)
 }
 
+func (i *Interpreter) visitIfStmt(st Store, stmt *ast.IfStmt) []StmtExit {
+	st = st.BeginBlock()
+	exits := i.visitStmt(st, stmt.Init)
+	if len(exits) != 1 {
+		i.Error(stmt.Init, "Initializer to if statement has %d exits", len(exits))
+	}
+	st = exits[0].Store // assert len(exits) == 1
+	perm, deps, st := i.VisitExpr(st, stmt.Cond)
+	i.Assert(stmt.Cond, perm, permission.Read)
+	st = i.Release(stmt.Cond, st, deps)
+
+	exitsThen := i.visitStmt(st, stmt.Body)
+	exitsElse := i.visitStmt(st, stmt.Else)
+
+	for i := range exitsThen {
+		exitsThen[i].Store = exitsThen[i].Store.EndBlock()
+	}
+	for i := range exitsElse {
+		exitsElse[i].Store = exitsElse[i].Store.EndBlock()
+	}
+	log.Printf("then a is now: %v", exitsThen[0].GetEffective("a"))
+	log.Printf("else a is now: %v", exitsElse[0].GetEffective("a"))
+
+	out := append(exitsThen, exitsElse...)
+
+	if len(out) < 2 { // TODO: unreachable.
+		i.Error(stmt, "If has less than 2 exits", len(exits))
+	}
+
+	return out
+}
+
 func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt) []StmtExit {
 	labels := make(map[string]int)
 	work := []struct {
 		Store
 		int
 	}{{st, 0}}
+
+	seen := []struct {
+		Store
+		int
+	}{}
 
 	addWork := func(st Store, pos int) {
 		work = append(work, struct {
@@ -509,15 +559,27 @@ func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt) []StmtExit {
 		}
 	}
 
+nextWork:
 	for len(work) != 0 {
 		start := work[0]
 		work = work[1:]
 		st := start.Store
+		log.Printf("Visiting statement %d of %d", start.int, len(stmts))
+
+		// Hey guys, we've already been here, discard that path.
+		for _, sn := range seen {
+			if sn.int == start.int && sn.Store.Equal(st) {
+				log.Printf("Rejecting statement %d in store %v", start.int, st)
+				break nextWork
+			}
+		}
+		seen = append(seen, start)
 
 		stmt := stmts[start.int]
 		exits := i.visitStmt(st, stmt)
 
 		for _, exit := range exits {
+			st := exit.Store
 			switch branch := exit.branch.(type) {
 			case nil:
 				if len(stmts) > start.int+1 {
@@ -544,7 +606,7 @@ func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt) []StmtExit {
 		}
 	}
 
-	return nil
+	return output
 }
 
 func (i *Interpreter) visitBranchStmt(st Store, s *ast.BranchStmt) []StmtExit {
@@ -555,6 +617,7 @@ func (i *Interpreter) visitReturnStmt(st Store, s *ast.ReturnStmt) []StmtExit {
 	if len(s.Results) != len(i.curFunc.Results) {
 		i.Error(s, "Different numbers of return values")
 	}
+
 	for k := 0; k < len(s.Results); k++ {
 		// TODO: Named return values are not accurately presented. We need to map index
 		// to name in the interpreter (random name for unnamed results) and then look them

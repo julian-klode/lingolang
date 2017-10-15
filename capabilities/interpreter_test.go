@@ -368,3 +368,151 @@ func TestVisitCompositeLit_errors(t *testing.T) {
 		i.visitCompositeLit(st, e)
 	})
 }
+
+func TestVisitStmt(t *testing.T) {
+	type storeItemDesc struct {
+		key   string
+		value interface{}
+	}
+	type exitDesc struct {
+		items []storeItemDesc
+		pos   int
+	}
+
+	type testCase struct {
+		name   string
+		input  []storeItemDesc
+		code   string
+		output []exitDesc
+		error  string
+	}
+
+	testCases := []testCase{
+		/*{"returnOne",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"main", "om func (om * om) om * om"},
+			},
+			"func main(a *int) *int { return a }",
+			[]exitDesc{
+				{[]storeItemDesc{{"a", "n * r"}}, 40},
+			},
+			"",
+		},
+		{"if",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"nil", "om * om"},
+				{"main", "om func (om * om) om * om"},
+			},
+			"func main(a *int) *int { if a != nil { return a }; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{{"a", "n * r"}}, 54},
+				{[]storeItemDesc{{"a", "om * om"}}, 66},
+			},
+			"",
+		},
+		{"goto",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"nil", "om * om"},
+				{"main", "om func (om * om) om * om"},
+			},
+			"func main(a *int) *int { x: if a != nil { return a }; goto x }",
+			[]exitDesc{
+				{[]storeItemDesc{{"a", "n * r"}}, 57},
+			},
+			"",
+		},
+		{"gotoInfinite",
+			[]storeItemDesc{
+				{"main", "om func (om * om) om * om"},
+			},
+			"func main(a *int) *int { x: goto x }",
+			[]exitDesc{},
+			"",
+		},
+		{"gotoReturn",
+			[]storeItemDesc{
+				{"main", "om func (om * om) om * om"},
+			},
+			"func main(a *int) *int { x: goto x; return a }",
+			[]exitDesc{},
+			"",
+		},*/
+		{"conditionalMove",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"nil", "om * om"},
+				{"main", "om func (om * om) om * om"},
+				{"f", "om func (om * om) n"},
+			},
+			"func main(a *int, f func(a *int)) *int {  if a != nil { f(a); }; return a }",
+			nil,
+			"Cannot bind return value", // Might be entering return after having entered the if body
+		},
+		{"conditionalGoto",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"nil", "om * om"},
+				{"main", "om func (om * om) om * om"},
+				{"f", "om func (om * om) n"},
+			},
+			"func main(a *int, f func(a *int)) *int {  x: if a != nil { f(a); goto x }; return a }",
+			nil,
+			"63: In a: Required permissions r", // Fails in second iteration as a has been borrowed.
+		},
+	}
+
+	for _, cs := range testCases {
+		t.Run(cs.name, func(t *testing.T) {
+			defer recoverErrorOrFail(t, cs.error)
+
+			i := &Interpreter{}
+			var st Store
+			fset := token.NewFileSet()
+			file, err := parser.ParseFile(fset, "test", "package test\n\n"+cs.code, 0)
+			if err != nil {
+				t.Fatalf("Could not parse setup: %s", err)
+			}
+			info := types.Info{
+				Defs:       make(map[*ast.Ident]types.Object),
+				Selections: make(map[*ast.SelectorExpr]*types.Selection),
+				Types:      make(map[ast.Expr]types.TypeAndValue),
+			}
+			config := &types.Config{}
+			_, err = config.Check("test", fset, []*ast.File{file}, &info)
+			i.typesInfo = &info
+			if err != nil {
+				t.Fatalf("Could not parse setup: %s", err)
+			}
+
+			for _, input := range cs.input {
+				st = st.Define(input.key, newPermission(input.value))
+			}
+
+			i.curFunc = st.GetEffective("main").(*permission.FuncPermission)
+			exits := i.visitStmt(st, file.Decls[len(file.Decls)-1].(*ast.FuncDecl).Body)
+
+			if len(exits) != len(cs.output) {
+				t.Fatalf("Expected %d result, got %d => %v", len(cs.output), len(exits), exits)
+			}
+
+			for k, output := range cs.output {
+				exit := exits[k]
+				for _, item := range output.items {
+					act := exit.GetEffective(item.key)
+					exp := newPermission(item.value)
+					if !reflect.DeepEqual(act, exp) {
+						t.Error(spew.Errorf("Expected %v, received %v", exp, act))
+					}
+				}
+
+				if int(exit.branch.Pos()) != output.pos {
+					t.Error(spew.Errorf("Expected %v, received %v", output.pos, exit.branch.Pos()))
+				}
+			}
+		})
+	}
+
+}
