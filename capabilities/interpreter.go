@@ -16,6 +16,7 @@ import (
 // Interpreter interprets a given statement or expression.
 type Interpreter struct {
 	typesInfo *types.Info
+	curFunc   *permission.FuncPermission
 }
 
 // Borrowed describes a variable that had to be borrowed from, along
@@ -107,7 +108,7 @@ func (i *Interpreter) visitIdent(st Store, e *ast.Ident) (permission.Permission,
 	return perm, borrowed, st
 }
 
-func (i *Interpreter) moveOrCopy(e ast.Expr, st Store, from, to permission.Permission, deps []Borrowed) (Store, []Borrowed, error) {
+func (i *Interpreter) moveOrCopy(e ast.Node, st Store, from, to permission.Permission, deps []Borrowed) (Store, []Borrowed, error) {
 	switch {
 	// If the value can be copied into the caller, we don't need to borrow it
 	case permission.CopyableTo(from, to):
@@ -441,4 +442,130 @@ func (i *Interpreter) visitCompositeLit(st Store, e *ast.CompositeLit) (permissi
 		deps = append(deps, valDeps...)
 	}
 	return typPerm, deps, st
+}
+
+// StmtExit is a store with an optional field specifying any early exit from a block, like
+// a return, goto, or a continue. The idea is simple: Each block handler checks if it should
+// handle such a branch, and do that or pass it up to the upper layer.
+type StmtExit struct {
+	Store
+	branch ast.Stmt // *ReturnStmt or *BranchStmt, or nil if normal exit
+}
+
+func (i *Interpreter) visitStmt(st Store, stmt ast.Stmt) []StmtExit {
+	switch stmt := stmt.(type) {
+	case *ast.BlockStmt:
+		return i.visitBlockStmt(st, stmt)
+	case *ast.CaseClause:
+		return i.visitCaseClause(st, stmt)
+	case *ast.BranchStmt:
+		return i.visitBranchStmt(st, stmt)
+	case *ast.ReturnStmt:
+		return i.visitReturnStmt(st, stmt)
+	default:
+		i.Error(stmt, "Unknown type of statement")
+		panic(nil)
+	}
+}
+
+func (i *Interpreter) visitBlockStmt(st Store, stmt *ast.BlockStmt) []StmtExit {
+	return i.visitStmtList(st, stmt.List)
+}
+
+func (i *Interpreter) visitCaseClause(st Store, stmt *ast.CaseClause) []StmtExit {
+	var err error
+	var mergedStore Store
+	for _, e := range stmt.List {
+		perm, deps, store := i.VisitExpr(st, e)
+		st = store
+		i.Assert(e, perm, permission.Read)
+		st = i.Release(e, st, deps)
+		if mergedStore, err = mergedStore.Merge(st); err != nil {
+			i.Error(e, "Could not merge with previous results: %s", err)
+		}
+	}
+	return i.visitStmtList(mergedStore, stmt.Body)
+}
+
+func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt) []StmtExit {
+	labels := make(map[string]int)
+	work := []struct {
+		Store
+		int
+	}{{st, 0}}
+
+	addWork := func(st Store, pos int) {
+		work = append(work, struct {
+			Store
+			int
+		}{st, pos})
+	}
+
+	var output []StmtExit
+
+	for k, stmt := range stmts {
+		if l, ok := stmt.(*ast.LabeledStmt); ok {
+			labels[l.Label.Name] = k
+		}
+	}
+
+	for len(work) != 0 {
+		start := work[0]
+		work = work[1:]
+		st := start.Store
+
+		stmt := stmts[start.int]
+		exits := i.visitStmt(st, stmt)
+
+		for _, exit := range exits {
+			switch branch := exit.branch.(type) {
+			case nil:
+				if len(stmts) > start.int+1 {
+					addWork(st, start.int+1)
+				} else {
+					output = append(output, StmtExit{st, nil})
+				}
+			case *ast.ReturnStmt:
+				// This exits the block
+				output = append(output, exit)
+
+			case *ast.BranchStmt:
+				switch {
+				case branch.Tok == token.GOTO:
+					if target, ok := labels[branch.Label.Name]; ok {
+						addWork(st, target)
+					} else {
+						output = append(output, exit)
+					}
+				default:
+					output = append(output, exit)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (i *Interpreter) visitBranchStmt(st Store, s *ast.BranchStmt) []StmtExit {
+	return []StmtExit{{st, s}}
+}
+
+func (i *Interpreter) visitReturnStmt(st Store, s *ast.ReturnStmt) []StmtExit {
+	if len(s.Results) != len(i.curFunc.Results) {
+		i.Error(s, "Different numbers of return values")
+	}
+	for k := 0; k < len(s.Results); k++ {
+		// TODO: Named return values are not accurately presented. We need to map index
+		// to name in the interpreter (random name for unnamed results) and then look them
+		// up in the store.
+		perm, deps, store := i.VisitExpr(st, s.Results[k])
+		store, _, err := i.moveOrCopy(s, store, perm, i.curFunc.Results[k], deps)
+		if err != nil {
+			i.Error(s, "Cannot bind return value %d: %s", k, err)
+		}
+		st = store
+	}
+	// A return statement is a singular exit.
+	return []StmtExit{{st, s}}
 }
