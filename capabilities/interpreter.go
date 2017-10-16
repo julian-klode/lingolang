@@ -466,11 +466,7 @@ func (i *Interpreter) visitStmt(st Store, stmt ast.Stmt) []StmtExit {
 	case *ast.BranchStmt:
 		return i.visitBranchStmt(st, stmt)
 	case *ast.ExprStmt:
-		_, deps, st := i.VisitExpr(st, stmt.X)
-		log.Printf("Evaluated expression to %v", deps)
-		log.Printf("Store a is now: %v", st.GetEffective("a"))
-		st = i.Release(stmt.X, st, deps)
-		return []StmtExit{{st, nil}}
+		return i.visitExprStmt(st, stmt)
 	case *ast.IfStmt:
 		return i.visitIfStmt(st, stmt)
 	case *ast.ReturnStmt:
@@ -498,6 +494,12 @@ func (i *Interpreter) visitCaseClause(st Store, stmt *ast.CaseClause) []StmtExit
 		}
 	}
 	return i.visitStmtList(mergedStore, stmt.Body)
+}
+
+func (i *Interpreter) visitExprStmt(st Store, stmt *ast.ExprStmt) []StmtExit {
+	_, deps, st := i.VisitExpr(st, stmt.X)
+	st = i.Release(stmt.X, st, deps)
+	return []StmtExit{{st, nil}}
 }
 
 func (i *Interpreter) visitIfStmt(st Store, stmt *ast.IfStmt) []StmtExit {
