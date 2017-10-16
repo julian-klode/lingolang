@@ -33,18 +33,19 @@ Ownership plays an interesting role with linear objects: It determines whether a
 Instead of using a store mapping objects, and (object, field) tuples to capabilities, that is, (object, permission) pairs, Lingo employs a different approach in order to combat the limitations shown in the introduction.
 Lingo's store maps a variable to a permission.
 It does however, not just have the permission bits introduced earlier (from now on called _base permission_), but also _structured_ permissions, equivalent to types.
-A structured permission consists of a base permission and permissions for child elements, and is essentially a graph with the same shape as the graph describing the type. Some examples
+A structured permission consists of a base permission and permissions for child elements, and is essentially a graph with the same shape as the graph describing the type. Some examples:
 
 * Primitive values (integers, strings, floats, etc.) have a base permission
 * An object of type `*T` has the structured permission `<base> * <perm of T>`.
 * An object of type `struct { x int; y int}` has the structured permission `<base> struct { <base>; <base>}`
 * An object of type `[]int` has the structured permission `<base> [] <base>`
 
-There also exists a third kind of permission apart from base and structured permissions: The wildcard permission, written `_`. It
-is used in permission annotations whenever the default permission for a type should be used.
+Apart from primitive and structured permissions, there are also some special permissions:
 
+* The untyped nil permission, representing the `nil` literal.
+* The wildcard permission, written `_`. It is used in permission annotations whenever the default permission for a type should be used.
 
-**Summary**: Lingo has 5 permission flags to form base permissions. There are three kinds of permissions: base permissions, structured permissions, and wildcard permissions.
+**Summary**: Lingo has 5 permission flags to form base permissions. There are four kinds of permissions: base permissions, structured permissions, nil permissions, and wildcard permissions.
 
 ## Basic operations on permissions
 Lingo was designed bottom-up, by starting with the permissions, and then defining operations on them that will be needed later on.
@@ -68,6 +69,8 @@ Referencing
 : An object can be referenced if neither source nor target permission are linear, and the children can be referenced. As special cases, function receivers, parameters, return values must be movable instead; and functions in an interface must be movable as well.
 
 Function permissions are a fairly special case. Here, the `w` flag does not really mean writable, but it means that the function may return different results even for the same input parameters. As such, a readable function may be used in places where a writable function is expected, which is exactly the opposite of all other permissions, and the checks for referencing and moving are thus done in reverse for a function's base permission, except for the ownership flag.
+
+Another special case with assignability is the untyped nil permission: It can be assigned to itself, and to any pointer permission.
 
 While copying and moving requires read permissions on the source, neither operation requires write permission on the target. The reason for that is simple: We also want to be able to initialize read-only variables or construct read-only objects. There are limited ways of doing (re-)assignments in Go, and adding a special check that the target is writable there does not seem like a huge burden.
 
@@ -102,6 +105,8 @@ if (next.BasePermission&ExclRead) == 0
 
 For example, a pointer `ol * om = orRW * om` converted to `ol` yields `ol * om`, but with strict conversion it yields `ol * ol`.
 
+Converting an untyped nil permission to a base permission yields the untyped nil permission.
+
 ### Merging and Converting
 The idea of conversion to base types from the previous paragraph can be extended to converting between structured types. When converting between two structured types, replace all base permissions in the source with the base permissions in the same position in the target, and when the source permission is structured and the target is base, it just switches to a to-base conversion.
 
@@ -125,9 +130,16 @@ myfun = intersect(myfun in first branch, my fun in second branch)
 
 In this example, after the if/else block has been evaluated, the permissions of `myfun` are an intersection of the permission it would have in both branches.
 
-As a special exception to the recursive relaxation and same-shape rules, when either side of a merge is a wildcard permission, the result is the other side - the wildcard permission acts as the neutral element.[^monoid]
+As a special exception to the recursive relaxation and same-shape rules, when either side of a merge is a wildcard permission, the result is the other side - the wildcard permission acts as the neutral element. [^monoid]
 
 [^monoid]: I believe that makes permissions with these operations monoids (a semi group (set with associative operation) with a neutral element), but proofing associativity for this recursive operation is a bit too involved
+
+As a further special exception, if either side is a nil permission and the other side a pointer permission, the pointer permission is the result. For conversions, this does make sense: Given that I can assign nil to any pointer, I can also convert nil permissions to any pointer permission. For union and intersection, consider the classical examples:
+
+* For union, the question is: Can $p \cup nil$ be used in place of both $p$ and $nil$? Technically the answer is no, because $p$ cannot be used where $nil$ is expected. But nil permissions are only ever
+  used for $nil$ literals (they cannot even be specified, there is no syntax for them), so we never reach that situation.
+* For intersection, the question is: Can values of $p$ or $nil$ be assigned to $p \cap nil$. Yes, they can be, $nil$ is assignable to every pointer, and $p$ is assignable to itself.
+
 
 ### Creating a new permission from a type
 Since permissions have a similar shape as types and Go provides a well-designed types package, we can easily navigate type structures and create structured permissions for them with some defaults. Currently, it just places maximum `om`

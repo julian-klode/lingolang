@@ -143,3 +143,11 @@ func TestNewFromType_invalid(t *testing.T) {
 	var typ *types.Tuple
 	NewTypeMapper().NewFromType(typ)
 }
+
+func TestNewFromType_nil(t *testing.T) {
+	x := types.Typ[types.UntypedNil]
+	perm := NewTypeMapper().NewFromType(x)
+	if _, ok := perm.(*NilPermission); !ok {
+		t.Errorf("Expected nil permission for untyped nil")
+	}
+}

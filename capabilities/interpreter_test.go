@@ -204,6 +204,10 @@ func TestVisitExpr(t *testing.T) {
 		{scenario{"type a struct { x int }\nvar b int", "a{b}"}, "compositeLitErrorCannotBind", "m struct { m }", "_", errorResult("not bind field"), nil, nil, nil},
 		{scenario{"type a struct { x int }\nvar b int", "a{b}"}, "compositeLitErrorNoStruct", "m", "_", errorResult("xpected struct"), nil, nil, nil},
 		{"a{b}", "compositeLitErrorNoTypesInfo", "m struct { m }", "m", errorResult("typesInfo"), nil, nil, nil},
+		// Nil
+		{"nil", "nilJust", nil, nil, &permission.NilPermission{}, []string{}, nil, nil},
+		{"a(nil)", "nilCall", "om func(om * om) ov", nil, "ov", []string{}, "om func (om * om) ov", nil},
+		{"a(nil)", "nilPointer", "om func(or * or) ov", nil, "ov", []string{}, "om func (or * or) ov", nil},
 	}
 
 	for _, test := range testCases {

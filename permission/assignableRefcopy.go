@@ -191,3 +191,12 @@ func (p *TuplePermission) isRefcopyableTo(p2 Permission, state assignableState) 
 		return false
 	}
 }
+
+func (p *NilPermission) isRefcopyableTo(p2 Permission, state assignableState) bool {
+	switch p2.(type) {
+	case *NilPermission, *PointerPermission:
+		return true
+	default:
+		return false
+	}
+}

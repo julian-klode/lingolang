@@ -47,6 +47,9 @@ func (typeMapper TypeMapper) NewFromType(t0 types.Type) (result Permission) {
 	case *types.Interface:
 		return typeMapper.newFromInterfaceType(t)
 	case *types.Basic:
+		if t.Kind() == types.UntypedNil {
+			return &NilPermission{}
+		}
 		return basicPermission
 	default:
 		// Fall through to the underlying type.

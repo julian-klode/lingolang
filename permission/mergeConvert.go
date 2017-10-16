@@ -171,3 +171,7 @@ func (p *TuplePermission) convertToBase(p2 BasePermission, state *convertToBaseS
 
 	return next
 }
+
+func (p *NilPermission) convertToBase(p2 BasePermission, state *convertToBaseState) Permission {
+	return p
+}

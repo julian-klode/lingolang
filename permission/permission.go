@@ -224,3 +224,16 @@ func (p *TuplePermission) GetBasePermission() BasePermission {
 func IsLinear(p Permission) bool {
 	return p.GetBasePermission().isLinear()
 }
+
+// NilPermission is the permission for nil. It can be assigned anywhere
+type NilPermission struct{}
+
+// GetBasePermission gets the base permission
+func (p *NilPermission) GetBasePermission() BasePermission {
+	return Owned | Mutable
+}
+
+// String gives a nice name
+func (p *NilPermission) String() string {
+	return "untyped nil"
+}

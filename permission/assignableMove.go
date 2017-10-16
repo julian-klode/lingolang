@@ -180,3 +180,12 @@ func (p *TuplePermission) isMovableTo(p2 Permission, state assignableState) bool
 		return false
 	}
 }
+
+func (p *NilPermission) isMovableTo(p2 Permission, state assignableState) bool {
+	switch p2.(type) {
+	case *NilPermission, *PointerPermission:
+		return true
+	default:
+		return false
+	}
+}

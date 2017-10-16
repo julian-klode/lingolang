@@ -139,3 +139,12 @@ func (p *TuplePermission) isCopyableTo(p2 Permission, state assignableState) boo
 		return false
 	}
 }
+
+func (p *NilPermission) isCopyableTo(p2 Permission, state assignableState) bool {
+	switch p2.(type) {
+	case *NilPermission, *PointerPermission:
+		return true
+	default:
+		return false
+	}
+}

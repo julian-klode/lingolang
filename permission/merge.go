@@ -196,7 +196,7 @@ func (p *PointerPermission) merge(p2 Permission, state *mergeState) Permission {
 		next.BasePermission = state.mergeBase(p.BasePermission, p2.BasePermission)
 		next.Target = merge(p.Target, p2.Target, state)
 		return next
-	case *WildcardPermission:
+	case *WildcardPermission, *NilPermission:
 		return p
 	default:
 		return nil
@@ -372,6 +372,15 @@ func (p *TuplePermission) merge(p2 Permission, state *mergeState) Permission {
 		return next
 	case *WildcardPermission:
 		return p
+	default:
+		return nil
+	}
+}
+
+func (p *NilPermission) merge(p2 Permission, state *mergeState) Permission {
+	switch p2 := p2.(type) {
+	case *NilPermission, *PointerPermission:
+		return p2
 	default:
 		return nil
 	}

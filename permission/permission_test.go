@@ -89,6 +89,7 @@ var testcasesPermissionBasePermission = []struct {
 	{"or interface{}", "or"},
 	{"or func()", "or"},
 	{tuplePermission{"or"}, "or"},
+	{&NilPermission{}, "om"},
 }
 
 func TestPermissionBasePermission(t *testing.T) {

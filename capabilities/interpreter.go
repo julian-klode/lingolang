@@ -88,6 +88,9 @@ func (i *Interpreter) Assert(node ast.Node, subject permission.Permission, has p
 }
 
 func (i *Interpreter) visitIdent(st Store, e *ast.Ident) (permission.Permission, []Borrowed, Store) {
+	if e.Name == "nil" {
+		return &permission.NilPermission{}, nil, st
+	}
 	perm := st.GetEffective(e.Name)
 	if perm == nil {
 		i.Error(e, "Cannot borow %s: Unknown variable", e)

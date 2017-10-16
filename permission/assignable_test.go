@@ -23,6 +23,9 @@ var testcasesAssignableTo = []assignableToTestCase{
 	{"ov", "ov", true, true, true},
 	{"om", "ov", true, false, true},
 	{"ov", "om", false, false, true},
+	{&NilPermission{}, "om * om", true, true, true},
+	{&NilPermission{}, &NilPermission{}, true, true, true},
+	{&NilPermission{}, "om", false, false, false},
 	// pointers
 	{"om *ov", "om *om", false, false, false},
 	{"om *om", "om *ov", true, false, false},
