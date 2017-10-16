@@ -388,7 +388,7 @@ func TestVisitStmt(t *testing.T) {
 	}
 
 	testCases := []testCase{
-		/*{"returnOne",
+		{"returnOne",
 			[]storeItemDesc{
 				{"a", "om * om"},
 				{"main", "om func (om * om) om * om"},
@@ -439,7 +439,7 @@ func TestVisitStmt(t *testing.T) {
 			"func main(a *int) *int { x: goto x; return a }",
 			[]exitDesc{},
 			"",
-		},*/
+		},
 		{"conditionalMove",
 			[]storeItemDesc{
 				{"a", "om * om"},
