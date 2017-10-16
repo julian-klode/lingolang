@@ -561,8 +561,12 @@ func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt) []StmtExit {
 
 nextWork:
 	for len(work) != 0 {
-		start := work[0]
-		work = work[1:]
+		// We treat work as a stack. Semantically, it feels like a queue would be a better
+		// fit, but it does not make any difference IRL, and by using a stack approach we
+		// do not end up with indefinitely growing arrays (because we'd slice off of the first
+		// element and then append a new one)
+		start := work[len(work)-1]
+		work = work[:len(work)-1]
 		st := start.Store
 		log.Printf("Visiting statement %d of %d", start.int, len(stmts))
 
