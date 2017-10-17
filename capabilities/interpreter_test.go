@@ -462,6 +462,24 @@ func TestVisitStmt(t *testing.T) {
 			nil,
 			"63: In a: Required permissions r", // Fails in second iteration as a has been borrowed.
 		},
+		{"conditionalGotoMustContinueLoopNotBreakIt",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"b", "om * om"},
+				{"main", "om func (om * om) om * om"},
+				{"f", "om func (om * om) n"},
+			},
+			// This prevents a regression from where we used "break" instead of "continue" when trying
+			// to skip a situation we already encountered.
+			"func main(a *int, b *int, f func(a *int)) *int {  if a != nil { f(a); }; if b != nil { f(b) }; x: if 1 != 1 { goto x }; return nil}",
+			[]exitDesc{
+				{[]storeItemDesc{{"a", "om * om"}, {"b", "om * om"}}, 135},
+				{[]storeItemDesc{{"a", "om * om"}, {"b", "n * r"}}, 135},
+				{[]storeItemDesc{{"a", "n * r"}, {"b", "om * om"}}, 135},
+				{[]storeItemDesc{{"a", "n * r"}, {"b", "n * r"}}, 135},
+			},
+			"",
+		},
 	}
 
 	for _, cs := range testCases {

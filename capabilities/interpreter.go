@@ -581,7 +581,7 @@ nextWork:
 		for _, sn := range seen {
 			if sn.int == start.int && sn.Store.Equal(st) {
 				log.Printf("Rejecting statement %d in store %v", start.int, st)
-				break nextWork
+				continue nextWork
 			}
 		}
 		seen = append(seen, start)
