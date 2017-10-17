@@ -478,7 +478,12 @@ func (i *Interpreter) visitStmt(st Store, stmt ast.Stmt) []StmtExit {
 }
 
 func (i *Interpreter) visitBlockStmt(st Store, stmt *ast.BlockStmt) []StmtExit {
-	return i.visitStmtList(st, stmt.List)
+	st = st.BeginBlock()
+	res := i.visitStmtList(st, stmt.List)
+	for i := range res {
+		res[i].Store = res[i].Store.EndBlock()
+	}
+	return res
 }
 
 func (i *Interpreter) visitCaseClause(st Store, stmt *ast.CaseClause) []StmtExit {
