@@ -460,7 +460,7 @@ func (i *Interpreter) visitStmt(st Store, stmt ast.Stmt) []StmtExit {
 	case *ast.BlockStmt:
 		return i.visitBlockStmt(st, stmt)
 	case *ast.LabeledStmt:
-		return i.visitStmt(st, stmt.Stmt)
+		return i.visitLabeledStmt(st, stmt)
 	case *ast.CaseClause:
 		return i.visitCaseClause(st, stmt)
 	case *ast.BranchStmt:
@@ -471,6 +471,12 @@ func (i *Interpreter) visitStmt(st Store, stmt ast.Stmt) []StmtExit {
 		return i.visitIfStmt(st, stmt)
 	case *ast.ReturnStmt:
 		return i.visitReturnStmt(st, stmt)
+	case *ast.IncDecStmt:
+		return i.visitIncDecStmt(st, stmt)
+	case *ast.SendStmt:
+		return i.visitSendStmt(st, stmt)
+	case *ast.EmptyStmt:
+		return i.visitEmptyStmt(st, stmt)
 	default:
 		i.Error(stmt, "Unknown type of statement")
 		panic(nil)
@@ -642,4 +648,41 @@ func (i *Interpreter) visitReturnStmt(st Store, s *ast.ReturnStmt) []StmtExit {
 	}
 	// A return statement is a singular exit.
 	return []StmtExit{{st, s}}
+}
+
+func (i *Interpreter) visitIncDecStmt(st Store, stmt *ast.IncDecStmt) []StmtExit {
+	p, deps, st := i.VisitExpr(st, stmt.X)
+	i.Assert(stmt.X, p, permission.Read|permission.Write)
+	st = i.Release(stmt.X, st, deps)
+	return []StmtExit{{st, nil}}
+}
+
+func (i *Interpreter) visitSendStmt(st Store, stmt *ast.SendStmt) []StmtExit {
+	chanRaw, chanDeps, st := i.VisitExpr(st, stmt.Chan)
+	chn, isChan := chanRaw.(*permission.ChanPermission)
+	if !isChan {
+		i.Error(stmt.Chan, "Expected channel, received %v", chanRaw)
+	}
+	i.Assert(stmt.Chan, chn, permission.Write)
+
+	val, valDeps, st := i.VisitExpr(st, stmt.Value)
+
+	st, valDeps, err := i.moveOrCopy(stmt, st, val, chn.ElementPermission, valDeps)
+	if err != nil {
+		i.Error(stmt, "Cannot send value: %v", err)
+	}
+
+	st = i.Release(stmt.Value, st, valDeps)
+	st = i.Release(stmt.Chan, st, chanDeps)
+
+	return []StmtExit{{st, nil}}
+
+}
+
+func (i *Interpreter) visitLabeledStmt(st Store, stmt *ast.LabeledStmt) []StmtExit {
+	return i.visitStmt(st, stmt.Stmt)
+}
+
+func (i *Interpreter) visitEmptyStmt(st Store, stmt *ast.EmptyStmt) []StmtExit {
+	return []StmtExit{{st, nil}}
 }
