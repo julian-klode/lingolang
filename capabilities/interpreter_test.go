@@ -603,7 +603,7 @@ func TestVisitStmt(t *testing.T) {
 			}
 
 			for _, input := range cs.input {
-				st = st.Define(input.key, newPermission(input.value))
+				st, _ = st.Define(input.key, newPermission(input.value))
 			}
 
 			i.curFunc = st.GetEffective("main").(*permission.FuncPermission)
