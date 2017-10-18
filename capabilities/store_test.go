@@ -68,7 +68,7 @@ func TestStore_getset(t *testing.T) {
 	a := "a"
 	b := "b"
 
-	block = block.Define(a, permission.Mutable)
+	block, _ = block.Define(a, permission.Mutable)
 	if !unblock.Equal(st) {
 		t.Fatalf("unblocking is different from initial Store after definition in block: %v vs %v", unblock, st)
 	}
@@ -97,12 +97,29 @@ func TestStore_getset(t *testing.T) {
 	}
 }
 
+func TestStore_Define(t *testing.T) {
+	store := NewStore()
+	store, _ = store.Define("a", permission.Mutable)
+	if len(store) != 1 {
+		t.Fatalf("Length is %d should be %d", len(store), 1)
+	}
+	if store.GetEffective("a") != permission.Mutable {
+		t.Errorf("Should be mutable, is %v", store.GetEffective("a"))
+	}
+	store, _ = store.Define("a", permission.Read)
+	if len(store) != 1 {
+		t.Errorf("Length is %d should be %d", len(store), 1)
+	}
+	if store.GetEffective("a") != permission.Read {
+		t.Errorf("Should be read-only, is %v", store.GetEffective("a"))
+	}
+}
 func TestStore_SetEffectiveSetMaximum(t *testing.T) {
 	block := NewStore()
 	a := "a"
 	b := "b"
-	block = block.Define(a, permission.Mutable)
-	block = block.Define(b, permission.ReadOnly)
+	block, _ = block.Define(a, permission.Mutable)
+	block, _ = block.Define(b, permission.ReadOnly)
 
 	block, err := block.SetEffective(a, permission.None)
 	if err != nil {

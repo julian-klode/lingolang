@@ -259,10 +259,10 @@ func TestVisitExpr(t *testing.T) {
 			})
 
 			if lhs != nil && test.lhs != nil {
-				st = st.Define(lhs.Name, newPermission(test.lhs))
+				st, _ = st.Define(lhs.Name, newPermission(test.lhs))
 			}
 			if rhs != nil && test.rhs != nil {
-				st = st.Define(rhs.Name, newPermission(test.rhs))
+				st, _ = st.Define(rhs.Name, newPermission(test.rhs))
 			}
 
 			if eResult, ok := test.result.(errorResult); ok {
@@ -311,7 +311,7 @@ func TestRelease(t *testing.T) {
 	var i Interpreter
 	var st Store
 	runFuncRecover(t, "not release borrowed variable", func() {
-		st = st.Define("a", newPermission("om"))
+		st, _ = st.Define("a", newPermission("om"))
 		i.Release(ast.NewIdent("a"), st, []Borrowed{
 			{ast.NewIdent("a"), newPermission("om * om")},
 		})
@@ -329,7 +329,7 @@ func TestVisitCompositeLit_errors(t *testing.T) {
 	i := &Interpreter{}
 	var st Store
 
-	st = st.Define("T", newPermission("om struct {om}"))
+	st, _ = st.Define("T", newPermission("om struct {om}"))
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "test", "package test\n\n type T struct { x int }\n\nvar x= T { x: 5 }", 0)
 	if err != nil {

@@ -79,8 +79,20 @@ func (st Store) Merge(st2 Store) (Store, error) {
 	return st3, nil
 }
 
-// Define defines an identifier in the current block.
-func (st Store) Define(name string, perm permission.Permission) Store {
+// Define defines an identifier in the current block. If the current block already contains
+// a variable of the same name, no new variable is created, but the existing one is assigned
+// by calling SetEffective().
+func (st Store) Define(name string, perm permission.Permission) (Store, error) {
+	// Do not allow a redefinition in the same block, make that an assignment instead. This matches
+	// gos define operator.
+	for _, item := range st {
+		if item.name == name {
+			return st.SetEffective(name, perm)
+		}
+		if item.name == "" {
+			break
+		}
+	}
 	var st2 = make(Store, len(st)+1)
 	st2[0].name = name
 	st2[0].max = perm
@@ -88,7 +100,7 @@ func (st Store) Define(name string, perm permission.Permission) Store {
 	for i, v := range st {
 		st2[i+1] = v
 	}
-	return st2
+	return st2, nil
 }
 
 // SetEffective changes the permissions associated with an ident.
