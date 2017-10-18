@@ -603,7 +603,10 @@ func TestVisitStmt(t *testing.T) {
 			}
 
 			for _, input := range cs.input {
-				st, _ = st.Define(input.key, newPermission(input.value))
+				st, err = st.Define(input.key, newPermission(input.value))
+				if err != nil {
+					t.Fatalf("Could not define input %s: %s", input.key, err)
+				}
 			}
 
 			i.curFunc = st.GetEffective("main").(*permission.FuncPermission)
@@ -623,7 +626,9 @@ func TestVisitStmt(t *testing.T) {
 					}
 				}
 
-				if int(exit.branch.Pos()) != output.pos {
+				if (output.pos >= 0) != (exit.branch != nil) {
+					t.Errorf("Expected branch statement = %v, Got branch statement = %v", output.pos >= 0, exit.branch != nil)
+				} else if output.pos > 0 && int(exit.branch.Pos()) != output.pos {
 					t.Error(spew.Errorf("Expected %v, received %v", output.pos, exit.branch.Pos()))
 				}
 			}
