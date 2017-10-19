@@ -477,6 +477,8 @@ func (i *Interpreter) visitStmt(st Store, stmt ast.Stmt) []StmtExit {
 		return i.visitSendStmt(st, stmt)
 	case *ast.EmptyStmt:
 		return i.visitEmptyStmt(st, stmt)
+	case *ast.AssignStmt:
+		return i.visitAssignStatement(st, stmt)
 	default:
 		i.Error(stmt, "Unknown type of statement")
 		panic(nil)
@@ -684,5 +686,99 @@ func (i *Interpreter) visitLabeledStmt(st Store, stmt *ast.LabeledStmt) []StmtEx
 }
 
 func (i *Interpreter) visitEmptyStmt(st Store, stmt *ast.EmptyStmt) []StmtExit {
+	return []StmtExit{{st, nil}}
+}
+
+func (i *Interpreter) visitAssignStatement(st Store, stmt *ast.AssignStmt) []StmtExit {
+	var deps []Borrowed
+	var rhs []permission.Permission
+	if len(stmt.Rhs) == 1 && len(stmt.Lhs) > 1 {
+		rhs0, rdeps, store := i.VisitExpr(st, stmt.Rhs[0])
+		st = store
+		tuple, ok := rhs0.(*permission.TuplePermission)
+		if !ok {
+			i.Error(stmt, "Left side of assignment has more than one element but right hand only one, expected it to be a tuple")
+		}
+		deps = append(deps, rdeps...)
+		rhs = tuple.Elements
+	} else if len(stmt.Rhs) != len(stmt.Lhs) {
+		i.Error(stmt, "Expected same number of arguments on both sides of assignment (or one function call on the right)")
+	} else {
+		for _, expr := range stmt.Rhs {
+			log.Printf("Visiting expr %#v in store %v", expr, st)
+			perm, depsThis, store := i.VisitExpr(st, expr)
+			log.Printf("Visited expr %#v in store %v", expr, st)
+			st = store
+			rhs = append(rhs, perm)
+
+			// Screw this. This is basically creating a temporary copy or (non-temporary, really) move of the values, so we
+			// can have stuff like a, b = b, a without it messing up.
+			store, depsThis, err := i.moveOrCopy(expr, st, perm, perm, depsThis)
+			st = store
+
+			if err != nil {
+				i.Error(expr, "Could not move value: %s", err)
+			}
+
+			deps = append(deps, depsThis...)
+		}
+	}
+
+	if len(rhs) != len(stmt.Lhs) {
+		i.Error(stmt, "Expected same number of arguments on both sides of assignment (or one function call on the right)")
+	}
+
+	if stmt.Tok == token.DEFINE {
+		for j, lhs := range stmt.Lhs {
+			ident, ok := lhs.(*ast.Ident)
+			if !ok {
+				i.Error(lhs, "Expected identifier")
+			}
+
+			// Should be checking LHS, but LHS not yet defined.
+			i.Assert(lhs, rhs[j], permission.Owned)
+
+			// TODO: If we are assigning this variable, it needs to be owned.
+			store, err := st.Define(ident.Name, rhs[j])
+			st = store
+			if err != nil {
+				i.Error(stmt, "Could not define %s: %s", ident.Name, err)
+			}
+		}
+	} else {
+		for j, lhs := range stmt.Lhs {
+
+			// TODO: Improve error reporting
+
+			// OK, so, if the target is an identifier we specified on the right hand side, it is borrowed
+			// and we need to "unborrow" it. We can just assign the permission of the RHS value, and it
+			// will be restricted by the maximum value specified when the variable was defined.
+			if ident, ok := lhs.(*ast.Ident); ok {
+				store, err := st.SetEffective(ident.Name, rhs[j])
+				st = store
+				if err != nil {
+					i.Error(stmt, "Could not assign %s: %s", lhs, err)
+				}
+
+			}
+
+			// Let's ignore store changes and borrowing here, that does not make a lot of sense.
+			perm, _, _ := i.VisitExpr(st, lhs)
+
+			// We need to make sure the LHS is owned, so we don't accidentally write unowned data in there.
+			i.Assert(lhs, perm, permission.Owned)
+
+			// Input deps are nil, so we can ignore them here.
+			store, _, err := i.moveOrCopy(lhs, st, rhs[j], perm, nil)
+			if err != nil {
+				i.Error(stmt, "Could not assign %s: %s", lhs, err)
+			}
+
+			st = store
+		}
+	}
+
+	st = i.Release(stmt, st, deps)
+
 	return []StmtExit{{st, nil}}
 }

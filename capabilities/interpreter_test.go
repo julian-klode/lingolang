@@ -577,6 +577,32 @@ func TestVisitStmt(t *testing.T) {
 			[]exitDesc{},
 			"Cannot bind return value",
 		},
+		{"assignStmtMutableDefine",
+			[]storeItemDesc{
+				{"b", "om * om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b *int) *int  { a := b;  return a }",
+			[]exitDesc{
+				{[]storeItemDesc{{"b", "n * r"}}, 50},
+			},
+			"",
+		},
+		{"assignStmtSwap",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"b", "om * om"},
+				{"main", "om func (om) n"},
+			},
+			"func main(a, b *int)  { a, b = b, a }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om * om"},
+					{"b", "om * om"},
+				}, -1},
+			},
+			"",
+		},
 	}
 
 	for _, cs := range testCases {
