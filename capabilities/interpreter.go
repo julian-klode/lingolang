@@ -478,7 +478,7 @@ func (i *Interpreter) visitStmt(st Store, stmt ast.Stmt) []StmtExit {
 	case *ast.EmptyStmt:
 		return i.visitEmptyStmt(st, stmt)
 	case *ast.AssignStmt:
-		return i.visitAssignStatement(st, stmt)
+		return i.visitAssignStmt(st, stmt)
 	default:
 		i.Error(stmt, "Unknown type of statement")
 		panic(nil)
@@ -689,7 +689,7 @@ func (i *Interpreter) visitEmptyStmt(st Store, stmt *ast.EmptyStmt) []StmtExit {
 	return []StmtExit{{st, nil}}
 }
 
-func (i *Interpreter) visitAssignStatement(st Store, stmt *ast.AssignStmt) []StmtExit {
+func (i *Interpreter) visitAssignStmt(st Store, stmt *ast.AssignStmt) []StmtExit {
 	var deps []Borrowed
 	var rhs []permission.Permission
 	if len(stmt.Rhs) == 1 && len(stmt.Lhs) > 1 {
@@ -728,57 +728,45 @@ func (i *Interpreter) visitAssignStatement(st Store, stmt *ast.AssignStmt) []Stm
 		i.Error(stmt, "Expected same number of arguments on both sides of assignment (or one function call on the right)")
 	}
 
-	if stmt.Tok == token.DEFINE {
-		for j, lhs := range stmt.Lhs {
-			ident, ok := lhs.(*ast.Ident)
-			if !ok {
-				i.Error(lhs, "Expected identifier")
-			}
-
-			// Should be checking LHS, but LHS not yet defined.
-			i.Assert(lhs, rhs[j], permission.Owned)
-
-			// TODO: If we are assigning this variable, it needs to be owned.
-			store, err := st.Define(ident.Name, rhs[j])
-			st = store
-			if err != nil {
-				i.Error(stmt, "Could not define %s: %s", ident.Name, err)
-			}
-		}
-	} else {
-		for j, lhs := range stmt.Lhs {
-
-			// TODO: Improve error reporting
-
-			// OK, so, if the target is an identifier we specified on the right hand side, it is borrowed
-			// and we need to "unborrow" it. We can just assign the permission of the RHS value, and it
-			// will be restricted by the maximum value specified when the variable was defined.
-			if ident, ok := lhs.(*ast.Ident); ok {
-				store, err := st.SetEffective(ident.Name, rhs[j])
-				st = store
-				if err != nil {
-					i.Error(stmt, "Could not assign %s: %s", lhs, err)
-				}
-
-			}
-
-			// Let's ignore store changes and borrowing here, that does not make a lot of sense.
-			perm, _, _ := i.VisitExpr(st, lhs)
-
-			// We need to make sure the LHS is owned, so we don't accidentally write unowned data in there.
-			i.Assert(lhs, perm, permission.Owned)
-
-			// Input deps are nil, so we can ignore them here.
-			store, _, err := i.moveOrCopy(lhs, st, rhs[j], perm, nil)
-			if err != nil {
-				i.Error(stmt, "Could not assign %s: %s", lhs, err)
-			}
-
-			st = store
-		}
+	for j, lhs := range stmt.Lhs {
+		st = i.defineOrAssign(st, stmt, lhs, rhs[j], stmt.Tok == token.DEFINE)
 	}
 
 	st = i.Release(stmt, st, deps)
 
 	return []StmtExit{{st, nil}}
+}
+
+func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs permission.Permission, isDefine bool) Store {
+	var err error
+
+	// Define or set the effective permission of the left hand side to the right hand side. In the latter case,
+	// the effective permission will be restricted by the specified maximum (initial) permission.
+	if ident, ok := lhs.(*ast.Ident); ok {
+		if isDefine {
+			st, err = st.Define(ident.Name, rhs)
+		} else {
+			st, err = st.SetEffective(ident.Name, rhs)
+		}
+
+		if err != nil {
+			i.Error(lhs, "Could not assign or define: %s", err)
+		}
+	} else if isDefine {
+		i.Error(lhs, "Cannot define: Left hand side is not an identifier")
+	}
+
+	// Ensure we can do the assignment. If the left hand side is an identifier, this should always be
+	// true - it's either Defined to the same value, or set to something less than it in the previous block.
+
+	perm, _, _ := i.VisitExpr(st, lhs)    // We just need to know permission, don't care about borrowing.
+	i.Assert(lhs, perm, permission.Owned) // Make sure it's owned, so we don't move unowned to it.
+
+	// Input deps are nil, so we can ignore them here.
+	st, _, err = i.moveOrCopy(lhs, st, rhs, perm, nil)
+	if err != nil {
+		i.Error(lhs, "Could not assign or define: %s", err)
+	}
+
+	return st
 }
