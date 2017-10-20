@@ -232,10 +232,24 @@ as a linear type with operations consuming one linear value and returning anothe
 optimize the operation to use the same array, because it knows that nobody else is accessing the 'old' array.
 
 Consuming and returning linear values is a bit annoying, which is why some programming languages started
-introducing shortcuts for it (TODO: Source): A parameter with a special annotation serves as both an input
-and an output parameter. For example, in TODO language, an operation could look like this:
+introducing shortcuts for it: A parameter with a special annotation serves as both an input
+and an output parameter. For example, in Mercury, an efficient purely declarative logic programming language[@somogyi1995mercury][@dowd2000using, section 2.2], an operation could look like this:
+```prolog
+:- module hello.
+:- interface.
+
+:- import_module io.
+
+:- pred main(io::di, io::uo) is det.
+
+:- implementation.
+main(!IO) :-
+    write_string("Hello, world!\n", !IO).
 ```
-TODO example
+The exclamation mark here is equivalent to an input and output parameter, so it is the same as:
+```prolog
+main(IO0, IO) :-
+    write_string("Hello, world!\n", IO0, IO).
 ```
 With such a notation, we immediately reach a level where the code basically just looks like imperative code but with all the same guarantees of purely functional code.
 
