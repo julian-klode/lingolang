@@ -16,8 +16,10 @@ import (
 
 // Interpreter interprets a given statement or expression.
 type Interpreter struct {
-	typesInfo *types.Info
-	curFunc   *permission.FuncPermission
+	typesInfo            *types.Info
+	curFunc              *permission.FuncPermission
+	fset                 *token.FileSet
+	AnnotatedPermissions map[ast.Expr]permission.Permission
 }
 
 // Borrowed describes a variable that had to be borrowed from, along
@@ -98,7 +100,7 @@ func (i *Interpreter) visitIdent(st Store, e *ast.Ident) (permission.Permission,
 	}
 	perm := st.GetEffective(e.Name)
 	if perm == nil {
-		i.Error(e, "Cannot borow %s: Unknown variable", e)
+		i.Error(e, "Cannot borow %s: Unknown variable in %s", e, st)
 	}
 	borrowed := []Borrowed{{e, perm}}
 	dead := permission.ConvertToBase(perm, permission.None)
@@ -117,7 +119,7 @@ func (i *Interpreter) moveOrCopy(e ast.Node, st Store, from, to permission.Permi
 		deps = nil
 	// The value cannot be moved either, error out.
 	case !permission.MovableTo(from, to):
-		return nil, nil, fmt.Errorf("Cannot copy or move: Needed %#v, received %#v", to, from)
+		return nil, nil, fmt.Errorf("Cannot copy or move: Needed %s, received %s", to, from)
 
 	// All borrows for unowned parameters are released after the call is done.
 	case to.GetBasePermission()&permission.Owned == 0:
@@ -479,6 +481,8 @@ func (i *Interpreter) visitStmt(st Store, stmt ast.Stmt) []StmtExit {
 		return i.visitEmptyStmt(st, stmt)
 	case *ast.AssignStmt:
 		return i.visitAssignStmt(st, stmt)
+	case *ast.RangeStmt:
+		return i.visitRangeStmt(st, stmt)
 	default:
 		i.Error(stmt, "Unknown type of statement")
 		panic(nil)
@@ -583,12 +587,12 @@ nextWork:
 		start := work[len(work)-1]
 		work = work[:len(work)-1]
 		st := start.Store
-		log.Printf("Visiting statement %d of %d", start.int, len(stmts))
+		log.Printf("Visiting statement %d of %d in %v", start.int, len(stmts), st.GetEffective("a"))
 
 		// Hey guys, we've already been here, discard that path.
 		for _, sn := range seen {
 			if sn.int == start.int && sn.Store.Equal(st) {
-				log.Printf("Rejecting statement %d in store %v", start.int, st)
+				log.Printf("Rejecting statement %d in store %v", start.int, st.GetEffective("a"))
 				continue nextWork
 			}
 		}
@@ -596,6 +600,8 @@ nextWork:
 
 		stmt := stmts[start.int]
 		exits := i.visitStmt(st, stmt)
+
+		log.Printf("Leaving statement with %d exits at %d outputs and %d work", len(exits), len(output), len(work))
 
 		for _, exit := range exits {
 			st := exit.Store
@@ -623,6 +629,7 @@ nextWork:
 				}
 			}
 		}
+		log.Printf("Left statement with %d exits at %d outputs and %d work", len(exits), len(output), len(work))
 	}
 
 	return output
@@ -729,7 +736,7 @@ func (i *Interpreter) visitAssignStmt(st Store, stmt *ast.AssignStmt) []StmtExit
 	}
 
 	for j, lhs := range stmt.Lhs {
-		st = i.defineOrAssign(st, stmt, lhs, rhs[j], stmt.Tok == token.DEFINE)
+		st = i.defineOrAssign(st, stmt, lhs, rhs[j], stmt.Tok == token.DEFINE, false)
 	}
 
 	st = i.Release(stmt, st, deps)
@@ -737,16 +744,30 @@ func (i *Interpreter) visitAssignStmt(st Store, stmt *ast.AssignStmt) []StmtExit
 	return []StmtExit{{st, nil}}
 }
 
-func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs permission.Permission, isDefine bool) Store {
+func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs permission.Permission, isDefine bool, allowUnowned bool) Store {
 	var err error
 
 	// Define or set the effective permission of the left hand side to the right hand side. In the latter case,
 	// the effective permission will be restricted by the specified maximum (initial) permission.
 	if ident, ok := lhs.(*ast.Ident); ok {
+		if ident.Name == "_" {
+			return st
+		}
 		if isDefine {
+			log.Println("Defining", ident.Name)
+			if ann, ok := i.AnnotatedPermissions[ident]; ok {
+				if ann, err = permission.ConvertTo(rhs, ann); err != nil {
+					st, err = st.Define(ident.Name, ann)
+				}
+			} else {
+			}
 			st, err = st.Define(ident.Name, rhs)
 		} else {
-			st, err = st.SetEffective(ident.Name, rhs)
+			if permission.CopyableTo(rhs, st.GetMaximum(ident.Name)) {
+				st, err = st.SetEffective(ident.Name, st.GetMaximum(ident.Name))
+			} else {
+				st, err = st.SetEffective(ident.Name, rhs)
+			}
 		}
 
 		if err != nil {
@@ -759,8 +780,10 @@ func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs 
 	// Ensure we can do the assignment. If the left hand side is an identifier, this should always be
 	// true - it's either Defined to the same value, or set to something less than it in the previous block.
 
-	perm, _, _ := i.VisitExpr(st, lhs)    // We just need to know permission, don't care about borrowing.
-	i.Assert(lhs, perm, permission.Owned) // Make sure it's owned, so we don't move unowned to it.
+	perm, _, _ := i.VisitExpr(st, lhs) // We just need to know permission, don't care about borrowing.
+	if !allowUnowned {
+		i.Assert(lhs, perm, permission.Owned) // Make sure it's owned, so we don't move unowned to it.
+	}
 
 	// Input deps are nil, so we can ignore them here.
 	st, _, err = i.moveOrCopy(lhs, st, rhs, perm, nil)
@@ -768,5 +791,141 @@ func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs 
 		i.Error(lhs, "Could not assign or define: %s", err)
 	}
 
+	log.Println("Assigned", lhs, "in", st)
+
 	return st
+}
+
+func (i *Interpreter) visitRangeStmt(st Store, stmt *ast.RangeStmt) (rangeExits []StmtExit) {
+	var seen []Store
+	var work = []Store{}
+	var output = []StmtExit{{st, nil}}
+	var canRelease = true
+
+	// Evaluate the container specified on the right hand side.
+	perm, deps, st := i.VisitExpr(st, stmt.X)
+	defer func() {
+		// TODO: canRelease = true
+		if canRelease {
+			for j := range rangeExits {
+				log.Printf("Releasing %s", deps)
+				rangeExits[j].Store = i.Release(stmt, rangeExits[j].Store, deps)
+			}
+		}
+	}()
+	i.Assert(stmt.X, perm, permission.Read)
+	log.Printf("Borrowed container, a is now %s", st.GetEffective("a"))
+
+	var rkey permission.Permission
+	var rval permission.Permission
+
+	switch perm := perm.(type) {
+	case *permission.ArrayPermission:
+		rkey = permission.Mutable
+		rval = perm.ElementPermission
+	case *permission.SlicePermission:
+		rkey = permission.Mutable
+		rval = perm.ElementPermission
+	case *permission.MapPermission:
+		rkey = perm.KeyPermission
+		rval = perm.ValuePermission
+	}
+
+	work = append(work, st)
+nextWork:
+	for iter := 0; len(work) != 0; iter++ {
+		// We treat work as a stack. Semantically, it feels like a queue would be a better
+		// fit, but it does not make any difference IRL, and by using a stack approach we
+		// do not end up with indefinitely growing arrays (because we'd slice off of the first
+		// element and then append a new one)
+		st = work[len(work)-1]
+		work = work[:len(work)-1]
+
+		log.Printf("Iterating %s", st.GetEffective("a"))
+		/* Exit helper */
+		if iter == 42 {
+			i.Error(stmt, "Too many loops, aborting")
+		}
+
+		// There might be no more items, exit
+		if iter > 0 {
+			output = append(output, StmtExit{st, nil})
+		}
+
+		for _, sn := range seen {
+			if sn.Equal(st) {
+				continue nextWork
+			}
+		}
+
+		seen = append(seen, st)
+
+		st = st.BeginBlock()
+		if stmt.Key != nil {
+			st = i.defineOrAssign(st, stmt, stmt.Key, rkey, stmt.Tok == token.DEFINE, stmt.Tok == token.DEFINE)
+			if ident, ok := stmt.Key.(*ast.Ident); ok {
+				log.Printf("Defined %s to %s", ident.Name, st.GetEffective(ident.Name))
+				if ident.Name != "_" {
+					canRelease = canRelease && (st.GetEffective(ident.Name).GetBasePermission()&permission.Owned == 0)
+				}
+			} else {
+				canRelease = false
+			}
+		}
+		if stmt.Value != nil {
+			st = i.defineOrAssign(st, stmt, stmt.Value, rval, stmt.Tok == token.DEFINE, stmt.Tok == token.DEFINE)
+			if ident, ok := stmt.Value.(*ast.Ident); ok {
+				log.Printf("Defined %s to %s", ident.Name, st.GetEffective(ident.Name))
+				if ident.Name != "_" {
+					canRelease = canRelease && (st.GetEffective(ident.Name).GetBasePermission()&permission.Owned == 0)
+				}
+			} else {
+				canRelease = false
+			}
+		}
+
+		nextIterations, exits := i.endBlocksAndCollectLoopExits(i.visitStmt(st, stmt.Body))
+		output = append(output, exits...)
+		work = append(work, nextIterations...)
+	}
+
+	log.Printf("Leaving range statement with %d exits", len(output))
+
+	return output
+}
+
+func (i *Interpreter) endBlocksAndCollectLoopExits(exits []StmtExit) ([]Store, []StmtExit) {
+	var nextIterations []Store
+	var realExits []StmtExit
+	for j := range exits {
+		log.Printf("VIsiting exits(%v)[%d]=%v", exits, j, exits[j])
+		exits[j].Store = exits[j].Store.EndBlock()
+	}
+	log.Printf("VIsiting exits")
+	for _, exit := range exits {
+		switch branch := exit.branch.(type) {
+		case nil:
+			nextIterations = append(nextIterations, exit.Store)
+		case *ast.ReturnStmt:
+			realExits = append(realExits, exit)
+		case *ast.BranchStmt:
+			switch branch.Tok {
+			case token.BREAK:
+				if branch.Label == nil || branch.Label.Name == "" /* | TODO current label */ {
+					realExits = append(realExits, StmtExit{exit.Store, nil})
+				} else {
+					realExits = append(realExits, exit)
+				}
+			case token.CONTINUE:
+				if branch.Label == nil || branch.Label.Name == "" /* | TODO current label */ {
+					nextIterations = append(nextIterations, exit.Store)
+				} else {
+					realExits = append(realExits, exit)
+				}
+			default:
+				realExits = append(realExits, exit)
+			}
+		}
+	}
+	return nextIterations, realExits
 }

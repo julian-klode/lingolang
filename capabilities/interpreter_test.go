@@ -603,10 +603,112 @@ func TestVisitStmt(t *testing.T) {
 			},
 			"",
 		},
+		{"assignStmtSwap",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"b", "om * om"},
+				{"main", "om func (om) n"},
+			},
+			"func main(a, b *int)  { a, b = b, a }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om * om"},
+					{"b", "om * om"},
+				}, -1},
+			},
+			"",
+		},
+
+		{"rangeStmtOwnedGone",
+			[]storeItemDesc{
+				{"a", "om []om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a []*float64, f func(*float64)) *float64 { for _, x := range a { f(x) }; return a[0] }",
+			[]exitDesc{},
+			"equired permissions r",
+		},
+		{"rangeStmtOwnedGoneAssign",
+			[]storeItemDesc{
+				{"a", "om []om * om"},
+				{"x", "om"},
+				{"y", "om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a []*float64, f func(*float64), x int, y *float64) *float64 { for x, y = range a { f(y) }; return a[0] }",
+			[]exitDesc{},
+			"equired permissions r",
+		},
+		{"rangeStmtUnownedNotGone",
+			[]storeItemDesc{
+				{"a", "m []m * m"},
+				{"f", "om func (m * m) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a []*float64, f func(*float64)) *float64 { for _, x := range a { f(x) }; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "m []m * m"},
+				}, 98},
+			},
+			"",
+		},
+
+		{"rangeStmtReturnInIteration",
+			[]storeItemDesc{
+				{"a", "om []om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a []*float64, f func(*float64)) *float64 { for _, x := range a { return x }; return a[0] }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "n []n * r"},
+				}, 90},
+				{[]storeItemDesc{
+					{"a", "n []n * r"},
+				}, 102},
+			}, // This one is essentially like an if: We either exit the loop and consume a, or we don't.
+			"",
+		},
+		{"rangeStmtReturnInIterationMap",
+			[]storeItemDesc{
+				{"a", "om map[om]om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a map[string]*float64, f func(*float64)) *float64 { for _, x := range a { return x }; return a[\"0\"] }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "n map[n]n * r"},
+				}, 99},
+				{[]storeItemDesc{
+					{"a", "n map[n]n * r"},
+				}, 111},
+			},
+			"",
+		},
+		{"rangeStmtBreak",
+			[]storeItemDesc{
+				{"a", "om map[om]om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a map[string]*float64, f func(*float64)) *float64 { for range a { break }; return a[\"0\"] }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "n map[n]n * r"},
+				}, 100},
+			},
+			"",
+		},
 	}
 
 	for _, cs := range testCases {
 		t.Run(cs.name, func(t *testing.T) {
+
 			defer recoverErrorOrFail(t, cs.error)
 
 			i := &Interpreter{}
@@ -624,6 +726,7 @@ func TestVisitStmt(t *testing.T) {
 			config := &types.Config{}
 			_, err = config.Check("test", fset, []*ast.File{file}, &info)
 			i.typesInfo = &info
+			i.fset = fset
 			if err != nil {
 				t.Fatalf("Could not parse setup: %s", err)
 			}
