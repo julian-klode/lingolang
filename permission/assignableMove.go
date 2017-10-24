@@ -183,7 +183,7 @@ func (p *TuplePermission) isMovableTo(p2 Permission, state assignableState) bool
 
 func (p *NilPermission) isMovableTo(p2 Permission, state assignableState) bool {
 	switch p2.(type) {
-	case *NilPermission, *PointerPermission:
+	case *ChanPermission, *FuncPermission, *InterfacePermission, *MapPermission, *NilPermission, *PointerPermission, *SlicePermission:
 		return true
 	default:
 		return false

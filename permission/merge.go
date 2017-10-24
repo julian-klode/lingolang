@@ -211,7 +211,7 @@ func (p *ChanPermission) merge(p2 Permission, state *mergeState) Permission {
 		next.BasePermission = state.mergeBase(p.BasePermission, p2.BasePermission)
 		next.ElementPermission = merge(p.ElementPermission, p2.ElementPermission, state)
 		return next
-	case *WildcardPermission:
+	case *NilPermission, *WildcardPermission:
 		return p
 	default:
 		return nil
@@ -241,7 +241,7 @@ func (p *SlicePermission) merge(p2 Permission, state *mergeState) Permission {
 		next.BasePermission = state.mergeBase(p.BasePermission, p2.BasePermission)
 		next.ElementPermission = merge(p.ElementPermission, p2.ElementPermission, state)
 		return next
-	case *WildcardPermission:
+	case *NilPermission, *WildcardPermission:
 		return p
 	default:
 		return nil
@@ -257,7 +257,7 @@ func (p *MapPermission) merge(p2 Permission, state *mergeState) Permission {
 		next.KeyPermission = merge(p.KeyPermission, p2.KeyPermission, state)
 		next.ValuePermission = merge(p.ValuePermission, p2.ValuePermission, state)
 		return next
-	case *WildcardPermission:
+	case *NilPermission, *WildcardPermission:
 		return p
 	default:
 		return nil
@@ -320,7 +320,7 @@ func (p *FuncPermission) merge(p2 Permission, state *mergeState) Permission {
 			}
 		}
 		return next
-	case *WildcardPermission:
+	case *NilPermission, *WildcardPermission:
 		return p
 	default:
 		return nil
@@ -343,7 +343,7 @@ func (p *InterfacePermission) merge(p2 Permission, state *mergeState) Permission
 			}
 		}
 		return next
-	case *WildcardPermission:
+	case *NilPermission, *WildcardPermission:
 		return p
 	default:
 		return nil
@@ -379,7 +379,7 @@ func (p *TuplePermission) merge(p2 Permission, state *mergeState) Permission {
 
 func (p *NilPermission) merge(p2 Permission, state *mergeState) Permission {
 	switch p2 := p2.(type) {
-	case *NilPermission, *PointerPermission:
+	case *ChanPermission, *FuncPermission, *InterfacePermission, *MapPermission, *NilPermission, *PointerPermission, *SlicePermission:
 		return p2
 	default:
 		return nil
