@@ -704,12 +704,74 @@ func TestVisitStmt(t *testing.T) {
 			},
 			"",
 		},
+		{"switchStmt",
+			[]storeItemDesc{
+				{"a", "om map[om]om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a map[string]*float64, f func(*float64)) *float64 { switch { case true: f(a[\"x\"]); case false: f(a[\"x\"]) }; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "n map[n]n * r"},
+				}, 133},
+				{[]storeItemDesc{
+					{"a", "om map[om]om * om"},
+				}, 133},
+			},
+			"",
+		},
+		{"switchStmt",
+			[]storeItemDesc{
+				{"a", "om map[om]om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a map[string]*float64, f func(*float64)) *float64 { switch { case true: break; f(a[\"x\"]); case false: break; f(a[\"x\"]) }; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om map[om]om * om"},
+				}, 147},
+			},
+			"",
+		},
+		{"switchStmt",
+			[]storeItemDesc{
+				{"a", "om map[om]om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a map[string]*float64, f func(*float64)) *float64 { switch { case true: return a[\"x\"]; case false: return nil }; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om map[om]om * om"},
+				}, 124},
+				{[]storeItemDesc{
+					{"a", "n map[n]n * r"},
+				}, 97},
+				{[]storeItemDesc{
+					{"a", "om map[om]om * om"},
+				}, 138},
+			},
+			"",
+		},
+		{"switchStmt",
+			[]storeItemDesc{
+				{"a", "om map[om]om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a map[string]*float64, f func(*float64)) *float64 { switch { case true: return a[\"x\"]; case false: f(a[\"x\"]) }; return a[\"x\"] }",
+			[]exitDesc{},
+			"144: In a",
+		},
 	}
 
 	for _, cs := range testCases {
 		t.Run(cs.name, func(t *testing.T) {
-
-			defer recoverErrorOrFail(t, cs.error)
+			if cs.error != "" {
+				defer recoverErrorOrFail(t, cs.error)
+			}
 
 			i := &Interpreter{}
 			var st Store

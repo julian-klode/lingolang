@@ -493,7 +493,7 @@ func (i *Interpreter) visitStmt(st Store, stmt ast.Stmt) []StmtExit {
 
 func (i *Interpreter) visitBlockStmt(st Store, stmt *ast.BlockStmt) []StmtExit {
 	st = st.BeginBlock()
-	res := i.visitStmtList(st, stmt.List)
+	res := i.visitStmtList(st, stmt.List, false)
 	for i := range res {
 		res[i].Store = res[i].Store.EndBlock()
 	}
@@ -503,6 +503,7 @@ func (i *Interpreter) visitBlockStmt(st Store, stmt *ast.BlockStmt) []StmtExit {
 func (i *Interpreter) visitCaseClause(st Store, stmt *ast.CaseClause) []StmtExit {
 	var err error
 	var mergedStore Store
+	// List of alternatives A, B, C, ...
 	for _, e := range stmt.List {
 		perm, deps, store := i.VisitExpr(st, e)
 		st = store
@@ -512,7 +513,7 @@ func (i *Interpreter) visitCaseClause(st Store, stmt *ast.CaseClause) []StmtExit
 			i.Error(e, "Could not merge with previous results: %s", err)
 		}
 	}
-	return i.visitStmtList(mergedStore, stmt.Body)
+	return i.visitStmtList(mergedStore, stmt.Body, false)
 }
 
 func (i *Interpreter) visitExprStmt(st Store, stmt *ast.ExprStmt) []StmtExit {
@@ -553,12 +554,12 @@ func (i *Interpreter) visitIfStmt(st Store, stmt *ast.IfStmt) []StmtExit {
 	return out
 }
 
-func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt) []StmtExit {
+func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt, isASwitch bool) []StmtExit {
 	labels := make(map[string]int)
-	work := []struct {
+	var work []struct {
 		Store
 		int
-	}{{st, 0}}
+	}
 
 	seen := []struct {
 		Store
@@ -578,6 +579,14 @@ func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt) []StmtExit {
 		if l, ok := stmt.(*ast.LabeledStmt); ok {
 			labels[l.Label.Name] = k
 		}
+	}
+
+	if isASwitch {
+		for i := range stmts {
+			addWork(st, i)
+		}
+	} else {
+		addWork(st, 0)
 	}
 
 nextWork:
@@ -609,7 +618,7 @@ nextWork:
 			st := exit.Store
 			switch branch := exit.branch.(type) {
 			case nil:
-				if len(stmts) > start.int+1 {
+				if len(stmts) > start.int+1 && !isASwitch {
 					addWork(st, start.int+1)
 				} else {
 					output = append(output, StmtExit{st, nil})
@@ -620,6 +629,14 @@ nextWork:
 
 			case *ast.BranchStmt:
 				switch {
+				case isASwitch && branch.Tok == token.BREAK:
+					if branch.Label == nil || branch.Label.Name == "" /* | TODO current label */ {
+						output = append(output, StmtExit{exit.Store, nil})
+					} else {
+						output = append(output, exit)
+					}
+				case isASwitch && branch.Tok == token.FALLTHROUGH:
+					addWork(st, start.int+1)
 				case branch.Tok == token.GOTO:
 					if target, ok := labels[branch.Label.Name]; ok {
 						addWork(st, target)
@@ -930,4 +947,28 @@ func (i *Interpreter) endBlocksAndCollectLoopExits(exits []StmtExit) ([]Store, [
 		}
 	}
 	return nextIterations, realExits
+}
+
+func (i *Interpreter) visitSwitchStmt(st Store, stmt *ast.SwitchStmt) []StmtExit {
+	var exits []StmtExit
+
+	st = st.BeginBlock()
+	for _, exit := range i.visitStmt(st, stmt.Init) {
+		exits = append(exits, exit)
+		st := exit.Store
+		perm, deps, st := i.VisitExpr(st, stmt.Tag)
+		if stmt.Tag != nil {
+			i.Assert(stmt.Tag, perm, permission.Read)
+		}
+
+		for _, exit := range i.visitStmtList(st, stmt.Body.List, true) {
+			exit.Store = i.Release(stmt.Tag, exit.Store, deps)
+			exits = append(exits, exit)
+		}
+	}
+
+	for i := range exits {
+		exits[i].Store = exits[i].Store.EndBlock()
+	}
+	return exits
 }
