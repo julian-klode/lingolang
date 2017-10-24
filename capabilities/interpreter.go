@@ -483,6 +483,8 @@ func (i *Interpreter) visitStmt(st Store, stmt ast.Stmt) []StmtExit {
 		return i.visitAssignStmt(st, stmt)
 	case *ast.RangeStmt:
 		return i.visitRangeStmt(st, stmt)
+	case *ast.SwitchStmt:
+		return i.visitSwitchStmt(st, stmt)
 	default:
 		i.Error(stmt, "Unknown type of statement")
 		panic(nil)
