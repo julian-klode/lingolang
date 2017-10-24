@@ -224,3 +224,7 @@ func (perm *TuplePermission) string(seen map[Permission]bool) string {
 func (perm *TuplePermission) String() string {
 	return perm.string(make(map[Permission]bool))
 }
+
+func (perm *NilPermission) string(seen map[Permission]bool) string {
+	return "untyped nil"
+}
