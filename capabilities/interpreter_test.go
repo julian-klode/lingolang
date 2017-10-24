@@ -727,6 +727,16 @@ func TestVisitStmt(t *testing.T) {
 				{"f", "om func (om * om) n"},
 				{"main", "om func (om) om * om"},
 			},
+			"func main(a map[string]*float64, f func(*float64)) *float64 { switch { case true: f(a[\"x\"]); fallthrough; case false: f(a[\"x\"]) }; return nil }",
+			[]exitDesc{},
+			"135: In a: Required permissions r",
+		},
+		{"switchStmt",
+			[]storeItemDesc{
+				{"a", "om map[om]om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
 			"func main(a map[string]*float64, f func(*float64)) *float64 { switch { case true: break; f(a[\"x\"]); case false: break; f(a[\"x\"]) }; return nil }",
 			[]exitDesc{
 				{[]storeItemDesc{
@@ -763,7 +773,7 @@ func TestVisitStmt(t *testing.T) {
 			},
 			"func main(a map[string]*float64, f func(*float64)) *float64 { switch { case true: return a[\"x\"]; case false: f(a[\"x\"]) }; return a[\"x\"] }",
 			[]exitDesc{},
-			"144: In a",
+			"144: In a: Required permissions r",
 		},
 	}
 
