@@ -91,6 +91,9 @@ func (i *Interpreter) visitIdent(st Store, e *ast.Ident) (permission.Permission,
 	if e.Name == "nil" {
 		return &permission.NilPermission{}, nil, st
 	}
+	if e.Name == "true" || e.Name == "false" {
+		return permission.Mutable | permission.Owned, nil, st
+	}
 	perm := st.GetEffective(e.Name)
 	if perm == nil {
 		i.Error(e, "Cannot borow %s: Unknown variable", e)

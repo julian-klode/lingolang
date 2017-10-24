@@ -208,6 +208,9 @@ func TestVisitExpr(t *testing.T) {
 		{"nil", "nilJust", nil, nil, &permission.NilPermission{}, []string{}, nil, nil},
 		{"a(nil)", "nilCall", "om func(om * om) ov", nil, "ov", []string{}, "om func (om * om) ov", nil},
 		{"a(nil)", "nilPointer", "om func(or * or) ov", nil, "ov", []string{}, "om func (or * or) ov", nil},
+		// Booleans
+		{"true", "true", nil, nil, "om", []string{}, nil, nil},
+		{"false", "false", nil, nil, "om", []string{}, nil, nil},
 	}
 
 	for _, test := range testCases {
