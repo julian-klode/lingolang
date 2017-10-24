@@ -704,7 +704,7 @@ func TestVisitStmt(t *testing.T) {
 			},
 			"",
 		},
-		{"switchStmt",
+		{"switchStmtSameExits",
 			[]storeItemDesc{
 				{"a", "om map[om]om * om"},
 				{"f", "om func (om * om) n"},
@@ -721,7 +721,7 @@ func TestVisitStmt(t *testing.T) {
 			},
 			"",
 		},
-		{"switchStmt",
+		{"switchStmtFallthrough",
 			[]storeItemDesc{
 				{"a", "om map[om]om * om"},
 				{"f", "om func (om * om) n"},
@@ -731,7 +731,7 @@ func TestVisitStmt(t *testing.T) {
 			[]exitDesc{},
 			"135: In a: Required permissions r",
 		},
-		{"switchStmt",
+		{"switchStmtBreak",
 			[]storeItemDesc{
 				{"a", "om map[om]om * om"},
 				{"f", "om func (om * om) n"},
@@ -745,7 +745,7 @@ func TestVisitStmt(t *testing.T) {
 			},
 			"",
 		},
-		{"switchStmt",
+		{"switchStmtReturnEverywhere",
 			[]storeItemDesc{
 				{"a", "om map[om]om * om"},
 				{"f", "om func (om * om) n"},
@@ -765,7 +765,7 @@ func TestVisitStmt(t *testing.T) {
 			},
 			"",
 		},
-		{"switchStmt",
+		{"switchStmtOneReturn",
 			[]storeItemDesc{
 				{"a", "om map[om]om * om"},
 				{"f", "om func (om * om) n"},
