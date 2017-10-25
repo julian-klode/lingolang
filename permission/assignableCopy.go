@@ -52,7 +52,7 @@ func (perm BasePermission) isCopyableTo(p2 Permission, state assignableState) bo
 	if !ok {
 		return false
 	}
-	return perm&Read != 0
+	return perm&Read != 0 || (perm == 0 && p2.GetBasePermission() == 0)
 }
 
 // isCopyableTo for pointers means target is refcopyable
