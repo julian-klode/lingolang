@@ -883,7 +883,16 @@ func TestVisitStmt(t *testing.T) {
 			},
 			"",
 		},
-
+		{"forStmtIterateToError",
+			[]storeItemDesc{
+				{"b", "om * om"},
+				{"f", "om func (om * om) om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b *int, f func(*int)) { for a := 0; a < 12345; a++ { f(b) }   }",
+			nil,
+			"80: In b:",
+		},
 		// This has two identical exits: (1) Never entered loop (2) Entered loop, but broken
 		{"forStmtBreakEvil",
 			[]storeItemDesc{
