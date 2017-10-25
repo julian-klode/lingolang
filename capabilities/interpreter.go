@@ -42,7 +42,7 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 	case *ast.BinaryExpr:
 		return i.visitBinaryExpr(st, e)
 	case *ast.CallExpr:
-		return i.visitCallExpr(st, e)
+		return i.visitCallExpr(st, e, false)
 	case *ast.CompositeLit:
 		return i.visitCompositeLit(st, e)
 	case *ast.FuncLit:
@@ -248,7 +248,7 @@ func (i *Interpreter) visitBasicLit(st Store, e *ast.BasicLit) (permission.Permi
 	return permission.Owned | permission.Mutable, nil, st
 }
 
-func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr) (permission.Permission, []Borrowed, Store) {
+func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr, isDeferredOrGoroutine bool) (permission.Permission, []Borrowed, Store) {
 	var err error
 
 	fun, funDeps, st := i.VisitExpr(st, e.Fun)
@@ -267,15 +267,20 @@ func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr) (permission.Permi
 
 			accumulatedUnownedDeps = append(accumulatedUnownedDeps, argDeps...)
 		}
-
-		// Call is done, release function permissions
-		st = i.Release(e, st, accumulatedUnownedDeps) // TODO(jak): Is order important?
-		st = i.Release(e, st, funDeps)
+		var deps []Borrowed
+		if isDeferredOrGoroutine {
+			deps = funDeps
+			accumulatedUnownedDeps = nil
+		} else {
+			// Call is done, release function permissions
+			st = i.Release(e, st, accumulatedUnownedDeps) // TODO(jak): Is order important?
+			st = i.Release(e, st, funDeps)
+		}
 
 		if len(fun.Results) == 1 {
-			return fun.Results[0], nil, st
+			return fun.Results[0], deps, st
 		}
-		return &permission.TuplePermission{BasePermission: permission.Owned | permission.Mutable, Elements: fun.Results}, nil, st
+		return &permission.TuplePermission{BasePermission: permission.Owned | permission.Mutable, Elements: fun.Results}, deps, st
 	default:
 		return i.Error(e, "Cannot call non-function object %v", fun)
 	}
@@ -491,6 +496,10 @@ func (i *Interpreter) visitStmt(st Store, stmt ast.Stmt) []StmtExit {
 		return i.visitCommClause(st, stmt)
 	case *ast.ForStmt:
 		return i.visitForStmt(st, stmt)
+	case *ast.DeferStmt:
+		return i.visitDeferStmt(st, stmt)
+	case *ast.GoStmt:
+		return i.visitGoStmt(st, stmt)
 	default:
 		i.Error(stmt, "Unknown type of statement")
 		panic(nil)
@@ -1083,4 +1092,28 @@ nextWork:
 	log.Printf("Leaving range statement with %d exits", len(output))
 
 	return output
+}
+
+func (i *Interpreter) visitGoStmt(st Store, stmt *ast.GoStmt) []StmtExit {
+	// Deps are gone
+	perm, _, st := i.visitCallExpr(st, stmt.Call, true)
+	i.Assert(stmt.Call, perm, permission.Read)
+	return []StmtExit{{st, nil}}
+}
+
+func (i *Interpreter) visitDeferStmt(st Store, stmt *ast.DeferStmt) []StmtExit {
+	// All deps are gone, except for captured unowned variables, they can be released
+	// again, since they will by definition be available at the end of the function
+	// when the call is to be executed.
+	// TODO: There's probably a bug here in that if I defer obj.method(), that the
+	// object is released as well, when it should not be - the object is bound at
+	// the moment of the statement, so reassigning it would cause a different result.
+	_, deps, st := i.visitCallExpr(st, stmt.Call, true)
+	for _, dep := range deps {
+		if dep.perm.GetBasePermission()&permission.Owned == 0 {
+			st = i.Release(stmt.Call, st, []Borrowed{dep})
+		}
+	}
+
+	return []StmtExit{{st, nil}}
 }
