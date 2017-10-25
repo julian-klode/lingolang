@@ -166,6 +166,12 @@ var testCasesParser = map[string]Permission{
 			Value,
 		},
 	},
+	"struct {v}": &StructPermission{
+		BasePermission: Owned | Mutable,
+		Fields: []Permission{
+			Value,
+		},
+	},
 	"m struct {v; l}": &StructPermission{
 		BasePermission: Mutable,
 		Fields: []Permission{

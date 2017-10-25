@@ -48,12 +48,17 @@ func (p *Parser) Parse() (perm Permission, err error) {
 // arbitrary garbage at the end, use Parse() to make sure that does not
 // happen
 //
-// @syntax inner <- '_' | basePermission [func | map | chan | pointer | sliceOrArray]
+// @syntax inner <- '_' | [[basePermission] [func | map | chan | pointer | sliceOrArray] | basePermission]
 func (p *Parser) parseInner() Permission {
 	if _, ok := p.sc.Accept(TokenWildcard); ok {
 		return &WildcardPermission{}
 	}
-	basePerm := p.parseBasePermission()
+	basePerm := Owned | Mutable
+	haveBase := false
+	if p.sc.Peek().Type == TokenWord {
+		basePerm = p.parseBasePermission()
+		haveBase = true
+	}
 
 	switch tok := p.sc.Peek(); tok.Type {
 	case TokenFunc, TokenParenLeft:
@@ -71,6 +76,9 @@ func (p *Parser) parseInner() Permission {
 	case TokenBracketLeft:
 		return p.parseSliceOrArray(basePerm)
 	default:
+		if !haveBase {
+			basePerm = p.parseBasePermission()
+		}
 		// We are searching the longest match here. If inside somethig else,
 		// there might be syntax for the parent node after this - ignore that.
 		return basePerm
