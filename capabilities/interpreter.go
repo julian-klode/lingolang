@@ -485,6 +485,10 @@ func (i *Interpreter) visitStmt(st Store, stmt ast.Stmt) []StmtExit {
 		return i.visitRangeStmt(st, stmt)
 	case *ast.SwitchStmt:
 		return i.visitSwitchStmt(st, stmt)
+	case *ast.SelectStmt:
+		return i.visitSelectStmt(st, stmt)
+	case *ast.CommClause:
+		return i.visitCommClause(st, stmt)
 	default:
 		i.Error(stmt, "Unknown type of statement")
 		panic(nil)
@@ -969,6 +973,28 @@ func (i *Interpreter) visitSwitchStmt(st Store, stmt *ast.SwitchStmt) []StmtExit
 
 	for i := range exits {
 		exits[i].Store = exits[i].Store.EndBlock()
+	}
+	return exits
+}
+
+func (i *Interpreter) visitSelectStmt(st Store, stmt *ast.SelectStmt) []StmtExit {
+	var exits []StmtExit
+
+	exits = append(exits, StmtExit{st, nil})
+	st = st.BeginBlock()
+
+	for _, exit := range i.visitStmtList(st, stmt.Body.List, true) {
+		exit.Store = exit.Store.EndBlock()
+		exits = append(exits, exit)
+	}
+
+	return exits
+}
+
+func (i *Interpreter) visitCommClause(st Store, stmt *ast.CommClause) []StmtExit {
+	var exits []StmtExit
+	for _, e := range i.visitStmt(st, stmt.Comm) {
+		exits = append(exits, i.visitStmtList(e.Store, stmt.Body, false)...)
 	}
 	return exits
 }

@@ -775,6 +775,101 @@ func TestVisitStmt(t *testing.T) {
 			[]exitDesc{},
 			"144: In a: Required permissions r",
 		},
+		{"selectStmt",
+			[]storeItemDesc{
+				{"a", "om chan om * om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a chan *float64) *float64 { select { case x := <- a: return x; case x := <- a: return x;  }; return <- a }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+				}, 104},
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+				}, 78},
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+				}, 118},
+			},
+			"",
+		},
+		// Oh, oh, three exits, but all at the same position! We should be merging those...
+		{"selectStmtAssign",
+			[]storeItemDesc{
+				{"a", "om chan om * om"},
+				{"x", "om * om"},
+				{"y", "om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a chan *float64, x, y *float64, f func(*float64)) *float64 { f(x); f(y); select { case x = <- a: ; case y = <- a: ;  }; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+					{"x", "om * om"},
+					{"y", "n * r"},
+				}, 145},
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+					{"x", "n * r"},
+					{"y", "om * om"},
+				}, 145},
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+					{"x", "n * r"},
+					{"y", "n * r"},
+				}, 145},
+			},
+			"",
+		},
+		{"selectStmtAssignAndUseUp",
+			[]storeItemDesc{
+				{"a", "om chan om * om"},
+				{"x", "om * om"},
+				{"y", "om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a chan *float64, x, y *float64, f func(*float64)) *float64 { f(x); f(y); select { case x = <- a: f(x); case y = <- a: f(y);  }; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+					{"x", "n * r"},
+					{"y", "n * r"},
+				}, 153},
+			},
+			"",
+		},
+		// This is equivalent to selectStmtAssign, the function calls are unreachable.
+		{"selectStmtAssignBreakAndUseUp",
+			[]storeItemDesc{
+				{"a", "om chan om * om"},
+				{"x", "om * om"},
+				{"y", "om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a chan *float64, x, y *float64, f func(*float64)) *float64 { f(x); f(y); select { case x = <- a: break; f(x); case y = <- a: break; f(y);  }; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+					{"x", "om * om"},
+					{"y", "n * r"},
+				}, 167},
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+					{"x", "n * r"},
+					{"y", "om * om"},
+				}, 167},
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+					{"x", "n * r"},
+					{"y", "n * r"},
+				}, 167},
+			},
+			"",
+		},
 	}
 
 	for _, cs := range testCases {
@@ -823,14 +918,14 @@ func TestVisitStmt(t *testing.T) {
 					act := exit.GetEffective(item.key)
 					exp := newPermission(item.value)
 					if !reflect.DeepEqual(act, exp) {
-						t.Error(spew.Errorf("Expected %v, received %v", exp, act))
+						t.Error(spew.Errorf("exit %d: key %s: Expected %v, received %v", k, item.key, exp, act))
 					}
 				}
 
 				if (output.pos >= 0) != (exit.branch != nil) {
 					t.Errorf("Expected branch statement = %v, Got branch statement = %v", output.pos >= 0, exit.branch != nil)
 				} else if output.pos > 0 && int(exit.branch.Pos()) != output.pos {
-					t.Error(spew.Errorf("Expected %v, received %v", output.pos, exit.branch.Pos()))
+					t.Error(spew.Errorf("exit %d: Expected %v, received %v", k, output.pos, exit.branch.Pos()))
 				}
 			}
 		})
