@@ -559,6 +559,9 @@ func (i *Interpreter) visitIfStmt(st Store, stmt *ast.IfStmt) []StmtExit {
 }
 
 func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt, isASwitch bool) []StmtExit {
+	if len(stmts) == 0 {
+		return []StmtExit{{st, nil}}
+	}
 	labels := make(map[string]int)
 	var work []struct {
 		Store

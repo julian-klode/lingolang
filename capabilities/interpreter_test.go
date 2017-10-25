@@ -388,6 +388,16 @@ func TestVisitStmt(t *testing.T) {
 	}
 
 	testCases := []testCase{
+		{"emptyBlock",
+			[]storeItemDesc{
+				{"main", "om func (om * om) om * om"},
+			},
+			"func main() {  }",
+			[]exitDesc{
+				{nil, -1},
+			},
+			"",
+		},
 		{"returnOne",
 			[]storeItemDesc{
 				{"a", "om * om"},
