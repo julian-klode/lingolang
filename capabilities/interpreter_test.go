@@ -32,6 +32,8 @@ type tuplePermission []string
 
 func newPermission(input interface{}) permission.Permission {
 	switch input := input.(type) {
+	case nil:
+		return nil
 	case string:
 		perm, err := permission.NewParser(input).Parse()
 		if err != nil {
@@ -877,6 +879,25 @@ func TestVisitStmt(t *testing.T) {
 					{"x", "n * r"},
 					{"y", "n * r"},
 				}, 167},
+			},
+			"",
+		},
+
+		// This has two identical exits: (1) Never entered loop (2) Entered loop, but broken
+		{"forStmtBreakEvil",
+			[]storeItemDesc{
+				{"b", "om * om"},
+				{"f", "om func (om * om) om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b *int, f func(*int)) { for a := b; *a < 12345; (*a)++ { break; f(a) }   }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", nil},
+				}, -1},
+				{[]storeItemDesc{
+					{"a", nil},
+				}, -1},
 			},
 			"",
 		},

@@ -489,6 +489,8 @@ func (i *Interpreter) visitStmt(st Store, stmt ast.Stmt) []StmtExit {
 		return i.visitSelectStmt(st, stmt)
 	case *ast.CommClause:
 		return i.visitCommClause(st, stmt)
+	case *ast.ForStmt:
+		return i.visitForStmt(st, stmt)
 	default:
 		i.Error(stmt, "Unknown type of statement")
 		panic(nil)
@@ -910,7 +912,7 @@ nextWork:
 			}
 		}
 
-		nextIterations, exits := i.endBlocksAndCollectLoopExits(i.visitStmt(st, stmt.Body))
+		nextIterations, exits := i.endBlocksAndCollectLoopExits(i.visitStmt(st, stmt.Body), true)
 		output = append(output, exits...)
 		work = append(work, nextIterations...)
 	}
@@ -920,12 +922,18 @@ nextWork:
 	return output
 }
 
-func (i *Interpreter) endBlocksAndCollectLoopExits(exits []StmtExit) ([]Store, []StmtExit) {
+// endBlocksAndCollectLoopExits splits a given set of block exits into exits out of the current loop (breaks, returns, etc)
+// and further iterations of the loop.
+//
+// If endAllBlocks is true, all inputs will have EndBlock() called on them, otherwise, only the returned []StmtExit
+// will have EndBlock() called on them.
+func (i *Interpreter) endBlocksAndCollectLoopExits(exits []StmtExit, endAllBlocks bool) ([]Store, []StmtExit) {
 	var nextIterations []Store
 	var realExits []StmtExit
-	for j := range exits {
-		log.Printf("VIsiting exits(%v)[%d]=%v", exits, j, exits[j])
-		exits[j].Store = exits[j].Store.EndBlock()
+	if endAllBlocks {
+		for j := range exits {
+			exits[j].Store = exits[j].Store.EndBlock()
+		}
 	}
 	log.Printf("VIsiting exits")
 	for _, exit := range exits {
@@ -953,6 +961,12 @@ func (i *Interpreter) endBlocksAndCollectLoopExits(exits []StmtExit) ([]Store, [
 			}
 		}
 	}
+	if !endAllBlocks {
+		for j := range realExits {
+			realExits[j].Store = realExits[j].Store.EndBlock()
+		}
+	}
+
 	return nextIterations, realExits
 }
 
@@ -1000,4 +1014,73 @@ func (i *Interpreter) visitCommClause(st Store, stmt *ast.CommClause) []StmtExit
 		exits = append(exits, i.visitStmtList(e.Store, stmt.Body, false)...)
 	}
 	return exits
+}
+
+func (i *Interpreter) visitForStmt(st Store, stmt *ast.ForStmt) (rangeExits []StmtExit) {
+	var seen []Store
+	var work = []Store{}
+	var output = []StmtExit{}
+
+	st = st.BeginBlock()
+
+	// Evaluate the container specified on the right hand side.
+	for _, entry := range i.visitStmt(st, stmt.Init) {
+		if entry.branch != nil {
+			i.Error(stmt.Init, "Initializer exits uncleanly")
+		}
+		work = append(work, entry.Store)
+	}
+
+nextWork:
+	for iter := 0; len(work) != 0; iter++ {
+		// We treat work as a stack. Semantically, it feels like a queue would be a better
+		// fit, but it does not make any difference IRL, and by using a stack approach we
+		// do not end up with indefinitely growing arrays (because we'd slice off of the first
+		// element and then append a new one)
+		st := work[len(work)-1]
+		work = work[:len(work)-1]
+
+		log.Printf("for: Told to iterate %v", st)
+		/* Exit helper */
+		if iter == 42 {
+			i.Error(stmt, "Too many loops, aborting")
+		}
+
+		for _, sn := range seen {
+			if sn.Equal(st) {
+				log.Printf("for: Skipping to iterate %v", st)
+				continue nextWork
+			}
+		}
+
+		seen = append(seen, st)
+
+		// Check condition
+		perm, deps, st := i.VisitExpr(st, stmt.Cond)
+		i.Assert(stmt.Cond, perm, permission.Read)
+		st = i.Release(stmt.Cond, st, deps)
+
+		// There might be no more items, exit
+		output = append(output, StmtExit{st, nil})
+
+		nextIterations, exits := i.endBlocksAndCollectLoopExits(i.visitStmt(st, stmt.Body), false)
+
+		log.Printf("for: Iteration has %d more works", len(nextIterations))
+		log.Printf("for: Iteration has %d more exits", len(exits))
+
+		for _, nextIter := range nextIterations {
+			for _, nextExit := range i.visitStmt(nextIter, stmt.Post) {
+				if nextExit.branch != nil {
+					i.Error(stmt.Init, "Post exits uncleanly")
+				}
+				work = append(work, nextExit.Store)
+			}
+		}
+
+		output = append(output, exits...)
+	}
+
+	log.Printf("Leaving range statement with %d exits", len(output))
+
+	return output
 }
