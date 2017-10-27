@@ -152,21 +152,21 @@ func TestVisitExpr(t *testing.T) {
 		{"(b)", "parenMut", nil, "om", "om", "b", []string{}, nil, "n"},
 		{"(b)", "parenPoint", nil, "om * om", "om * om", "b", []string{}, nil, "n * r"},
 		// Function calls
-		{"a(b)", "callMutableNoCopy", "om func(om * om) or", "om * om", "or", "a", []string{}, "om func(om * om) or", "n * r"},
-		{"a(b, b)", "callMutableNoCopy", "om func(om * om, om * om) or", "om * om", errorResult("Cannot copy or move"), "a", []string{}, "om func(om * om, om * om) or", "n * r"},
-		{"a(b)", "callMutableNoCopyUnowned", "om func(m * m) or", "om * om", "or", "a", []string{}, "om func(m * m) or", "om * om"},
-		{"a(b)", "callMutableNoCopyUnownedToUnownedReadable", "om func(r * r) or", "om * om", "or", "a", []string{}, "om func(r * r) or", "om * om"},
+		{"a(b)", "callMutableNoCopy", "om func(om * om) or", "om * om", "or", "", []string{}, "om func(om * om) or", "n * r"},
+		{"a(b, b)", "callMutableNoCopy", "om func(om * om, om * om) or", "om * om", errorResult("Cannot copy or move"), "", []string{}, "om func(om * om, om * om) or", "n * r"},
+		{"a(b)", "callMutableNoCopyUnowned", "om func(m * m) or", "om * om", "or", "", []string{}, "om func(m * m) or", "om * om"},
+		{"a(b)", "callMutableNoCopyUnownedToUnownedReadable", "om func(r * r) or", "om * om", "or", "", []string{}, "om func(r * r) or", "om * om"},
 		{"a(b, b)", "callMutableNoCopyUnownedToUnownedReadable", "om func(r * r, r * r) or", "om * om", errorResult("Cannot copy or move"), "", []string{}, "om func(r * r, r * r) or", "om * om"},
-		{"a(b)", "callMutableNoCopyUnownedToOwnedReadable", "om func(or * or) or", "om * om", "or", "a", []string{}, "om func(or * or) or", "or * or"},
-		{"a(b, b)", "callMutableNoCopyUnownedToOwnedReadable", "om func(or * or, or * or) or", "om * om", "or", "a", []string{}, "om func(or * or, or * or) or", "or * or"},
-		{"a(b)", "callMutableNoCopyUnownedToOwnedReadable", "om func(or * owr) or", "om * om", "or", "a", []string{}, "om func(or * owr) or", "or * or"},
-		{"a(b)", "callMutableCopy", "om func(om) or", "om", "or", "a", []string{}, "om func(om) or", "om"},
-		{"a(b)", "callMutableNoRet", "om func(om)", "om", tuplePermission{"om"}, "a", []string{}, "om func(om)", "om"},
-		{"a(b)", "callMutableNoRet", "om func(om) (ov, oa)", "om", tuplePermission{"om", "ov", "oa"}, "a", []string{}, "om func(om) (ov, oa)", "om"},
-		{"a(b)", "callMutableIncompat", "om func(om * om)", "or * or", errorResult("not copy or move"), "a", []string{}, "om func(om)", "or * or"},
+		{"a(b)", "callMutableNoCopyUnownedToOwnedReadable", "om func(or * or) or", "om * om", "or", "", []string{}, "om func(or * or) or", "or * or"},
+		{"a(b, b)", "callMutableNoCopyUnownedToOwnedReadable", "om func(or * or, or * or) or", "om * om", "or", "", []string{}, "om func(or * or, or * or) or", "or * or"},
+		{"a(b)", "callMutableNoCopyUnownedToOwnedReadable", "om func(or * owr) or", "om * om", "or", "", []string{}, "om func(or * owr) or", "or * or"},
+		{"a(b)", "callMutableCopy", "om func(om) or", "om", "or", "", []string{}, "om func(om) or", "om"},
+		{"a(b)", "callMutableNoRet", "om func(om)", "om", tuplePermission{"om"}, "", []string{}, "om func(om)", "om"},
+		{"a(b)", "callMutableNoRet", "om func(om) (ov, oa)", "om", tuplePermission{"om", "ov", "oa"}, "", []string{}, "om func(om) (ov, oa)", "om"},
+		{"a(b)", "callMutableIncompat", "om func(om * om)", "or * or", errorResult("not copy or move"), "", []string{}, "om func(om)", "or * or"},
 
-		{"a(b)", "callRetValue", "om func(om) n", "om", "n", "a", []string{}, "om func(om) n", "om"},
-		{"a(b)", "callNotAFunction", "om", "om", errorResult("non-function"), "a", []string{}, "om", "om"},
+		{"a(b)", "callRetValue", "om func(om) n", "om", "n", "", []string{}, "om func(om) n", "om"},
+		{"a(b)", "callNotAFunction", "om", "om", errorResult("non-function"), "", []string{}, "om", "om"},
 		// Basic lit
 		{"127", "basicLitInt", nil, nil, "om", "", []string{}, nil, nil},
 		{"127.1", "basicLitFloat", nil, nil, "om", "", []string{}, nil, nil},
@@ -210,8 +210,8 @@ func TestVisitExpr(t *testing.T) {
 		{"a{b}", "compositeLitErrorNoTypesInfo", "m struct { m }", "m", errorResult("typesInfo"), "", nil, nil, nil},
 		// Nil
 		{"nil", "nilJust", nil, nil, &permission.NilPermission{}, "", []string{}, nil, nil},
-		{"a(nil)", "nilCall", "om func(om * om) ov", nil, "ov", "a", []string{}, "om func (om * om) ov", nil},
-		{"a(nil)", "nilPointer", "om func(or * or) ov", nil, "ov", "a", []string{}, "om func (or * or) ov", nil},
+		{"a(nil)", "nilCall", "om func(om * om) ov", nil, "ov", "", []string{}, "om func (om * om) ov", nil},
+		{"a(nil)", "nilPointer", "om func(or * or) ov", nil, "ov", "", []string{}, "om func (or * or) ov", nil},
 		// Booleans
 		{"true", "true", nil, nil, "om", "", []string{}, nil, nil},
 		{"false", "false", nil, nil, "om", "", []string{}, nil, nil},
@@ -381,7 +381,7 @@ func TestVisitCompositeLit_errors(t *testing.T) {
 	})
 }
 
-func testVisitStmt(t *testing.T) {
+func TestVisitStmt(t *testing.T) {
 	type storeItemDesc struct {
 		key   string
 		value interface{}

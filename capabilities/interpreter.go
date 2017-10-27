@@ -302,6 +302,9 @@ func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr, isDeferredOrGorou
 			// Call is done, release function permissions
 			st = i.Release(e, st, accumulatedUnownedDeps) // TODO(jak): Is order important?
 			st = i.Release(e, st, funDeps)
+			// For a normal function call, there's no point to hang on to the function owner.
+			st = i.Release(e, st, []Borrowed{Borrowed(owner)})
+			owner = NoOwner
 		}
 
 		if len(fun.Results) == 1 {
