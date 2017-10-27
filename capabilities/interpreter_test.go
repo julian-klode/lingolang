@@ -32,6 +32,8 @@ type tuplePermission []string
 
 func newPermission(input interface{}) permission.Permission {
 	switch input := input.(type) {
+	case nil:
+		return nil
 	case string:
 		perm, err := permission.NewParser(input).Parse()
 		if err != nil {
@@ -185,6 +187,7 @@ func TestVisitExpr(t *testing.T) {
 		// Selectors (1): Method values
 		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterface", "ov interface{ ov (ov) func () }", "_", "ov func ()", []string{}, "ov interface{ ov (ov) func () }", "_"},
 		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterfaceUnowned", "ov interface{ ov (v) func () }", "_", "v func ()", []string{}, "ov interface{ ov (v) func () }", "_"},
+		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterfaceUnowned", "m interface{ om (m) func () }", "_", "m func ()", []string{"a"}, permission.ConvertToBase(newPermission("m interface{ om (m) func () }"), newPermission("n").GetBasePermission()), "_"},
 		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterfaceCantBind", "ov interface{ ov (om) func () }", "_", errorResult("not bind receiver"), []string{}, "ov interface{ ov (ov) func () }", "_"},
 		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterfaceIncompatibleLHS", "_", "_", errorResult("unknown type on left side"), []string{}, "ov interface{ ov (ov) func () }", "_"},
 		// Selectors (2): Structs
@@ -367,4 +370,730 @@ func TestVisitCompositeLit_errors(t *testing.T) {
 		e.Elts[0].(*ast.KeyValueExpr).Key = ast.NewIdent("foobar")
 		i.visitCompositeLit(st, e)
 	})
+}
+
+func TestVisitStmt(t *testing.T) {
+	type storeItemDesc struct {
+		key   string
+		value interface{}
+	}
+	type exitDesc struct {
+		items []storeItemDesc
+		pos   int
+	}
+
+	type testCase struct {
+		name   string
+		input  []storeItemDesc
+		code   string
+		output []exitDesc
+		error  string
+	}
+
+	testCases := []testCase{
+		{"emptyBlock",
+			[]storeItemDesc{
+				{"main", "om func (om * om) om * om"},
+			},
+			"func main() {  }",
+			[]exitDesc{
+				{nil, -1},
+			},
+			"",
+		},
+		{"returnOne",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"main", "om func (om * om) om * om"},
+			},
+			"func main(a *int) *int { return a }",
+			[]exitDesc{
+				{[]storeItemDesc{{"a", "n * r"}}, 40},
+			},
+			"",
+		},
+		{"if",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"nil", "om * om"},
+				{"main", "om func (om * om) om * om"},
+			},
+			"func main(a *int) *int { if a != nil { return a }; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{{"a", "n * r"}}, 54},
+				{[]storeItemDesc{{"a", "om * om"}}, 66},
+			},
+			"",
+		},
+		{"goto",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"nil", "om * om"},
+				{"main", "om func (om * om) om * om"},
+			},
+			"func main(a *int) *int { x: if a != nil { return a }; goto x }",
+			[]exitDesc{
+				{[]storeItemDesc{{"a", "n * r"}}, 57},
+			},
+			"",
+		},
+		{"gotoInfinite",
+			[]storeItemDesc{
+				{"main", "om func (om * om) om * om"},
+			},
+			"func main(a *int) *int { x: goto x }",
+			[]exitDesc{},
+			"",
+		},
+		{"gotoReturn",
+			[]storeItemDesc{
+				{"main", "om func (om * om) om * om"},
+			},
+			"func main(a *int) *int { x: goto x; return a }",
+			[]exitDesc{},
+			"",
+		},
+		{"conditionalMove",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"nil", "om * om"},
+				{"main", "om func (om * om) om * om"},
+				{"f", "om func (om * om) n"},
+			},
+			"func main(a *int, f func(a *int)) *int {  if a != nil { f(a); }; return a }",
+			nil,
+			"Cannot bind return value", // Might be entering return after having entered the if body
+		},
+		{"conditionalGoto",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"nil", "om * om"},
+				{"main", "om func (om * om) om * om"},
+				{"f", "om func (om * om) n"},
+			},
+			"func main(a *int, f func(a *int)) *int {  x: if a != nil { f(a); goto x }; return a }",
+			nil,
+			"63: In a: Required permissions r", // Fails in second iteration as a has been borrowed.
+		},
+		{"conditionalGotoMustContinueLoopNotBreakIt",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"b", "om * om"},
+				{"main", "om func (om * om) om * om"},
+				{"f", "om func (om * om) n"},
+			},
+			// This prevents a regression from where we used "break" instead of "continue" when trying
+			// to skip a situation we already encountered.
+			"func main(a *int, b *int, f func(a *int)) *int {  if a != nil { f(a); }; if b != nil { f(b) }; x: if 1 != 1 { goto x }; return nil}",
+			[]exitDesc{
+				{[]storeItemDesc{{"a", "om * om"}, {"b", "om * om"}}, 135},
+				{[]storeItemDesc{{"a", "om * om"}, {"b", "n * r"}}, 135},
+				{[]storeItemDesc{{"a", "n * r"}, {"b", "om * om"}}, 135},
+				{[]storeItemDesc{{"a", "n * r"}, {"b", "n * r"}}, 135},
+			},
+			"",
+		},
+		{"emptyStmt",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"main", "om func (om * om) om * om"},
+			},
+			"func main(a *int) *int { ; return a }",
+			[]exitDesc{
+				{[]storeItemDesc{{"a", "n * r"}}, 42},
+			},
+			"",
+		},
+		{"incDecStmt",
+			[]storeItemDesc{
+				{"a", "om"},
+				{"main", "om func (om) om"},
+			},
+			"func main(a int) int { a++; return a; }",
+			[]exitDesc{
+				{[]storeItemDesc{{"a", "om"}}, 43},
+			},
+			"",
+		},
+		{"incDecStmt",
+			[]storeItemDesc{
+				{"a", "o"},
+				{"main", "om func (om) om"},
+			},
+			"func main(a int) int { a++; return a; }",
+			[]exitDesc{},
+			"Required permissions a",
+		},
+		{"sendStmt",
+			[]storeItemDesc{
+				{"a", "om chan om"},
+				{"b", "om"},
+				{"main", "om func (om, om) om"},
+			},
+			"func main(a chan int, b int) int { a <- b; return b }",
+			[]exitDesc{
+				{[]storeItemDesc{{"a", "om chan om"}, {"b", "om"}}, 58},
+			},
+			"",
+		},
+		{"sendStmtValue",
+			[]storeItemDesc{
+				{"a", "om chan om"},
+				{"b", "ov"},
+				{"main", "om func (om, ov) om"},
+			},
+			"func main(a chan int, b int) int { a <- b; return b }",
+			[]exitDesc{
+				{[]storeItemDesc{{"a", "om chan om"}, {"b", "ov"}}, 58},
+			},
+			"",
+		},
+		{"sendStmtNotAChannel",
+			[]storeItemDesc{
+				{"a", "om [] om"},
+				{"b", "on"},
+				{"main", "om func (om, ov) om"},
+			},
+			"func main(a chan int, b int) int { a <- b; return b }",
+			[]exitDesc{},
+			"xpected channel",
+		},
+		{"sendStmtIncompatibleValue",
+			[]storeItemDesc{
+				{"a", "om chan om"},
+				{"b", "on"},
+				{"main", "om func (om, ov) om"},
+			},
+			"func main(a chan int, b int) int { a <- b; return b }",
+			[]exitDesc{},
+			"Cannot send value: Cannot copy or move",
+		},
+		{"sendStmtLinear",
+			[]storeItemDesc{
+				{"a", "om chan om * om"},
+				{"b", "om * om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a chan *int, b *int) *int { a <- b; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{{"a", "om chan om * om"}, {"b", "n * r"}}, 61},
+			},
+			"",
+		},
+		{"sendStmtLinearError",
+			[]storeItemDesc{
+				{"a", "om chan om * om"},
+				{"b", "om * om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a chan *int, b *int) *int { a <- b; return b }",
+			[]exitDesc{},
+			"Cannot bind return value",
+		},
+		{"assignStmtMutableDefine",
+			[]storeItemDesc{
+				{"b", "om * om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b *int) *int  { a := b;  return a }",
+			[]exitDesc{
+				{[]storeItemDesc{{"b", "n * r"}}, 50},
+			},
+			"",
+		},
+		{"assignStmtSwap",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"b", "om * om"},
+				{"main", "om func (om) n"},
+			},
+			"func main(a, b *int)  { a, b = b, a }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om * om"},
+					{"b", "om * om"},
+				}, -1},
+			},
+			"",
+		},
+		{"assignStmtSwap",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"b", "om * om"},
+				{"main", "om func (om) n"},
+			},
+			"func main(a, b *int)  { a, b = b, a }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om * om"},
+					{"b", "om * om"},
+				}, -1},
+			},
+			"",
+		},
+
+		{"rangeStmtOwnedGone",
+			[]storeItemDesc{
+				{"a", "om []om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a []*float64, f func(*float64)) *float64 { for _, x := range a { f(x) }; return a[0] }",
+			[]exitDesc{},
+			"equired permissions r",
+		},
+		{"rangeStmtOwnedGoneAssign",
+			[]storeItemDesc{
+				{"a", "om []om * om"},
+				{"x", "om"},
+				{"y", "om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a []*float64, f func(*float64), x int, y *float64) *float64 { for x, y = range a { f(y) }; return a[0] }",
+			[]exitDesc{},
+			"equired permissions r",
+		},
+		{"rangeStmtUnownedNotGone",
+			[]storeItemDesc{
+				{"a", "m []m * m"},
+				{"f", "om func (m * m) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a []*float64, f func(*float64)) *float64 { for _, x := range a { f(x) }; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "m []m * m"},
+				}, 98},
+			},
+			"",
+		},
+
+		{"rangeStmtReturnInIteration",
+			[]storeItemDesc{
+				{"a", "om []om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a []*float64, f func(*float64)) *float64 { for _, x := range a { return x }; return a[0] }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "n []n * r"},
+				}, 90},
+				{[]storeItemDesc{
+					{"a", "n []n * r"},
+				}, 102},
+			}, // This one is essentially like an if: We either exit the loop and consume a, or we don't.
+			"",
+		},
+		{"rangeStmtReturnInIterationMap",
+			[]storeItemDesc{
+				{"a", "om map[om]om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a map[string]*float64, f func(*float64)) *float64 { for _, x := range a { return x }; return a[\"0\"] }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "n map[n]n * r"},
+				}, 99},
+				{[]storeItemDesc{
+					{"a", "n map[n]n * r"},
+				}, 111},
+			},
+			"",
+		},
+		{"rangeStmtBreak",
+			[]storeItemDesc{
+				{"a", "om map[om]om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a map[string]*float64, f func(*float64)) *float64 { for range a { break }; return a[\"0\"] }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "n map[n]n * r"},
+				}, 100},
+			},
+			"",
+		},
+		{"switchStmtSameExits",
+			[]storeItemDesc{
+				{"a", "om map[om]om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a map[string]*float64, f func(*float64)) *float64 { switch { case true: f(a[\"x\"]); case false: f(a[\"x\"]) }; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "n map[n]n * r"},
+				}, 133},
+				{[]storeItemDesc{
+					{"a", "om map[om]om * om"},
+				}, 133},
+			},
+			"",
+		},
+		{"switchStmtFallthrough",
+			[]storeItemDesc{
+				{"a", "om map[om]om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a map[string]*float64, f func(*float64)) *float64 { switch { case true: f(a[\"x\"]); fallthrough; case false: f(a[\"x\"]) }; return nil }",
+			[]exitDesc{},
+			"135: In a: Required permissions r",
+		},
+		{"switchStmtBreak",
+			[]storeItemDesc{
+				{"a", "om map[om]om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a map[string]*float64, f func(*float64)) *float64 { switch { case true: break; f(a[\"x\"]); case false: break; f(a[\"x\"]) }; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om map[om]om * om"},
+				}, 147},
+			},
+			"",
+		},
+		{"switchStmtReturnEverywhere",
+			[]storeItemDesc{
+				{"a", "om map[om]om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a map[string]*float64, f func(*float64)) *float64 { switch { case true: return a[\"x\"]; case false: return nil }; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om map[om]om * om"},
+				}, 124},
+				{[]storeItemDesc{
+					{"a", "n map[n]n * r"},
+				}, 97},
+				{[]storeItemDesc{
+					{"a", "om map[om]om * om"},
+				}, 138},
+			},
+			"",
+		},
+		{"switchStmtOneReturn",
+			[]storeItemDesc{
+				{"a", "om map[om]om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a map[string]*float64, f func(*float64)) *float64 { switch { case true: return a[\"x\"]; case false: f(a[\"x\"]) }; return a[\"x\"] }",
+			[]exitDesc{},
+			"144: In a: Required permissions r",
+		},
+		{"selectStmt",
+			[]storeItemDesc{
+				{"a", "om chan om * om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a chan *float64) *float64 { select { case x := <- a: return x; case x := <- a: return x;  }; return <- a }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+				}, 104},
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+				}, 78},
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+				}, 118},
+			},
+			"",
+		},
+		// Oh, oh, three exits, but all at the same position! We should be merging those...
+		{"selectStmtAssign",
+			[]storeItemDesc{
+				{"a", "om chan om * om"},
+				{"x", "om * om"},
+				{"y", "om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a chan *float64, x, y *float64, f func(*float64)) *float64 { f(x); f(y); select { case x = <- a: ; case y = <- a: ;  }; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+					{"x", "om * om"},
+					{"y", "n * r"},
+				}, 145},
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+					{"x", "n * r"},
+					{"y", "om * om"},
+				}, 145},
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+					{"x", "n * r"},
+					{"y", "n * r"},
+				}, 145},
+			},
+			"",
+		},
+		{"selectStmtAssignAndUseUp",
+			[]storeItemDesc{
+				{"a", "om chan om * om"},
+				{"x", "om * om"},
+				{"y", "om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a chan *float64, x, y *float64, f func(*float64)) *float64 { f(x); f(y); select { case x = <- a: f(x); case y = <- a: f(y);  }; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+					{"x", "n * r"},
+					{"y", "n * r"},
+				}, 153},
+			},
+			"",
+		},
+		// This is equivalent to selectStmtAssign, the function calls are unreachable.
+		{"selectStmtAssignBreakAndUseUp",
+			[]storeItemDesc{
+				{"a", "om chan om * om"},
+				{"x", "om * om"},
+				{"y", "om * om"},
+				{"f", "om func (om * om) n"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(a chan *float64, x, y *float64, f func(*float64)) *float64 { f(x); f(y); select { case x = <- a: break; f(x); case y = <- a: break; f(y);  }; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+					{"x", "om * om"},
+					{"y", "n * r"},
+				}, 167},
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+					{"x", "n * r"},
+					{"y", "om * om"},
+				}, 167},
+				{[]storeItemDesc{
+					{"a", "om chan om * om"},
+					{"x", "n * r"},
+					{"y", "n * r"},
+				}, 167},
+			},
+			"",
+		},
+		{"forStmtIterateToError",
+			[]storeItemDesc{
+				{"b", "om * om"},
+				{"f", "om func (om * om) om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b *int, f func(*int)) { for a := 0; a < 12345; a++ { f(b) }   }",
+			nil,
+			"80: In b:",
+		},
+		// This has two identical exits: (1) Never entered loop (2) Entered loop, but broken
+		{"forStmtBreakEvil",
+			[]storeItemDesc{
+				{"b", "om * om"},
+				{"f", "om func (om * om) om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b *int, f func(*int)) { for a := b; *a < 12345; (*a)++ { break; f(a) }   }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", nil},
+				}, -1},
+				{[]storeItemDesc{
+					{"a", nil},
+				}, -1},
+			},
+			"",
+		},
+		// Test for the next case
+		{"goStmtNoGo",
+			[]storeItemDesc{
+				{"b", "om * om"},
+				{"c", "om * om"},
+				{"f", "om func (om * om, m * m) om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b, c *int, f func(*int, *int)) { f(b, c)   }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", "n * r"},
+					{"c", "om * om"},
+				}, -1},
+			},
+			"",
+		},
+		{"goStmt",
+			[]storeItemDesc{
+				{"b", "om * om"},
+				{"c", "om * om"},
+				{"f", "om func (om * om, m * m) om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b, c *int, f func(*int, *int)) { go f(b, c)   }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", "n * r"},
+					{"c", "n * r"},
+				}, -1},
+			},
+			"",
+		},
+		{"deferStmt",
+			[]storeItemDesc{
+				{"b", "om * om"},
+				{"c", "om * om"},
+				{"f", "om func (om * om, m * m) om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b, c *int, f func(*int, *int)) { defer f(b, c)   }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", "n * r"},
+					{"c", "n * r"},
+				}, -1},
+			},
+			"",
+		},
+		{"deferStmtOwner",
+			[]storeItemDesc{
+				{"b", "om interface{ om (om) func (om * om) n }"},
+				{"c", "om * om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b interface { f(*int) } , c *int) { defer b.f(c)   }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", permission.ConvertToBase(newPermission("om interface{ om (om) func (om * om) n }"), 0)},
+					{"c", "n * r"},
+				}, -1},
+			},
+			"",
+		},
+		{"deferStmtUnownedOwner",
+			[]storeItemDesc{
+				{"b", "om interface{ om (m) func (om * om) n }"},
+				{"c", "om * om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b interface { f(*int) } , c *int) { defer b.f(c)   }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", permission.ConvertToBase(newPermission("om interface{ om (m) func (om * om) n }"), 0)},
+					{"c", "n * r"},
+				}, -1},
+			},
+			"",
+		},
+		{"deferStmtCompletelyUnownedOwner",
+			[]storeItemDesc{
+				{"b", "m interface{ om (m) func (om * om) n }"},
+				{"c", "om * om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b interface { f(*int) } , c *int) { defer b.f(c)   }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", "m interface{ om (m) func (om * om) n }"}, // TODO: Broken.
+					{"c", "n * r"},
+				}, -1},
+			},
+			"",
+		},
+		{"deferStmtUnownedArg",
+			[]storeItemDesc{
+				{"b", "om interface{ om (m) func (m * m) n }"},
+				{"c", "om * om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b interface { f(*int) } , c *int) { defer b.f(c)   }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", permission.ConvertToBase(newPermission("om interface{ om (m) func (m * m) n }"), 0)},
+					{"c", "n * r"},
+				}, -1},
+			},
+			"",
+		},
+		{"deferStmtCompletelyUnownedArg",
+			[]storeItemDesc{
+				{"b", "om interface{ om (m) func (m * m) n }"},
+				{"c", "m * m"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b interface { f(*int) } , c *int) { defer b.f(c)   }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", permission.ConvertToBase(newPermission("om interface{ om (m) func (m * m) n }"), 0)},
+					{"c", "n * r"},
+				}, -1},
+			},
+			"",
+		},
+	}
+
+	for _, cs := range testCases {
+		t.Run(cs.name, func(t *testing.T) {
+			if cs.error != "" {
+				defer recoverErrorOrFail(t, cs.error)
+			}
+
+			i := &Interpreter{}
+			var st Store
+			fset := token.NewFileSet()
+			file, err := parser.ParseFile(fset, "test", "package test\n\n"+cs.code, 0)
+			if err != nil {
+				t.Fatalf("Could not parse setup: %s", err)
+			}
+			info := types.Info{
+				Defs:       make(map[*ast.Ident]types.Object),
+				Selections: make(map[*ast.SelectorExpr]*types.Selection),
+				Types:      make(map[ast.Expr]types.TypeAndValue),
+			}
+			config := &types.Config{}
+			_, err = config.Check("test", fset, []*ast.File{file}, &info)
+			i.typesInfo = &info
+			i.fset = fset
+			if err != nil {
+				t.Fatalf("Could not parse setup: %s", err)
+			}
+
+			for _, input := range cs.input {
+				st, err = st.Define(input.key, newPermission(input.value))
+				if err != nil {
+					t.Fatalf("Could not define input %s: %s", input.key, err)
+				}
+			}
+
+			i.curFunc = st.GetEffective("main").(*permission.FuncPermission)
+			exits := i.visitStmt(st, file.Decls[len(file.Decls)-1].(*ast.FuncDecl).Body)
+
+			if len(exits) != len(cs.output) {
+				t.Fatalf("Expected %d result, got %d => %v", len(cs.output), len(exits), exits)
+			}
+
+			for k, output := range cs.output {
+				exit := exits[k]
+				for _, item := range output.items {
+					act := exit.GetEffective(item.key)
+					exp := newPermission(item.value)
+					if !reflect.DeepEqual(act, exp) {
+						t.Error(spew.Errorf("exit %d: key %s: Expected %v, received %v", k, item.key, exp, act))
+					}
+				}
+
+				if (output.pos >= 0) != (exit.branch != nil) {
+					t.Errorf("Expected branch statement = %v, Got branch statement = %v", output.pos >= 0, exit.branch != nil)
+				} else if output.pos > 0 && int(exit.branch.Pos()) != output.pos {
+					t.Error(spew.Errorf("exit %d: Expected %v, received %v", k, output.pos, exit.branch.Pos()))
+				}
+			}
+		})
+	}
+
 }

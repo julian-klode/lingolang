@@ -37,7 +37,7 @@ func (perm BasePermission) isMovableTo(p2 Permission, state assignableState) boo
 	if !ok {
 		return false
 	}
-	return perm&Read != 0 && perm2&^perm == 0
+	return (perm&Read != 0 || perm == 0) && perm2&^perm == 0
 }
 
 func (p *PointerPermission) isMovableTo(p2 Permission, state assignableState) bool {

@@ -204,6 +204,18 @@ func TestStore_panic(t *testing.T) {
 }
 
 func TestStore_Merge(t *testing.T) {
+	// Test case 0: nils
+	st := make(Store, 1)
+	if merged, err := st.Merge(nil); !merged.Equal(st) || err != nil {
+		t.Errorf("Merge with rhs = nil is != lhs, merged=%v, error=%s", merged, err)
+	}
+	if merged, err := Store(nil).Merge(st); !merged.Equal(st) || err != nil {
+		t.Errorf("Merge with lhs = nil is != rhs, merged=%v, error=%s", merged, err)
+	}
+	if merged, err := Store(nil).Merge(nil); merged != nil || err != nil {
+		t.Errorf("Merge(nil, nil)=%v, expected=nil, error=%s", merged, err)
+	}
+
 	// Test case 1: Succesful merge
 	st1 := make(Store, 1)
 	st1[0].name = "a"
