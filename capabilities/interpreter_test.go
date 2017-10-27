@@ -188,7 +188,7 @@ func TestVisitExpr(t *testing.T) {
 		// Selectors (1): Method values
 		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterface", "ov interface{ ov (ov) func () }", "_", "ov func ()", "", []string{}, "ov interface{ ov (ov) func () }", "_"},
 		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterfaceUnowned", "ov interface{ ov (v) func () }", "_", "v func ()", "", []string{}, "ov interface{ ov (v) func () }", "_"},
-		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterfaceUnownedMutable", "m interface{ om (m) func () }", "_", "m func ()", "", []string{"a"}, permission.ConvertToBase(newPermission("m interface{ om (m) func () }"), newPermission("n").GetBasePermission()), "_"},
+		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterfaceUnownedMutable", "m interface{ om (m) func () }", "_", "m func ()", "a", []string{}, permission.ConvertToBase(newPermission("m interface{ om (m) func () }"), newPermission("n").GetBasePermission()), "_"},
 		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterfaceCantBind", "ov interface{ ov (om) func () }", "_", errorResult("not bind receiver"), "", []string{}, "ov interface{ ov (ov) func () }", "_"},
 		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterfaceIncompatibleLHS", "_", "_", errorResult("unknown type on left side"), "", []string{}, "ov interface{ ov (ov) func () }", "_"},
 		// Selectors (2): Structs
