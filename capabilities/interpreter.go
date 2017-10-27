@@ -389,7 +389,11 @@ func (i *Interpreter) visitSelectorExprOne(st Store, e ast.Expr, p permission.Pe
 				perm = permission.ConvertToBase(perm, perm.GetBasePermission()&^permission.Owned).(*permission.FuncPermission)
 			}
 
-			return stripReceiver(perm), owner, deps, st
+			// Method values should not have an owner, they are bound like a function call argument.
+			if owner != NoOwner {
+				deps = append(deps, Borrowed(owner))
+			}
+			return stripReceiver(perm), NoOwner, deps, st
 		default:
 			return i.Error(e, "Incompatible or unknown type on left side of method value for index %d", index)
 		}

@@ -9,11 +9,17 @@ subtitle: |
  Master's Thesis
 documentclass: scrreprt
 #classoption: twoside
+secnumdepth: 2
 header-includes:
- - \usepackage[draft]{graphicx}
+ - \usepackage[]{graphicx}
+ - \usepackage{listings-golang}
+ - \usepackage{color}
+ - \usepackage{xcolor}
+ - \lstset{language=Go,basicstyle=\small\ttfamily,commentstyle=\ttfamily\itshape\color{gray},columns=fullflexible,keepspaces=true,breaklines=true,basewidth={0.5em,0.5em},frame=tb}
 links-as-notes: true
 toc: true
-highlight-style: monochrome
+listings: true
+highlight-style: monochrome - \fontfamily{lmvtt}\selectfont
 author: |
  Julian Andres Klode \
  Philipps-Universität Marburg
