@@ -29,12 +29,18 @@ type Borrowed struct {
 	perm permission.Permission
 }
 
+// Owner is an alias for Borrowed indicating that this is the owning object of the expression result.
+type Owner Borrowed
+
+// NoOwner is the zero value for Owner.
+var NoOwner = Owner{}
+
 // VisitExpr abstractly interprets permission changes by the expression.
 //
 //
-func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []Borrowed, Store) {
+func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, Owner, []Borrowed, Store) {
 	if e == nil {
-		return permission.None, nil, st
+		return permission.None, NoOwner, nil, st
 	}
 	switch e := e.(type) {
 	case *ast.BasicLit:
@@ -68,10 +74,22 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, []
 	return i.Error(e, "Reached a bad expression %v - this should not happen", e)
 }
 
+// visitExprNoOwner is like VisitExpr(), but merges the owner into the borrowed
+func (i *Interpreter) visitExprNoOwner(st Store, e ast.Expr) (permission.Permission, []Borrowed, Store) {
+	perm, owner, deps, st := i.VisitExpr(st, e)
+	if owner != NoOwner {
+		deps = append(deps, Borrowed(owner))
+	}
+	return perm, deps, st
+}
+
 // Release Releases all borrowed objects, and restores their previous permissions.
 func (i *Interpreter) Release(node ast.Node, st Store, undo []Borrowed) Store {
 	var err error
 	for _, b := range undo {
+		if b == Borrowed(NoOwner) {
+			continue
+		}
 		st, err = st.SetEffective(b.id.Name, b.perm)
 		if err != nil {
 			i.Error(node, "Cannot release borrowed variable %s: %s", b.id, err)
@@ -81,7 +99,7 @@ func (i *Interpreter) Release(node ast.Node, st Store, undo []Borrowed) Store {
 }
 
 // Assert asserts that the base permissions of subject are a superset or the same as has.
-func (i *Interpreter) Error(node ast.Node, format string, args ...interface{}) (permission.Permission, []Borrowed, Store) {
+func (i *Interpreter) Error(node ast.Node, format string, args ...interface{}) (permission.Permission, Owner, []Borrowed, Store) {
 	panic(fmt.Errorf("%v: In %s: %s", node.Pos(), node, fmt.Sprintf(format, args...)))
 }
 
@@ -91,66 +109,71 @@ func (i *Interpreter) Assert(node ast.Node, subject permission.Permission, has p
 	}
 }
 
-func (i *Interpreter) visitIdent(st Store, e *ast.Ident) (permission.Permission, []Borrowed, Store) {
+func (i *Interpreter) visitIdent(st Store, e *ast.Ident) (permission.Permission, Owner, []Borrowed, Store) {
 	if e.Name == "nil" {
-		return &permission.NilPermission{}, nil, st
+		return &permission.NilPermission{}, NoOwner, nil, st
 	}
 	if e.Name == "true" || e.Name == "false" {
-		return permission.Mutable | permission.Owned, nil, st
+		return permission.Mutable | permission.Owned, NoOwner, nil, st
 	}
 	perm := st.GetEffective(e.Name)
 	if perm == nil {
 		i.Error(e, "Cannot borow %s: Unknown variable in %s", e, st)
 	}
-	borrowed := []Borrowed{{e, perm}}
+	owner := Owner{e, perm}
 	dead := permission.ConvertToBase(perm, permission.None)
 	st, err := st.SetEffective(e.Name, dead)
 	if err != nil {
 		i.Error(e, "Cannot borrow identifier: %s", err)
 	}
-	return perm, borrowed, st
+	return perm, owner, nil, st
 }
 
-func (i *Interpreter) moveOrCopy(e ast.Node, st Store, from, to permission.Permission, deps []Borrowed) (Store, []Borrowed, error) {
+func (i *Interpreter) moveOrCopy(e ast.Node, st Store, from, to permission.Permission, owner Owner, deps []Borrowed) (Store, Owner, []Borrowed, error) {
 	switch {
 	// If the value can be copied into the caller, we don't need to borrow it
 	case permission.CopyableTo(from, to):
+		st = i.Release(e, st, []Borrowed{Borrowed(owner)})
 		st = i.Release(e, st, deps)
+		owner = NoOwner
 		deps = nil
 	// The value cannot be moved either, error out.
 	case !permission.MovableTo(from, to):
-		return nil, nil, fmt.Errorf("Cannot copy or move: Needed %s, received %s", to, from)
+		return nil, NoOwner, nil, fmt.Errorf("Cannot copy or move: Needed %s, received %s", to, from)
 
 	// All borrows for unowned parameters are released after the call is done.
 	case to.GetBasePermission()&permission.Owned == 0:
 	// Write and exclusive permissions are stripped when converting a value from linear to non-linear
 	case permission.IsLinear(from) && !permission.IsLinear(to):
-		for i := range deps {
-			deps[i].perm = permission.ConvertToBase(deps[i].perm, deps[i].perm.GetBasePermission()&^(permission.ExclRead|permission.ExclWrite|permission.Write))
+		if owner != NoOwner {
+			owner.perm = permission.ConvertToBase(owner.perm, owner.perm.GetBasePermission()&^(permission.ExclRead|permission.ExclWrite|permission.Write))
 		}
+		st = i.Release(e, st, []Borrowed{Borrowed(owner)})
 		st = i.Release(e, st, deps)
+		owner = NoOwner
 		deps = nil
 	// The value was moved, so all its deps are lost
 	default:
 		deps = nil
+		owner = NoOwner
 	}
 
-	return st, deps, nil
+	return st, owner, deps, nil
 
 }
 
 // visitBinaryExpr - A binary expression is either logical, arithmetic, or a comparison.
-func (i *Interpreter) visitBinaryExpr(st Store, e *ast.BinaryExpr) (permission.Permission, []Borrowed, Store) {
+func (i *Interpreter) visitBinaryExpr(st Store, e *ast.BinaryExpr) (permission.Permission, Owner, []Borrowed, Store) {
 	var err error
 	// We first evaluate the LHS, and then RHS after the LHS. If this is a logical
 	// operator, the result is the intersection of LHS & (RHS after LHS), because
 	// it might be possible that only LHS is evaluated. Otherwise, both sides are
 	// always evaluated, so the result is RHS after LHS.
-	lhs, ldeps, stl := i.VisitExpr(st, e.X)
+	lhs, ldeps, stl := i.visitExprNoOwner(st, e.X)
 	stl = i.Release(e, stl, ldeps)
 	i.Assert(e.X, lhs, permission.Read)
 
-	rhs, rdeps, str := i.VisitExpr(stl, e.Y)
+	rhs, rdeps, str := i.visitExprNoOwner(stl, e.Y)
 	str = i.Release(e, str, rdeps)
 	i.Assert(e.Y, rhs, permission.Read)
 
@@ -164,18 +187,18 @@ func (i *Interpreter) visitBinaryExpr(st Store, e *ast.BinaryExpr) (permission.P
 		st = str
 	}
 
-	return permission.Owned | permission.Mutable, nil, st
+	return permission.Owned | permission.Mutable, NoOwner, nil, st
 }
 
 // An index expression has the form A[B] and needs read permissions for both A and
 // B. A and B will be borrowed as needed. If used in a getting-way, we we could always
 // treat B as unowned, but in A[B] = C, B might need to be moved into A, therefore both
 // A and B will be dependencies of the result, at least for maps.
-func (i *Interpreter) visitIndexExpr(st Store, e *ast.IndexExpr) (permission.Permission, []Borrowed, Store) {
+func (i *Interpreter) visitIndexExpr(st Store, e *ast.IndexExpr) (permission.Permission, Owner, []Borrowed, Store) {
 	var err error
 
-	p1, deps1, st := i.VisitExpr(st, e.X)
-	p2, deps2, st := i.VisitExpr(st, e.Index)
+	p1, owner1, deps1, st := i.VisitExpr(st, e.X)
+	p2, owner2, deps2, st := i.VisitExpr(st, e.Index)
 
 	// Requires: LHS and RHS are readable.
 	i.Assert(e.X, p1, permission.Read)
@@ -184,28 +207,29 @@ func (i *Interpreter) visitIndexExpr(st Store, e *ast.IndexExpr) (permission.Per
 	switch p1 := p1.(type) {
 	case *permission.ArrayPermission:
 		// Ensures(array): Can only have integers here, no need to keep on to deps2
+		st = i.Release(e, st, []Borrowed{Borrowed(owner2)})
 		st = i.Release(e, st, deps2)
-		return p1.ElementPermission, deps1, st
+		return p1.ElementPermission, owner1, deps1, st
 	case *permission.SlicePermission:
 		// Ensures(slice): Can only have integers here, no need to keep on to deps2
+		st = i.Release(e, st, []Borrowed{Borrowed(owner2)})
 		st = i.Release(e, st, deps2)
-		return p1.ElementPermission, deps1, st
+		return p1.ElementPermission, owner1, deps1, st
 	case *permission.MapPermission:
 		// Ensures(map): If the key can be copied, we don't borrow it.
-
-		st, deps2, err = i.moveOrCopy(e, st, p2, p1.KeyPermission, deps2)
+		st, owner2, deps2, err = i.moveOrCopy(e, st, p2, p1.KeyPermission, owner2, deps2)
 		if err != nil {
 			return i.Error(e, "Cannot move or copy from %s to %s: %s", p2, p1.KeyPermission, err)
 		}
-		return p1.ValuePermission, deps1, st
+		return p1.ValuePermission, owner1, deps1, st
 	}
 
 	i.Error(e, "Indexing unknown type")
-	return nil, nil, nil
+	return nil, NoOwner, nil, nil
 }
 
-func (i *Interpreter) visitStarExpr(st Store, e *ast.StarExpr) (permission.Permission, []Borrowed, Store) {
-	p1, deps1, st := i.VisitExpr(st, e.X)
+func (i *Interpreter) visitStarExpr(st Store, e *ast.StarExpr) (permission.Permission, Owner, []Borrowed, Store) {
+	p1, owner1, deps1, st := i.VisitExpr(st, e.X)
 	i.Assert(e.X, p1, permission.Read)
 
 	var typ types.Type
@@ -216,55 +240,58 @@ func (i *Interpreter) visitStarExpr(st Store, e *ast.StarExpr) (permission.Permi
 
 	switch p1 := p1.(type) {
 	case *permission.PointerPermission:
-		return p1.Target, deps1, st
+		return p1.Target, owner1, deps1, st
 	}
 
 	return i.Error(e, "Trying to dereference non-pointer %v of type %v", p1, typ)
 }
-func (i *Interpreter) visitUnaryExpr(st Store, e *ast.UnaryExpr) (permission.Permission, []Borrowed, Store) {
-	p1, deps1, st := i.VisitExpr(st, e.X)
+func (i *Interpreter) visitUnaryExpr(st Store, e *ast.UnaryExpr) (permission.Permission, Owner, []Borrowed, Store) {
+	p1, owner1, deps1, st := i.VisitExpr(st, e.X)
 	i.Assert(e.X, p1, permission.Read)
 
 	switch e.Op {
 	case token.AND:
 		return &permission.PointerPermission{
 			BasePermission: permission.Owned | permission.Mutable,
-			Target:         p1}, deps1, st
+			Target:         p1}, owner1, deps1, st
 
 	case token.ARROW:
 		ch, ok := p1.(*permission.ChanPermission)
 		if !ok {
 			return i.Error(e.X, "Expected channel permission, received %v", ch)
 		}
+		st = i.Release(e, st, []Borrowed{Borrowed(owner1)})
 		st = i.Release(e, st, deps1)
-		return ch.ElementPermission, nil, st
+		return ch.ElementPermission, NoOwner, nil, st
 	default:
+		st = i.Release(e, st, []Borrowed{Borrowed(owner1)})
 		st = i.Release(e, st, deps1)
-		return permission.Owned | permission.Mutable, nil, st
+		return permission.Owned | permission.Mutable, NoOwner, nil, st
 	}
 }
 
-func (i *Interpreter) visitBasicLit(st Store, e *ast.BasicLit) (permission.Permission, []Borrowed, Store) {
-	return permission.Owned | permission.Mutable, nil, st
+func (i *Interpreter) visitBasicLit(st Store, e *ast.BasicLit) (permission.Permission, Owner, []Borrowed, Store) {
+	return permission.Owned | permission.Mutable, NoOwner, nil, st
 }
 
-func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr, isDeferredOrGoroutine bool) (permission.Permission, []Borrowed, Store) {
+func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr, isDeferredOrGoroutine bool) (permission.Permission, Owner, []Borrowed, Store) {
 	var err error
 
-	fun, funDeps, st := i.VisitExpr(st, e.Fun)
+	fun, owner, funDeps, st := i.VisitExpr(st, e.Fun)
 
 	var accumulatedUnownedDeps []Borrowed
 	switch fun := fun.(type) {
 	case *permission.FuncPermission:
 		for j, arg := range e.Args {
-			argPerm, argDeps, store := i.VisitExpr(st, arg)
+			argPerm, argOwner, argDeps, store := i.VisitExpr(st, arg)
 			st = store
 
-			st, argDeps, err = i.moveOrCopy(e, st, argPerm, fun.Params[j], argDeps)
+			st, argOwner, argDeps, err = i.moveOrCopy(e, st, argPerm, fun.Params[j], argOwner, argDeps)
 			if err != nil {
 				return i.Error(arg, "Cannot copy or move to parameter: Needed %#v, received %#v", fun.Params[j], argPerm)
 			}
 
+			accumulatedUnownedDeps = append(accumulatedUnownedDeps, Borrowed(argOwner))
 			accumulatedUnownedDeps = append(accumulatedUnownedDeps, argDeps...)
 		}
 		var deps []Borrowed
@@ -278,20 +305,20 @@ func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr, isDeferredOrGorou
 		}
 
 		if len(fun.Results) == 1 {
-			return fun.Results[0], deps, st
+			return fun.Results[0], owner, deps, st
 		}
-		return &permission.TuplePermission{BasePermission: permission.Owned | permission.Mutable, Elements: fun.Results}, deps, st
+		return &permission.TuplePermission{BasePermission: permission.Owned | permission.Mutable, Elements: fun.Results}, owner, deps, st
 	default:
 		return i.Error(e, "Cannot call non-function object %v", fun)
 	}
 
 }
 
-func (i *Interpreter) visitSliceExpr(st Store, e *ast.SliceExpr) (permission.Permission, []Borrowed, Store) {
-	arr, arrDeps, st := i.VisitExpr(st, e.X)
-	low, lowDeps, st := i.VisitExpr(st, e.Low)
-	high, highDeps, st := i.VisitExpr(st, e.High)
-	max, maxDeps, st := i.VisitExpr(st, e.Max)
+func (i *Interpreter) visitSliceExpr(st Store, e *ast.SliceExpr) (permission.Permission, Owner, []Borrowed, Store) {
+	arr, owner, arrDeps, st := i.VisitExpr(st, e.X)
+	low, lowDeps, st := i.visitExprNoOwner(st, e.Low)
+	high, highDeps, st := i.visitExprNoOwner(st, e.High)
+	max, maxDeps, st := i.visitExprNoOwner(st, e.Max)
 
 	if e.Low != nil {
 		i.Assert(e.Low, low, permission.Read)
@@ -309,30 +336,30 @@ func (i *Interpreter) visitSliceExpr(st Store, e *ast.SliceExpr) (permission.Per
 
 	switch arr := arr.(type) {
 	case *permission.ArrayPermission:
-		return &permission.SlicePermission{BasePermission: permission.Owned | permission.Mutable, ElementPermission: arr.ElementPermission}, arrDeps, st
+		return &permission.SlicePermission{BasePermission: permission.Owned | permission.Mutable, ElementPermission: arr.ElementPermission}, owner, arrDeps, st
 	case *permission.SlicePermission:
-		return arr, arrDeps, st
+		return arr, owner, arrDeps, st
 	}
 	return i.Error(e, "Cannot create slice of %v - not sliceable", arr)
 }
 
-func (i *Interpreter) visitSelectorExpr(st Store, e *ast.SelectorExpr) (permission.Permission, []Borrowed, Store) {
+func (i *Interpreter) visitSelectorExpr(st Store, e *ast.SelectorExpr) (permission.Permission, Owner, []Borrowed, Store) {
 	selection := i.typesInfo.Selections[e]
 	path := selection.Index()
 	pathLen := len(path)
-	lhs, deps, st := i.VisitExpr(st, e.X)
+	lhs, owner, deps, st := i.VisitExpr(st, e.X)
 
 	for depth, index := range path {
 		kind := types.FieldVal
 		if depth == pathLen-1 {
 			kind = selection.Kind()
 		}
-		lhs, deps, st = i.visitSelectorExprOne(st, e, lhs, index, kind, deps)
+		lhs, owner, deps, st = i.visitSelectorExprOne(st, e, lhs, index, kind, owner, deps)
 	}
-	return lhs, deps, st
+	return lhs, owner, deps, st
 }
 
-func (i *Interpreter) visitSelectorExprOne(st Store, e ast.Expr, p permission.Permission, index int, kind types.SelectionKind, deps []Borrowed) (permission.Permission, []Borrowed, Store) {
+func (i *Interpreter) visitSelectorExprOne(st Store, e ast.Expr, p permission.Permission, index int, kind types.SelectionKind, owner Owner, deps []Borrowed) (permission.Permission, Owner, []Borrowed, Store) {
 	var err error
 
 	switch kind {
@@ -346,13 +373,13 @@ func (i *Interpreter) visitSelectorExprOne(st Store, e ast.Expr, p permission.Pe
 		if !ok {
 			return i.Error(e, "Cannot read field %s of non-struct type %#v", index, p)
 		}
-		return strct.Fields[index], deps, st
+		return strct.Fields[index], owner, deps, st
 	case types.MethodVal:
 		// TODO: NamedType
 		switch p := p.(type) {
 		case *permission.InterfacePermission:
 			target := p.Methods[index].(*permission.FuncPermission).Receivers[0]
-			if st, deps, err = i.moveOrCopy(e, st, p, target, deps); err != nil {
+			if st, owner, deps, err = i.moveOrCopy(e, st, p, target, owner, deps); err != nil {
 				return i.Error(e, spew.Sprintf("Cannot bind receiver: %s in %v", err, p))
 			}
 
@@ -362,15 +389,16 @@ func (i *Interpreter) visitSelectorExprOne(st Store, e ast.Expr, p permission.Pe
 				perm = permission.ConvertToBase(perm, perm.GetBasePermission()&^permission.Owned).(*permission.FuncPermission)
 			}
 
-			return stripReceiver(perm), deps, st
+			return stripReceiver(perm), owner, deps, st
 		default:
 			return i.Error(e, "Incompatible or unknown type on left side of method value for index %d", index)
 		}
 	case types.MethodExpr:
 		switch p := p.(type) {
 		case *permission.InterfacePermission:
+			st = i.Release(e, st, []Borrowed{Borrowed(owner)})
 			st = i.Release(e, st, deps)
-			return pushReceiverToParams(p.Methods[index].(*permission.FuncPermission)), nil, st
+			return pushReceiverToParams(p.Methods[index].(*permission.FuncPermission)), NoOwner, nil, st
 		default:
 			return i.Error(e, "Incompatible or unknown type on left side of method value for index %d", index)
 		}
@@ -399,10 +427,10 @@ func pushReceiverToParams(perm *permission.FuncPermission) *permission.FuncPermi
 	return &perm2
 }
 
-func (i *Interpreter) visitCompositeLit(st Store, e *ast.CompositeLit) (permission.Permission, []Borrowed, Store) {
+func (i *Interpreter) visitCompositeLit(st Store, e *ast.CompositeLit) (permission.Permission, Owner, []Borrowed, Store) {
 	var err error
 	// TODO: Types should be stored differently, possibly just wrapped in a *permission.Type or something.
-	typPermAsPerm, deps, st := i.VisitExpr(st, e.Type)
+	typPermAsPerm, deps, st := i.visitExprNoOwner(st, e.Type)
 	typPerm, ok := typPermAsPerm.(*permission.StructPermission)
 	st = i.Release(e, st, deps)
 	deps = nil
@@ -440,16 +468,16 @@ func (i *Interpreter) visitCompositeLit(st Store, e *ast.CompositeLit) (permissi
 			value = kve.Value
 		}
 
-		valPerm, valDeps, store := i.VisitExpr(st, value)
+		valPerm, valDeps, store := i.visitExprNoOwner(st, value)
 		st = store
 
-		if st, valDeps, err = i.moveOrCopy(e, st, valPerm, typPerm.Fields[index], valDeps); err != nil {
+		if st, _, valDeps, err = i.moveOrCopy(e, st, valPerm, typPerm.Fields[index], NoOwner, valDeps); err != nil {
 			return i.Error(value, spew.Sprintf("Cannot bind field: %s in %v", err, typPerm.Fields[index]))
 		}
 		// FIXME(jak): This might conflict with some uses of dependencies which use A depends on B as B contains A.
 		deps = append(deps, valDeps...)
 	}
-	return typPerm, deps, st
+	return typPerm, NoOwner, deps, st
 }
 
 // StmtExit is a store with an optional field specifying any early exit from a block, like
@@ -520,7 +548,7 @@ func (i *Interpreter) visitCaseClause(st Store, stmt *ast.CaseClause) []StmtExit
 	var mergedStore Store
 	// List of alternatives A, B, C, ...
 	for _, e := range stmt.List {
-		perm, deps, store := i.VisitExpr(st, e)
+		perm, deps, store := i.visitExprNoOwner(st, e)
 		st = store
 		i.Assert(e, perm, permission.Read)
 		st = i.Release(e, st, deps)
@@ -532,7 +560,7 @@ func (i *Interpreter) visitCaseClause(st Store, stmt *ast.CaseClause) []StmtExit
 }
 
 func (i *Interpreter) visitExprStmt(st Store, stmt *ast.ExprStmt) []StmtExit {
-	_, deps, st := i.VisitExpr(st, stmt.X)
+	_, deps, st := i.visitExprNoOwner(st, stmt.X)
 	st = i.Release(stmt.X, st, deps)
 	return []StmtExit{{st, nil}}
 }
@@ -544,7 +572,7 @@ func (i *Interpreter) visitIfStmt(st Store, stmt *ast.IfStmt) []StmtExit {
 		i.Error(stmt.Init, "Initializer to if statement has %d exits", len(exits))
 	}
 	st = exits[0].Store // assert len(exits) == 1
-	perm, deps, st := i.VisitExpr(st, stmt.Cond)
+	perm, deps, st := i.visitExprNoOwner(st, stmt.Cond)
 	i.Assert(stmt.Cond, perm, permission.Read)
 	st = i.Release(stmt.Cond, st, deps)
 
@@ -685,8 +713,8 @@ func (i *Interpreter) visitReturnStmt(st Store, s *ast.ReturnStmt) []StmtExit {
 		// TODO: Named return values are not accurately presented. We need to map index
 		// to name in the interpreter (random name for unnamed results) and then look them
 		// up in the store.
-		perm, deps, store := i.VisitExpr(st, s.Results[k])
-		store, _, err := i.moveOrCopy(s, store, perm, i.curFunc.Results[k], deps)
+		perm, owner, deps, store := i.VisitExpr(st, s.Results[k])
+		store, owner, _, err := i.moveOrCopy(s, store, perm, i.curFunc.Results[k], owner, deps)
 		if err != nil {
 			i.Error(s, "Cannot bind return value %d: %s", k, err)
 		}
@@ -697,27 +725,28 @@ func (i *Interpreter) visitReturnStmt(st Store, s *ast.ReturnStmt) []StmtExit {
 }
 
 func (i *Interpreter) visitIncDecStmt(st Store, stmt *ast.IncDecStmt) []StmtExit {
-	p, deps, st := i.VisitExpr(st, stmt.X)
+	p, deps, st := i.visitExprNoOwner(st, stmt.X)
 	i.Assert(stmt.X, p, permission.Read|permission.Write)
 	st = i.Release(stmt.X, st, deps)
 	return []StmtExit{{st, nil}}
 }
 
 func (i *Interpreter) visitSendStmt(st Store, stmt *ast.SendStmt) []StmtExit {
-	chanRaw, chanDeps, st := i.VisitExpr(st, stmt.Chan)
+	chanRaw, chanDeps, st := i.visitExprNoOwner(st, stmt.Chan)
 	chn, isChan := chanRaw.(*permission.ChanPermission)
 	if !isChan {
 		i.Error(stmt.Chan, "Expected channel, received %v", chanRaw)
 	}
 	i.Assert(stmt.Chan, chn, permission.Write)
 
-	val, valDeps, st := i.VisitExpr(st, stmt.Value)
+	val, valOwner, valDeps, st := i.VisitExpr(st, stmt.Value)
 
-	st, valDeps, err := i.moveOrCopy(stmt, st, val, chn.ElementPermission, valDeps)
+	st, valOwner, valDeps, err := i.moveOrCopy(stmt, st, val, chn.ElementPermission, valOwner, valDeps)
 	if err != nil {
 		i.Error(stmt, "Cannot send value: %v", err)
 	}
 
+	st = i.Release(stmt.Value, st, []Borrowed{Borrowed(valOwner)})
 	st = i.Release(stmt.Value, st, valDeps)
 	st = i.Release(stmt.Chan, st, chanDeps)
 
@@ -737,7 +766,8 @@ func (i *Interpreter) visitAssignStmt(st Store, stmt *ast.AssignStmt) []StmtExit
 	var deps []Borrowed
 	var rhs []permission.Permission
 	if len(stmt.Rhs) == 1 && len(stmt.Lhs) > 1 {
-		rhs0, rdeps, store := i.VisitExpr(st, stmt.Rhs[0])
+		// These really can't have owners.
+		rhs0, rdeps, store := i.visitExprNoOwner(st, stmt.Rhs[0])
 		st = store
 		tuple, ok := rhs0.(*permission.TuplePermission)
 		if !ok {
@@ -750,20 +780,21 @@ func (i *Interpreter) visitAssignStmt(st Store, stmt *ast.AssignStmt) []StmtExit
 	} else {
 		for _, expr := range stmt.Rhs {
 			log.Printf("Visiting expr %#v in store %v", expr, st)
-			perm, depsThis, store := i.VisitExpr(st, expr)
+			perm, ownerThis, depsThis, store := i.VisitExpr(st, expr)
 			log.Printf("Visited expr %#v in store %v", expr, st)
 			st = store
 			rhs = append(rhs, perm)
 
 			// Screw this. This is basically creating a temporary copy or (non-temporary, really) move of the values, so we
 			// can have stuff like a, b = b, a without it messing up.
-			store, depsThis, err := i.moveOrCopy(expr, st, perm, perm, depsThis)
+			store, ownerThis, depsThis, err := i.moveOrCopy(expr, st, perm, perm, ownerThis, depsThis)
 			st = store
 
 			if err != nil {
 				i.Error(expr, "Could not move value: %s", err)
 			}
 
+			deps = append(deps, Borrowed(ownerThis))
 			deps = append(deps, depsThis...)
 		}
 	}
@@ -817,13 +848,13 @@ func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs 
 	// Ensure we can do the assignment. If the left hand side is an identifier, this should always be
 	// true - it's either Defined to the same value, or set to something less than it in the previous block.
 
-	perm, _, _ := i.VisitExpr(st, lhs) // We just need to know permission, don't care about borrowing.
+	perm, _, _ := i.visitExprNoOwner(st, lhs) // We just need to know permission, don't care about borrowing.
 	if !allowUnowned {
 		i.Assert(lhs, perm, permission.Owned) // Make sure it's owned, so we don't move unowned to it.
 	}
 
 	// Input deps are nil, so we can ignore them here.
-	st, _, err = i.moveOrCopy(lhs, st, rhs, perm, nil)
+	st, _, _, err = i.moveOrCopy(lhs, st, rhs, perm, NoOwner, nil)
 	if err != nil {
 		i.Error(lhs, "Could not assign or define: %s", err)
 	}
@@ -840,7 +871,7 @@ func (i *Interpreter) visitRangeStmt(st Store, stmt *ast.RangeStmt) (rangeExits 
 	var canRelease = true
 
 	// Evaluate the container specified on the right hand side.
-	perm, deps, st := i.VisitExpr(st, stmt.X)
+	perm, deps, st := i.visitExprNoOwner(st, stmt.X)
 	defer func() {
 		// TODO: canRelease = true
 		if canRelease {
@@ -986,7 +1017,7 @@ func (i *Interpreter) visitSwitchStmt(st Store, stmt *ast.SwitchStmt) []StmtExit
 	for _, exit := range i.visitStmt(st, stmt.Init) {
 		exits = append(exits, exit)
 		st := exit.Store
-		perm, deps, st := i.VisitExpr(st, stmt.Tag)
+		perm, deps, st := i.visitExprNoOwner(st, stmt.Tag)
 		if stmt.Tag != nil {
 			i.Assert(stmt.Tag, perm, permission.Read)
 		}
@@ -1065,7 +1096,7 @@ nextWork:
 		seen = append(seen, st)
 
 		// Check condition
-		perm, deps, st := i.VisitExpr(st, stmt.Cond)
+		perm, deps, st := i.visitExprNoOwner(st, stmt.Cond)
 		i.Assert(stmt.Cond, perm, permission.Read)
 		st = i.Release(stmt.Cond, st, deps)
 
@@ -1096,7 +1127,7 @@ nextWork:
 
 func (i *Interpreter) visitGoStmt(st Store, stmt *ast.GoStmt) []StmtExit {
 	// Deps are gone
-	perm, _, st := i.visitCallExpr(st, stmt.Call, true)
+	perm, _, _, st := i.visitCallExpr(st, stmt.Call, true)
 	i.Assert(stmt.Call, perm, permission.Read)
 	return []StmtExit{{st, nil}}
 }
@@ -1105,10 +1136,7 @@ func (i *Interpreter) visitDeferStmt(st Store, stmt *ast.DeferStmt) []StmtExit {
 	// All deps are gone, except for captured unowned variables, they can be released
 	// again, since they will by definition be available at the end of the function
 	// when the call is to be executed.
-	// TODO: There's probably a bug here in that if I defer obj.method(), that the
-	// object is released as well, when it should not be - the object is bound at
-	// the moment of the statement, so reassigning it would cause a different result.
-	_, deps, st := i.visitCallExpr(st, stmt.Call, true)
+	_, _, deps, st := i.visitCallExpr(st, stmt.Call, true)
 	for _, dep := range deps {
 		if dep.perm.GetBasePermission()&permission.Owned == 0 {
 			st = i.Release(stmt.Call, st, []Borrowed{dep})
