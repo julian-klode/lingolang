@@ -1179,6 +1179,21 @@ func TestVisitStmt(t *testing.T) {
 			},
 			"",
 		},
+		{"funcLitReturnDifferentValueThanParent",
+			[]storeItemDesc{
+				{"b", "om interface{ om (m) func (m * m) n }"},
+				{"c", "m * m"},
+				{"main", "om func (om) om"},
+			},
+			"func main(b interface { f(*int) } , c *int) int { go func(c *int ) * int { b.f(c); return nil; }(c) ; return 0  }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", permission.ConvertToBase(newPermission("om interface{ om (m) func (m * m) n }"), 0)},
+					{"c", "n * r"},
+				}, 117},
+			},
+			"",
+		},
 	}
 
 	for _, cs := range testCases {

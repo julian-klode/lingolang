@@ -485,14 +485,22 @@ func (i *Interpreter) visitCompositeLit(st Store, e *ast.CompositeLit) (permissi
 }
 
 func (i *Interpreter) visitFuncLit(st Store, e *ast.FuncLit) (permission.Permission, Owner, []Borrowed, Store) {
-	return i.buildFunction(st, e, i.typesInfo.TypeOf(e).(*types.Signature), e.Body)
+	oldCurFunc := i.curFunc
+	if i.typeMapper == nil {
+		i.typeMapper = permission.NewTypeMapper()
+	}
+	typ := i.typesInfo.TypeOf(e).(*types.Signature)
+	i.curFunc = i.typeMapper.NewFromType(typ).(*permission.FuncPermission)
+	defer func() {
+		i.curFunc = oldCurFunc
+	}()
+	return i.buildFunction(st, e, typ, e.Body)
 }
 
 func (i *Interpreter) buildFunction(st Store, node ast.Node, typ *types.Signature, body *ast.BlockStmt) (permission.Permission, Owner, []Borrowed, Store) {
 	var deps []Borrowed
 	var err error
 	origStore := st
-	i.typeMapper = permission.NewTypeMapper()
 	perm := i.typeMapper.NewFromType(typ).(*permission.FuncPermission)
 	perm.BasePermission |= permission.Owned
 
