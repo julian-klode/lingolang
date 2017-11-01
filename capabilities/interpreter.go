@@ -20,6 +20,7 @@ type Interpreter struct {
 	curFunc              *permission.FuncPermission
 	fset                 *token.FileSet
 	AnnotatedPermissions map[ast.Expr]permission.Permission
+	typeMapper           permission.TypeMapper
 }
 
 // Borrowed describes a variable that had to be borrowed from, along
@@ -52,7 +53,7 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, Ow
 	case *ast.CompositeLit:
 		return i.visitCompositeLit(st, e)
 	case *ast.FuncLit:
-		return i.Error(e, "function literals not yet implemented")
+		return i.visitFuncLit(st, e)
 	case *ast.Ident:
 		return i.visitIdent(st, e)
 		//return st.Assign(e, to)
@@ -481,6 +482,77 @@ func (i *Interpreter) visitCompositeLit(st Store, e *ast.CompositeLit) (permissi
 		deps = append(deps, valDeps...)
 	}
 	return typPerm, NoOwner, deps, st
+}
+
+func (i *Interpreter) visitFuncLit(st Store, e *ast.FuncLit) (permission.Permission, Owner, []Borrowed, Store) {
+	return i.buildFunction(st, e, i.typesInfo.TypeOf(e).(*types.Signature), e.Body)
+}
+
+func (i *Interpreter) buildFunction(st Store, node ast.Node, typ *types.Signature, body *ast.BlockStmt) (permission.Permission, Owner, []Borrowed, Store) {
+	var deps []Borrowed
+	var err error
+	origStore := st
+	i.typeMapper = permission.NewTypeMapper()
+	perm := i.typeMapper.NewFromType(typ).(*permission.FuncPermission)
+	perm.BasePermission |= permission.Owned
+
+	st = st.BeginBlock()
+	if len(perm.Receivers) > 0 {
+		for _, recv := range perm.Receivers {
+			st, err = st.Define(typ.Recv().Name(), recv)
+			if err != nil {
+				i.Error(node, "Cannot define receiver %s", err)
+			}
+		}
+	}
+
+	params := typ.Params()
+	for j := 0; j < params.Len(); j++ {
+		param := params.At(j)
+		st, err = st.Define(param.Name(), perm.Params[j])
+		if err != nil {
+			i.Error(node, "Cannot define parameter %d called %s: %s", j, param.Name(), err)
+		}
+		log.Printf("Defined %s to %s", param.Name(), perm.Params[j])
+	}
+
+	exits := i.visitStmtList(st, body.List, false)
+	st = append(NewStore(), origStore...)
+	for _, exit := range exits {
+		exit.Store = exit.Store.EndBlock()
+		if len(exit.Store) != len(origStore) {
+			i.Error(node, "Store in wrong state after exit: expected %d, received %d", len(origStore), len(exit.Store))
+		}
+
+		for j := range exit.Store {
+			if exit.Store[j].name != origStore[j].name {
+				i.Error(node, "Invalid behavior: Function literal changes name of %d from %s to %s", j, origStore[j].name, exit.Store[j].name)
+			}
+			if exit.Store[j].eff != origStore[j].eff {
+				i.Error(node, "Invalid behavior: Function literal changes permission of borrowed value %s from %s to %s", exit.Store[j].name, origStore[j].eff, exit.Store[j].eff)
+			}
+			if exit.Store[j].eff == nil {
+				continue
+			}
+			if exit.Store[j].uses <= origStore[j].uses {
+				continue
+			}
+			log.Printf("Borrowing %s = %s", st[j].name, exit.Store[j].eff)
+			deps = append(deps, Borrowed{ast.NewIdent(st[j].name), st[j].eff})
+			st[j].eff = permission.ConvertToBase(st[j].eff, 0)
+			log.Printf("Borrowed %s is now %s", st[j].name, st[j].eff)
+			st[j].uses = exit.Store[j].uses
+
+			if exit.Store[j].eff.GetBasePermission()&permission.Owned == 0 && perm.GetBasePermission()&permission.Owned != 0 {
+				log.Printf("Converting function to unowned due to %s", exit.Store[j].name)
+				perm = permission.ConvertToBase(perm, perm.GetBasePermission()&^permission.Owned).(*permission.FuncPermission)
+			}
+		}
+	}
+
+	log.Printf("Function %s has deps %s", perm, deps)
+
+	return perm, NoOwner, deps, st
 }
 
 // StmtExit is a store with an optional field specifying any early exit from a block, like

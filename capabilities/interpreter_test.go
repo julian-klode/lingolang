@@ -182,7 +182,7 @@ func TestVisitExpr(t *testing.T) {
 		{"a[1:2:b]", "sliceMax", "om []ov", "om", "om []ov", "a", []string{}, "n []n", "om"},
 		{"a[1:2:b]", "sliceInvalid", "om map[ov]ov", "om", errorResult("not sliceable"), "a", []string{}, "n []n", "om"},
 		// TODO
-		{"func() {}", "funcLit", "om", "om", errorResult("not yet implemented"), "", nil, nil, nil},
+		//{scenario{"", "func() {}"}, "funcLit", "om", "om", "", "", nil, nil, nil},
 		{"a.(b)", "type cast", "om", "om", errorResult("not yet implemented"), "", nil, nil, nil},
 
 		// Selectors (1): Method values
@@ -1036,6 +1036,141 @@ func TestVisitStmt(t *testing.T) {
 				{"main", "om func (om) om * om"},
 			},
 			"func main(b interface { f(*int) } , c *int) { defer b.f(c)   }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", permission.ConvertToBase(newPermission("om interface{ om (m) func (m * m) n }"), 0)},
+					{"c", "n * r"},
+				}, -1},
+			},
+			"",
+		},
+		{"funcLitOwned",
+			[]storeItemDesc{
+				{"b", "om interface{ om (m) func (m * m) n }"},
+				{"c", "m * m"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b interface { f(*int) } , c *int) { func(c *int ) { b.f(c)}(c)   }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", newPermission("om interface{ om (m) func (m * m) n }")},
+					{"c", "m * m"},
+				}, -1},
+			},
+			"",
+		},
+		{"functionLiteralConsumesOwnedValueError",
+			[]storeItemDesc{
+				{"b", "om interface{ om (m) func (om * om) n }"},
+				{"c", "om * om"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b interface { f(*int) } , c *int) { func() { b.f(c)}()   }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", newPermission("om interface{ om (m) func (m * m) n }")},
+					{"c", "m * m"},
+				}, -1},
+			},
+			"Function literal changes permission of borrowed value c",
+		},
+		{"funcLitOwnedVar",
+			[]storeItemDesc{
+				{"b", "om interface{ om (m) func (m * m) n }"},
+				{"c", "m * m"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b interface { f(*int) } , c *int) { foo := func(c *int ) { b.f(c)}; foo(c)  }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", permission.ConvertToBase(newPermission("om interface{ om (m) func (m * m) n }"), 0)},
+					{"c", "m * m"},
+				}, -1},
+			},
+			"",
+		},
+		{"funcLitUnowned",
+			[]storeItemDesc{
+				{"b", "m interface{ om (m) func (m * m) n }"},
+				{"c", "m * m"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b interface { f(*int) } , c *int) { func(c *int ) { b.f(c)}(c)   }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", newPermission("m interface{ om (m) func (m * m) n }")},
+					{"c", "m * m"},
+				}, -1},
+			},
+			"",
+		},
+		{"funcLitUnownedVar",
+			[]storeItemDesc{
+				{"b", "m interface{ om (m) func (m * m) n }"},
+				{"c", "m * m"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b interface { f(*int) } , c *int) { foo := func(c *int ) { b.f(c)}; foo(c)  }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", newPermission("m interface{ om (m) func (m * m) n }")},
+					{"c", "m * m"},
+				}, -1},
+			},
+			"61: In foo: Required permissions o",
+		},
+		{"deferFuncLitOwned",
+			[]storeItemDesc{
+				{"b", "om interface{ om (m) func (m * m) n }"},
+				{"c", "m * m"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b interface { f(*int) } , c *int) { defer func(c *int ) { b.f(c)}(c)   }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", permission.ConvertToBase(newPermission("om interface{ om (m) func (m * m) n }"), 0)},
+					{"c", "n * r"},
+				}, -1},
+			},
+			"",
+		},
+		{"deferFuncLitUnowned",
+			[]storeItemDesc{
+				{"b", "m interface{ om (m) func (m * m) n }"},
+				{"c", "m * m"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b interface { f(*int) } , c *int) { defer func(c *int ) { b.f(c)}(c)   }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", newPermission("m interface{ om (m) func (m * m) n }")},
+					{"c", "n * r"},
+				}, -1},
+			},
+			"",
+		},
+		{"goFuncLitUnowned",
+			[]storeItemDesc{
+				{"b", "m interface{ om (m) func (m * m) n }"},
+				{"c", "m * m"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b interface { f(*int) } , c *int) { go func(c *int ) { b.f(c)}(c)   }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"b", permission.ConvertToBase(newPermission("m interface{ om (m) func (m * m) n }"), 0)},
+					{"c", "n * r"},
+				}, -1},
+			},
+			"",
+		},
+		{"goFuncLitOwned",
+			[]storeItemDesc{
+				{"b", "om interface{ om (m) func (m * m) n }"},
+				{"c", "m * m"},
+				{"main", "om func (om) om * om"},
+			},
+			"func main(b interface { f(*int) } , c *int) { go func(c *int ) { b.f(c)}(c)   }",
 			[]exitDesc{
 				{[]storeItemDesc{
 					{"b", permission.ConvertToBase(newPermission("om interface{ om (m) func (m * m) n }"), 0)},
