@@ -73,7 +73,7 @@ func newPermission(input interface{}) permission.Permission {
 
 func TestVisitIdent(t *testing.T) {
 	st := Store{
-		{"x", newPermission("om[]om"), newPermission("om")},
+		{"x", newPermission("om[]om"), newPermission("om"), 0},
 	}
 	i := &Interpreter{}
 	runFuncRecover(t, "Unknown variable", func() {

@@ -19,6 +19,7 @@ type Store []struct {
 	name string
 	eff  permission.Permission
 	max  permission.Permission
+	uses int
 }
 
 // NewStore returns a new, empty Store
@@ -34,7 +35,15 @@ func (st Store) Equal(ot Store) bool {
 	if ot == nil {
 		return st == nil || len(st) == 0
 	}
-	return reflect.DeepEqual(st, ot)
+	if len(st) != len(ot) {
+		return false
+	}
+	for i := range st {
+		if st[i].name != ot[i].name || !reflect.DeepEqual(st[i].eff, ot[i].eff) || !reflect.DeepEqual(st[i].max, ot[i].max) {
+			return false
+		}
+	}
+	return true
 }
 
 // BeginBlock copies the Store, prepending a frame marker at the beginning.
@@ -82,6 +91,10 @@ func (st Store) Merge(st2 Store) (Store, error) {
 		if err != nil {
 			return nil, fmt.Errorf("Cannot merge maximum permissions %s and %s of %s: %s", st[i].max, st2[i].max, v.name, err)
 		}
+		st3[i].uses = st[i].uses
+		if st2[i].uses > st3[i].uses {
+			st3[i].uses = st2[i].uses
+		}
 	}
 	return st3, nil
 }
@@ -125,6 +138,7 @@ func (st Store) SetEffective(name string, perm permission.Permission) (Store, er
 				return nil, fmt.Errorf("Cannot restrict effective permission of %s to new max: %s", v.name, err.Error())
 			}
 			st[i].eff = eff
+			st[i].uses += 1
 			return st, nil
 		}
 	}
@@ -148,6 +162,7 @@ func (st Store) SetMaximum(name string, perm permission.Permission) (Store, erro
 			}
 			st[i].eff = eff
 			st[i].max = perm
+			st[i].uses += 1
 			return st, nil
 		}
 	}
@@ -156,8 +171,9 @@ func (st Store) SetMaximum(name string, perm permission.Permission) (Store, erro
 
 // GetEffective returns the effective permission for the identifier
 func (st Store) GetEffective(name string) permission.Permission {
-	for _, v := range st {
+	for i, v := range st {
 		if v.name == name {
+			st[i].uses += 1
 			return v.eff
 		}
 	}
@@ -166,8 +182,9 @@ func (st Store) GetEffective(name string) permission.Permission {
 
 // GetMaximum returns the maximum permission for the identifier
 func (st Store) GetMaximum(name string) permission.Permission {
-	for _, v := range st {
+	for i, v := range st {
 		if v.name == name {
+			st[i].uses += 1
 			return v.max
 		}
 	}
