@@ -15,7 +15,14 @@ type assignableStateKey struct {
 	A, B Permission
 	mode assignableMode
 }
-type assignableState map[assignableStateKey]bool
+type assignableState struct {
+	values map[assignableStateKey]bool
+	mode   assignableMode
+}
+
+func newAssignableState(mode assignableMode) assignableState {
+	return assignableState{make(map[assignableStateKey]bool), mode}
+}
 
 // CopyableTo checks that a capability of permission A can be copied to
 // a capability with permission B.
@@ -28,19 +35,19 @@ type assignableState map[assignableStateKey]bool
 // Pointers however, are not reference types, and are copyable if the target
 // is refcopyable.
 func CopyableTo(A, B Permission) bool {
-	return copyableTo(A, B, make(assignableState))
+	return copyableTo(A, B, newAssignableState(assignCopy))
 }
 
 func copyableTo(A, B Permission, state assignableState) bool {
 	// Oh dear, this is our entry point. We need to ensure we can do recursive
 	// permissions correctly.
 	key := assignableStateKey{A, B, assignCopy}
-	isCopyable, ok := state[key]
+	isCopyable, ok := state.values[key]
 
 	if !ok {
-		state[key] = true
+		state.values[key] = true
 		isCopyable = A.isCopyableTo(B, state)
-		state[key] = isCopyable
+		state.values[key] = isCopyable
 	}
 
 	return isCopyable

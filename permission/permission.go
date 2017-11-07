@@ -99,8 +99,7 @@ func (perm BasePermission) GetBasePermission() BasePermission {
 // ways the value can be used.
 type Permission interface {
 	GetBasePermission() BasePermission
-	isMovableTo(p2 Permission, state assignableState) bool
-	isRefcopyableTo(p2 Permission, state assignableState) bool
+	isAssignableTo(p2 Permission, state assignableState) bool
 	isCopyableTo(p2 Permission, state assignableState) bool
 	convertToBase(p2 BasePermission, state *convertToBaseState) Permission
 	merge(p2 Permission, state *mergeState) Permission

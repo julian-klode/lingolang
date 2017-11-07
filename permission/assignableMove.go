@@ -3,6 +3,8 @@
 
 package permission
 
+import "fmt"
+
 // This file defines when permissions are considered movable from one
 // reference to another.
 //
@@ -15,86 +17,117 @@ package permission
 // than the permission of the source. Values can be copied, however: A
 // copy of a value might have a larger set of permissions - see CopyableTo()
 func MovableTo(A, B Permission) bool {
-	return movableTo(A, B, make(assignableState))
+	return assignableTo(A, B, newAssignableState(assignMove))
 }
+
+// RefcopyableTo checks whether an object with permission A can also be
+// referenced by a permission B. It is generally like move, with two
+// differences:
+//
+// 1. A may be unreadable
+// 2. A and B may not be linear
+func RefcopyableTo(A, B Permission) bool {
+	return assignableTo(A, B, newAssignableState(assignReference))
+}
+
 func movableTo(A, B Permission, state assignableState) bool {
+	return assignableTo(A, B, assignableState{state.values, assignMove})
+}
+
+func refcopyableTo(A, B Permission, state assignableState) bool {
+	return assignableTo(A, B, assignableState{state.values, assignReference})
+}
+
+func assignableTo(A, B Permission, state assignableState) bool {
 	// Oh dear, this is our entry point. We need to ensure we can do recursive
 	// permissions correctly.
-	key := assignableStateKey{A, B, assignMove}
-	isMovable, ok := state[key]
+	key := assignableStateKey{A, B, state.mode}
+	isMovable, ok := state.values[key]
 
 	if !ok {
-		state[key] = true
-		isMovable = A.isMovableTo(B, state)
-		state[key] = isMovable
+		state.values[key] = true
+		isMovable = A.isAssignableTo(B, state)
+		state.values[key] = isMovable
 	}
 
 	return isMovable
 }
 
-func (perm BasePermission) isMovableTo(p2 Permission, state assignableState) bool {
+func (perm BasePermission) isAssignableTo(p2 Permission, state assignableState) bool {
 	perm2, ok := p2.(BasePermission)
 	if !ok {
 		return false
 	}
-	return (perm&Read != 0 || perm == 0) && perm2&^perm == 0
+	switch state.mode {
+	case assignMove:
+		return (perm&Read != 0 || perm == 0) && perm2&^perm == 0
+	case assignReference:
+		return perm2&^perm == 0 && !perm.isLinear() && !perm2.isLinear()
+	}
+	panic(fmt.Errorf("Unreachable, assign mode is %s", state.mode))
+
 }
 
-func (p *PointerPermission) isMovableTo(p2 Permission, state assignableState) bool {
+func (p *PointerPermission) isAssignableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *PointerPermission:
-		return movableTo(p.BasePermission, p2.BasePermission, state) && movableTo(p.Target, p2.Target, state)
+		return assignableTo(p.BasePermission, p2.BasePermission, state) && assignableTo(p.Target, p2.Target, state)
 	default:
 		return false
 	}
 }
 
-func (p *ChanPermission) isMovableTo(p2 Permission, state assignableState) bool {
+func (p *ChanPermission) isAssignableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *ChanPermission:
-		return movableTo(p.BasePermission, p2.BasePermission, state) && movableTo(p.ElementPermission, p2.ElementPermission, state)
+		return assignableTo(p.BasePermission, p2.BasePermission, state) && assignableTo(p.ElementPermission, p2.ElementPermission, state)
 	default:
 		return false
 	}
 }
 
-func (p *ArrayPermission) isMovableTo(p2 Permission, state assignableState) bool {
+func (p *ArrayPermission) isAssignableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *ArrayPermission:
-		return movableTo(p.BasePermission, p2.BasePermission, state) && movableTo(p.ElementPermission, p2.ElementPermission, state)
+		return assignableTo(p.BasePermission, p2.BasePermission, state) && assignableTo(p.ElementPermission, p2.ElementPermission, state)
+	case *SlicePermission:
+		if state.mode != assignReference {
+			return false
+		}
+		return assignableTo(p.BasePermission, p2.BasePermission, state) && assignableTo(p.ElementPermission, p2.ElementPermission, state)
 	default:
 		return false
 	}
 }
 
-func (p *SlicePermission) isMovableTo(p2 Permission, state assignableState) bool {
+func (p *SlicePermission) isAssignableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *SlicePermission:
-		return movableTo(p.BasePermission, p2.BasePermission, state) && movableTo(p.ElementPermission, p2.ElementPermission, state)
+		return assignableTo(p.BasePermission, p2.BasePermission, state) && assignableTo(p.ElementPermission, p2.ElementPermission, state)
 	default:
 		return false
 	}
 }
 
-func (p *MapPermission) isMovableTo(p2 Permission, state assignableState) bool {
+func (p *MapPermission) isAssignableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *MapPermission:
-		return movableTo(p.BasePermission, p2.BasePermission, state) && movableTo(p.KeyPermission, p2.KeyPermission, state) && movableTo(p.ValuePermission, p2.ValuePermission, state)
+		return assignableTo(p.BasePermission, p2.BasePermission, state) && assignableTo(p.KeyPermission, p2.KeyPermission, state) && assignableTo(p.ValuePermission, p2.ValuePermission, state)
 	default:
 		return false
 	}
 }
 
-func (p *StructPermission) isMovableTo(p2 Permission, state assignableState) bool {
+func (p *StructPermission) isAssignableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *StructPermission:
-		if !movableTo(p.BasePermission, p2.BasePermission, state) {
+		if !assignableTo(p.BasePermission, p2.BasePermission, state) {
 			return false
 		}
 
 		// TODO: Field length, structural subtyping
 		for i := 0; i < len(p.Fields); i++ {
-			if !movableTo(p.Fields[i], p2.Fields[i], state) {
+			if !assignableTo(p.Fields[i], p2.Fields[i], state) {
 				return false
 			}
 		}
@@ -104,7 +137,7 @@ func (p *StructPermission) isMovableTo(p2 Permission, state assignableState) boo
 	}
 }
 
-func (p *FuncPermission) isMovableTo(p2 Permission, state assignableState) bool {
+func (p *FuncPermission) isAssignableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *FuncPermission:
 		// Ownership needs to be respected
@@ -113,7 +146,7 @@ func (p *FuncPermission) isMovableTo(p2 Permission, state assignableState) bool 
 		}
 		// We cannot assign a mutable function to a value function, but vice
 		// versa. This is reversed, because essentially
-		if !movableTo(p2.BasePermission&^Owned, p.BasePermission&^Owned, state) {
+		if !assignableTo(p2.BasePermission&^Owned, p.BasePermission&^Owned, state) {
 			return false
 		}
 		// Receivers and parameters are contravariant: If f2 takes argument
@@ -141,10 +174,10 @@ func (p *FuncPermission) isMovableTo(p2 Permission, state assignableState) bool 
 	}
 }
 
-func (p *InterfacePermission) isMovableTo(p2 Permission, state assignableState) bool {
+func (p *InterfacePermission) isAssignableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *InterfacePermission:
-		if !movableTo(p.BasePermission, p2.BasePermission, state) {
+		if !assignableTo(p.BasePermission, p2.BasePermission, state) {
 			return false
 		}
 
@@ -160,18 +193,18 @@ func (p *InterfacePermission) isMovableTo(p2 Permission, state assignableState) 
 	}
 }
 
-func (p *WildcardPermission) isMovableTo(p2 Permission, state assignableState) bool {
+func (p *WildcardPermission) isAssignableTo(p2 Permission, state assignableState) bool {
 	return false
 }
 
-func (p *TuplePermission) isMovableTo(p2 Permission, state assignableState) bool {
+func (p *TuplePermission) isAssignableTo(p2 Permission, state assignableState) bool {
 	switch p2 := p2.(type) {
 	case *TuplePermission:
-		if len(p.Elements) != len(p2.Elements) || !movableTo(p.BasePermission, p2.BasePermission, state) {
+		if len(p.Elements) != len(p2.Elements) || !assignableTo(p.BasePermission, p2.BasePermission, state) {
 			return false
 		}
 		for i := range p.Elements {
-			if !movableTo(p.Elements[i], p2.Elements[i], state) {
+			if !assignableTo(p.Elements[i], p2.Elements[i], state) {
 				return false
 			}
 		}
@@ -181,7 +214,7 @@ func (p *TuplePermission) isMovableTo(p2 Permission, state assignableState) bool
 	}
 }
 
-func (p *NilPermission) isMovableTo(p2 Permission, state assignableState) bool {
+func (p *NilPermission) isAssignableTo(p2 Permission, state assignableState) bool {
 	switch p2.(type) {
 	case *ChanPermission, *FuncPermission, *InterfacePermission, *MapPermission, *NilPermission, *PointerPermission, *SlicePermission:
 		return true
