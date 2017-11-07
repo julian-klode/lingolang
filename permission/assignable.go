@@ -128,11 +128,6 @@ func (p *ArrayPermission) isAssignableTo(p2 Permission, state assignableState) b
 	switch p2 := p2.(type) {
 	case *ArrayPermission:
 		return assignableTo(p.BasePermission, p2.BasePermission, state) && assignableTo(p.ElementPermission, p2.ElementPermission, state)
-	case *SlicePermission:
-		if state.mode != assignReference {
-			return false
-		}
-		return assignableTo(p.BasePermission, p2.BasePermission, state) && assignableTo(p.ElementPermission, p2.ElementPermission, state)
 	default:
 		return false
 	}

@@ -49,7 +49,7 @@ var testcasesAssignableTo = []assignableToTestCase{
 	{"om [1]om", "om [1]ov", true, false, true},
 	{"om []om", "om [1]ov", false, false, false},
 	{"om [1]om", "om []ov", false, false, false},
-	{"ov [1]ov", "ov []ov", false, true, false}, // can refcopy array to slice
+	{"ov [1]ov", "ov []ov", false, false, false},
 	{"om []ov", "om []om", false, false, false},
 	{"ov []ov", "om []ov", false, false, false},
 	{"om []ov", "ov []ov", true, false, false},
