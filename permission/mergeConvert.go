@@ -116,6 +116,7 @@ func (p *FuncPermission) convertToBase(p2 BasePermission, state *convertToBaseSt
 	state.register(next, p, p2)
 
 	next.BasePermission = p.BasePermission.convertToBaseBase(p2)
+	next.Name = p.Name
 	if p.Receivers != nil {
 		next.Receivers = make([]Permission, len(p.Receivers))
 		for i := 0; i < len(p.Receivers); i++ {

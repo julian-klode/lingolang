@@ -289,6 +289,7 @@ func (p *FuncPermission) merge(p2 Permission, state *mergeState) Permission {
 	switch p2 := p2.(type) {
 	case *FuncPermission:
 		next := &FuncPermission{}
+		next.Name = p.Name
 		state.register(next, p, p2)
 
 		next.BasePermission = state.contravariant().mergeBase(p.BasePermission, p2.BasePermission)
