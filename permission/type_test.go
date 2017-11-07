@@ -15,7 +15,7 @@ import (
 func newInterfaceWithMethod() *InterfacePermission {
 	iface := &InterfacePermission{
 		BasePermission: Mutable,
-		Methods: []Permission{
+		Methods: []*FuncPermission{
 			&FuncPermission{
 				Name:           "foo",
 				BasePermission: Mutable,
@@ -23,8 +23,8 @@ func newInterfaceWithMethod() *InterfacePermission {
 			},
 		},
 	}
-	iface.Methods[0].(*FuncPermission).Receivers = []Permission{iface}
-	iface.Methods[0].(*FuncPermission).Results = []Permission{iface}
+	iface.Methods[0].Receivers = []Permission{iface}
+	iface.Methods[0].Results = []Permission{iface}
 	return iface
 }
 

@@ -382,12 +382,12 @@ func (i *Interpreter) visitSelectorExprOne(st Store, e ast.Expr, p permission.Pe
 		// TODO: NamedType
 		switch p := p.(type) {
 		case *permission.InterfacePermission:
-			target := p.Methods[index].(*permission.FuncPermission).Receivers[0]
+			target := p.Methods[index].Receivers[0]
 			if st, owner, deps, err = i.moveOrCopy(e, st, p, target, owner, deps); err != nil {
 				return i.Error(e, spew.Sprintf("Cannot bind receiver: %s in %v", err, p))
 			}
 
-			perm := p.Methods[index].(*permission.FuncPermission)
+			perm := p.Methods[index]
 			// If we are binding unowned, our function value must be unowned too.
 			if perm.Receivers[0].GetBasePermission()&permission.Owned == 0 {
 				perm = permission.ConvertToBase(perm, perm.GetBasePermission()&^permission.Owned).(*permission.FuncPermission)
@@ -402,7 +402,7 @@ func (i *Interpreter) visitSelectorExprOne(st Store, e ast.Expr, p permission.Pe
 		case *permission.InterfacePermission:
 			st = i.Release(e, st, []Borrowed{Borrowed(owner)})
 			st = i.Release(e, st, deps)
-			return pushReceiverToParams(p.Methods[index].(*permission.FuncPermission)), NoOwner, nil, st
+			return pushReceiverToParams(p.Methods[index]), NoOwner, nil, st
 		default:
 			return i.Error(e, "Incompatible or unknown type on left side of method value for index %d", index)
 		}

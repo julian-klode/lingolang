@@ -220,15 +220,15 @@ func (p *InterfacePermission) isAssignableTo(p2 Permission, state assignableStat
 
 		for i := 0; i < len(p2.Methods); i++ {
 			var l, r *FuncPermission
-			r = p2.Methods[i].(*FuncPermission)
+			r = p2.Methods[i]
 			if i < len(p.Methods) {
-				l = p.Methods[i].(*FuncPermission)
+				l = p.Methods[i]
 			}
 			if l == nil || l.Name != r.Name {
 				l = nil
 				for _, m := range p.Methods {
-					if m.(*FuncPermission).Name == r.Name {
-						l = m.(*FuncPermission)
+					if m.Name == r.Name {
+						l = m
 						break
 					}
 				}

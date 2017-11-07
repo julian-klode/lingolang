@@ -44,12 +44,12 @@ func newPermission(input interface{}) permission.Permission {
 			// Step 1: Replace receivers with pointer to iface, keep receivers in list
 			originalReceivers := make([]permission.Permission, len(iface.Methods))
 			for i := range iface.Methods {
-				originalReceivers[i] = iface.Methods[i].(*permission.FuncPermission).Receivers[0]
-				iface.Methods[i].(*permission.FuncPermission).Receivers[0] = perm
+				originalReceivers[i] = iface.Methods[i].Receivers[0]
+				iface.Methods[i].Receivers[0] = perm
 			}
 			// Step 2: Convert receivers to specified ones.
 			for i := range iface.Methods {
-				iface.Methods[i].(*permission.FuncPermission).Receivers[0], err = permission.ConvertTo(perm, originalReceivers[i])
+				iface.Methods[i].Receivers[0], err = permission.ConvertTo(perm, originalReceivers[i])
 				if err != nil {
 					panic(err)
 				}
@@ -86,7 +86,7 @@ func TestVisitIdent(t *testing.T) {
 
 func TestHelper(t *testing.T) {
 	p := newPermission("ov interface{ ov (ov) func () }")
-	spew.Printf("p = %v, receiver=%v\n", p, p.(*permission.InterfacePermission).Methods[0].(*permission.FuncPermission).Receivers)
+	spew.Printf("p = %v, receiver=%v\n", p, p.(*permission.InterfacePermission).Methods[0].Receivers)
 }
 
 func TestVisitExpr(t *testing.T) {
@@ -98,12 +98,12 @@ func TestVisitExpr(t *testing.T) {
 	}
 
 	valueInterface := newPermission("ov interface{ ov (ov) func () }")
-	valueMethodExpr := newPermission("ov func(ov)")
-	valueMethodExpr.(*permission.FuncPermission).Params[0] = valueInterface
+	valueMethodExpr := newPermission("ov func(ov)").(*permission.FuncPermission)
+	valueMethodExpr.Params[0] = valueInterface
 
 	unownedValueInterface := newPermission("ov interface{ ov (v) func () }")
-	unownedValueMethodExpr := newPermission("ov func(v)")
-	unownedValueMethodExpr.(*permission.FuncPermission).Params[0] = unownedValueInterface.(*permission.InterfacePermission).Methods[0].(*permission.FuncPermission).Receivers[0]
+	unownedValueMethodExpr := newPermission("ov func(v)").(*permission.FuncPermission)
+	unownedValueMethodExpr.Params[0] = unownedValueInterface.(*permission.InterfacePermission).Methods[0].Receivers[0]
 
 	testCases := []struct {
 		expr         interface{}

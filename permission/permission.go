@@ -187,8 +187,8 @@ func (p *FuncPermission) GetBasePermission() BasePermission {
 
 // InterfacePermission manages permissions on an interface.
 type InterfacePermission struct {
-	BasePermission BasePermission // Permission of the interface itself
-	Methods        []Permission   // Permission of the methods
+	BasePermission BasePermission    // Permission of the interface itself
+	Methods        []*FuncPermission // Permission of the methods
 }
 
 // GetBasePermission gets the base permission

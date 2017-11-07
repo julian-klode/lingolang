@@ -200,11 +200,18 @@ func (p *Parser) parseChan(bp BasePermission) Permission {
 
 // @syntax chan <- 'interface' '{' [fieldList] '}'
 func (p *Parser) parseInterface(bp BasePermission) Permission {
-	var fields []Permission
+	var fields []*FuncPermission
 	p.sc.Expect(TokenInterface)
 	p.sc.Expect(TokenBraceLeft)
 	if p.sc.Peek().Type != TokenBraceRight {
-		fields = p.parseFieldList(TokenSemicolon)
+		newFields := p.parseFieldList(TokenSemicolon)
+		for _, field := range newFields {
+			field, ok := field.(*FuncPermission)
+			if !ok {
+				panic(p.sc.wrapError(fmt.Errorf("Only methods can be part of interfaces in previous field list")))
+			}
+			fields = append(fields, field)
+		}
 	}
 	p.sc.Expect(TokenBraceRight)
 	return &InterfacePermission{BasePermission: bp, Methods: fields}

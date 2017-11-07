@@ -169,14 +169,14 @@ func TestAssignableTo(t *testing.T) {
 
 func TestAssignableTo_Recursive(t *testing.T) {
 	var recursiveType = &InterfacePermission{BasePermission: Mutable}
-	recursiveType.Methods = []Permission{
+	recursiveType.Methods = []*FuncPermission{
 		&FuncPermission{
 			BasePermission: Mutable,
 			Receivers:      []Permission{recursiveType},
 		},
 	}
 	var nonrecursiveType = &InterfacePermission{BasePermission: Mutable,
-		Methods: []Permission{
+		Methods: []*FuncPermission{
 			&FuncPermission{
 				BasePermission: Mutable,
 				Receivers:      []Permission{Mutable},
@@ -223,11 +223,11 @@ func TestAssignableToBase_InvalidMode(t *testing.T) {
 }
 
 func TestAssignableTo_InterfaceSubset(t *testing.T) {
-	a := &InterfacePermission{Owned | Mutable, []Permission{
+	a := &InterfacePermission{Owned | Mutable, []*FuncPermission{
 		&FuncPermission{Owned | Mutable, "func1", nil, nil, nil},
 		&FuncPermission{Owned | Mutable, "func2", nil, nil, nil},
 	}}
-	b := &InterfacePermission{Owned | Mutable, []Permission{
+	b := &InterfacePermission{Owned | Mutable, []*FuncPermission{
 		&FuncPermission{Owned | Mutable, "func2", nil, nil, nil},
 	}}
 	if !MovableTo(a, b) {

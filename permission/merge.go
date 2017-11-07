@@ -337,9 +337,9 @@ func (p *InterfacePermission) merge(p2 Permission, state *mergeState) Permission
 			panic(mergeError(fmt.Errorf("Cannot merge %v to %v: Different number of methods", p, p2)))
 		}
 		if p.Methods != nil {
-			next.Methods = make([]Permission, len(p.Methods))
+			next.Methods = make([]*FuncPermission, len(p.Methods))
 			for i := 0; i < len(p.Methods); i++ {
-				next.Methods[i] = merge(p.Methods[i], p2.Methods[i], state)
+				next.Methods[i] = merge(p.Methods[i], p2.Methods[i], state).(*FuncPermission)
 			}
 		}
 		return next

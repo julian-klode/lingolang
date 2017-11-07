@@ -142,11 +142,11 @@ var testCasesParser = map[string]Permission{
 	"l interface {}": &InterfacePermission{
 		BasePermission: LinearValue,
 	},
-	"l interface {r; w}": &InterfacePermission{
+	"l interface {r func(); w func()}": &InterfacePermission{
 		BasePermission: LinearValue,
-		Methods: []Permission{
-			Read,
-			Write,
+		Methods: []*FuncPermission{
+			&FuncPermission{Read, "", nil, nil, nil},
+			&FuncPermission{Write, "", nil, nil, nil},
 		},
 	},
 	"m interface {":   nil,
