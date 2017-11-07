@@ -5,6 +5,7 @@ package permission
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -208,4 +209,15 @@ func TestAssignableTo_Recursive(t *testing.T) {
 		t.Error("Could move non-recursive type to recursive type")
 	}
 
+}
+
+func TestAssignableToBase_InvalidMode(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil || !strings.Contains(fmt.Sprint(r), "Unreachable, assign mode is -1") {
+			t.Fatalf("Did not panic or produced unexpected panic %v", r)
+		}
+
+	}()
+	Mutable.isAssignableTo(Mutable, assignableState{nil, -1})
 }

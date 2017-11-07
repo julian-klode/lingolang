@@ -64,7 +64,7 @@ func (perm BasePermission) isAssignableTo(p2 Permission, state assignableState) 
 	case assignReference:
 		return perm2&^perm == 0 && !perm.isLinear() && !perm2.isLinear()
 	}
-	panic(fmt.Errorf("Unreachable, assign mode is %s", state.mode))
+	panic(fmt.Errorf("Unreachable, assign mode is %v", state.mode))
 
 }
 
