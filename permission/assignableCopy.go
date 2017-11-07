@@ -3,27 +3,6 @@
 
 package permission
 
-type assignableMode int
-
-const (
-	assignMove      assignableMode = 0
-	assignCopy      assignableMode = 1
-	assignReference assignableMode = 2
-)
-
-type assignableStateKey struct {
-	A, B Permission
-	mode assignableMode
-}
-type assignableState struct {
-	values map[assignableStateKey]bool
-	mode   assignableMode
-}
-
-func newAssignableState(mode assignableMode) assignableState {
-	return assignableState{make(map[assignableStateKey]bool), mode}
-}
-
 // CopyableTo checks that a capability of permission A can be copied to
 // a capability with permission B.
 //
