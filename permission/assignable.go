@@ -8,7 +8,6 @@ import "fmt"
 // This file defines when permissions are considered movable from one
 // reference to another.
 //
-// TODO: Annotate functions with logic rules
 
 type assignableMode int
 
@@ -160,7 +159,6 @@ func (p *StructPermission) isAssignableTo(p2 Permission, state assignableState) 
 			return false
 		}
 
-		// TODO: Field length, structural subtyping
 		for i := 0; i < len(p.Fields); i++ {
 			if !assignableTo(p.Fields[i], p2.Fields[i], state) {
 				return false

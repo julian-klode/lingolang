@@ -20,7 +20,7 @@ type assignableToTestCase struct {
 var testcasesAssignableTo = []assignableToTestCase{
 	// Basic types
 	{"om", "om", true, false, true},
-	{"ow", "ow", false, true, false}, // TODO: Move should be false too
+	{"ow", "ow", false, true, false},
 	{"ov", "ov", true, true, true},
 	{"om", "ov", true, false, true},
 	{"ov", "om", false, false, true},
@@ -103,17 +103,16 @@ var testcasesAssignableTo = []assignableToTestCase{
 	{"ov interface{}", "om interface{}", false, false, false},
 	{"om interface{}", "m interface{}", true, false, false},
 	{"m interface{}", "om interface{}", false, false, false},
-	// TODO: The receiver might actually be recursive, if no @cap declaration is
-	// given, the receiver actually becomes identical (!) to the interface
-	// permission itself. That's not possible to express in this syntax, and
-	// usually not wanted anyway.
+	// Inaccurate test: The receiver might actually be recursive, if no
+	// @cap declaration is given, the receiver actually becomes identical (!)
+	// to the interface permission itself.
 	{"om interface { ov (om) func()}", "om interface { om (om) func()}", true, false, false},
 	{"om interface { om (om) func()}", "om interface { ov (om) func()}", false, false, false},
 	{"ov interface { ov (ov) func()}", "ov interface { ov (ov) func()}", true, true, true},
 	{"ov interface { om (om) func()}", "ov interface { om (om) func()}", true, true, true},
 	{"ov interface { om (om) func()}", "ov interface { ov (om) func()}", false, false, false},
 
-	// FIXME: Do we actually want to allow permissions like these?
+	// An inconsistent permission. Should not be possible to actually generate (atm).
 	{"ov struct {ov}", "ov struct {om}", false, false, true},
 	{"ov func (om)", "ov func (om)", true, true, true},
 	{"ov func (om)", "ov func (ov)", false, false, false},
