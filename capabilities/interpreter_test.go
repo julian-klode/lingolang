@@ -1194,6 +1194,46 @@ func TestVisitStmt(t *testing.T) {
 			},
 			"",
 		},
+		{"genDeclTwo",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"b", "om * om"},
+				{"main", "om func (om) n"},
+			},
+			"func main(a, b *int)  { var x, y = a, b; a = x; b = y; }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om * om"},
+					{"b", "om * om"},
+				}, -1},
+			},
+			"",
+		},
+		{"genDeclEmpty",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"b", "om * om"},
+				{"main", "om func (om) n"},
+			},
+			"func main(a, b *int)  { var x *int; a = x }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "om * om"},
+					{"b", "om * om"},
+				}, -1},
+			},
+			"",
+		},
+		{"genDeclType",
+			[]storeItemDesc{
+				{"main", "om func (om) n"},
+			},
+			"func main(a, b *int)  { type x int }",
+			[]exitDesc{
+				{[]storeItemDesc{}, -1},
+			},
+			"",
+		},
 	}
 
 	for _, cs := range testCases {
@@ -1255,4 +1295,12 @@ func TestVisitStmt(t *testing.T) {
 		})
 	}
 
+}
+func TestVisitDeclStmt(t *testing.T) {
+	var badDecl = &ast.BadDecl{token.NoPos, token.NoPos}
+	var declStmt = &ast.DeclStmt{badDecl}
+	var i = &Interpreter{}
+	runFuncRecover(t, "xpected general declaration", func() {
+		i.visitDeclStmt(nil, declStmt)
+	})
 }

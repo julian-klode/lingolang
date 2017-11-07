@@ -611,6 +611,8 @@ func (i *Interpreter) visitStmt(st Store, stmt ast.Stmt) []StmtExit {
 		return i.visitDeferStmt(st, stmt)
 	case *ast.GoStmt:
 		return i.visitGoStmt(st, stmt)
+	case *ast.DeclStmt:
+		return i.visitDeclStmt(st, stmt)
 	default:
 		i.Error(stmt, "Unknown type of statement")
 		panic(nil)
@@ -846,11 +848,15 @@ func (i *Interpreter) visitEmptyStmt(st Store, stmt *ast.EmptyStmt) []StmtExit {
 }
 
 func (i *Interpreter) visitAssignStmt(st Store, stmt *ast.AssignStmt) []StmtExit {
+	return []StmtExit{{i.defineOrAssignMany(st, stmt, stmt.Lhs, stmt.Rhs, stmt.Tok == token.DEFINE, false), nil}}
+}
+
+func (i *Interpreter) defineOrAssignMany(st Store, stmt ast.Stmt, lhsExprs []ast.Expr, rhsExprs []ast.Expr, isDefine bool, allowUnowned bool) Store {
 	var deps []Borrowed
 	var rhs []permission.Permission
-	if len(stmt.Rhs) == 1 && len(stmt.Lhs) > 1 {
+	if len(rhsExprs) == 1 && len(lhsExprs) > 1 {
 		// These really can't have owners.
-		rhs0, rdeps, store := i.visitExprNoOwner(st, stmt.Rhs[0])
+		rhs0, rdeps, store := i.visitExprNoOwner(st, rhsExprs[0])
 		st = store
 		tuple, ok := rhs0.(*permission.TuplePermission)
 		if !ok {
@@ -858,10 +864,8 @@ func (i *Interpreter) visitAssignStmt(st Store, stmt *ast.AssignStmt) []StmtExit
 		}
 		deps = append(deps, rdeps...)
 		rhs = tuple.Elements
-	} else if len(stmt.Rhs) != len(stmt.Lhs) {
-		i.Error(stmt, "Expected same number of arguments on both sides of assignment (or one function call on the right)")
 	} else {
-		for _, expr := range stmt.Rhs {
+		for _, expr := range rhsExprs {
 			log.Printf("Visiting expr %#v in store %v", expr, st)
 			perm, ownerThis, depsThis, store := i.VisitExpr(st, expr)
 			log.Printf("Visited expr %#v in store %v", expr, st)
@@ -882,19 +886,28 @@ func (i *Interpreter) visitAssignStmt(st Store, stmt *ast.AssignStmt) []StmtExit
 		}
 	}
 
-	if len(rhs) != len(stmt.Lhs) {
-		i.Error(stmt, "Expected same number of arguments on both sides of assignment (or one function call on the right)")
+	// Fill up the RHS with zero values if it has less elements than the LHS. Used for var x, y int; for example.
+	for elem := len(rhs); elem < len(lhsExprs); elem++ {
+		var perm permission.Permission
+
+		perm = i.typeMapper.NewFromType(i.typesInfo.TypeOf(lhsExprs[elem]))
+		perm = permission.ConvertToBase(perm, perm.GetBasePermission()|permission.Owned) //FIXME
+
+		rhs = append(rhs, perm)
+
+	}
+	if len(rhs) != len(lhsExprs) {
+		i.Error(stmt, "Expected same number of arguments on both sides of assignment (or one function call on the right): Got rhs=%d lhs=%d", len(rhs), len(lhsExprs))
 	}
 
-	for j, lhs := range stmt.Lhs {
-		st = i.defineOrAssign(st, stmt, lhs, rhs[j], stmt.Tok == token.DEFINE, false)
+	for j, lhs := range lhsExprs {
+		st = i.defineOrAssign(st, stmt, lhs, rhs[j], isDefine, allowUnowned)
 	}
 
 	st = i.Release(stmt, st, deps)
 
-	return []StmtExit{{st, nil}}
+	return st
 }
-
 func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs permission.Permission, isDefine bool, allowUnowned bool) Store {
 	var err error
 
@@ -1226,5 +1239,29 @@ func (i *Interpreter) visitDeferStmt(st Store, stmt *ast.DeferStmt) []StmtExit {
 		}
 	}
 
+	return []StmtExit{{st, nil}}
+}
+
+func (i *Interpreter) visitDeclStmt(st Store, stmt *ast.DeclStmt) []StmtExit {
+	decl, ok := stmt.Decl.(*ast.GenDecl)
+	if !ok {
+		i.Error(stmt, "Expected general declaration")
+	}
+	if i.typeMapper == nil {
+		i.typeMapper = permission.NewTypeMapper()
+	}
+
+	for _, spec := range decl.Specs {
+		switch spec := spec.(type) {
+		case *ast.ValueSpec:
+			names := make([]ast.Expr, 0, len(spec.Names))
+			for _, name := range spec.Names {
+				names = append(names, name)
+			}
+			st = i.defineOrAssignMany(st, stmt, names, spec.Values, true, false)
+		default:
+			continue
+		}
+	}
 	return []StmtExit{{st, nil}}
 }
