@@ -221,3 +221,29 @@ func TestAssignableToBase_InvalidMode(t *testing.T) {
 	}()
 	Mutable.isAssignableTo(Mutable, assignableState{nil, -1})
 }
+
+func TestAssignableTo_InterfaceSubset(t *testing.T) {
+	a := &InterfacePermission{Owned | Mutable, []Permission{
+		&FuncPermission{Owned | Mutable, "func1", nil, nil, nil},
+		&FuncPermission{Owned | Mutable, "func2", nil, nil, nil},
+	}}
+	b := &InterfacePermission{Owned | Mutable, []Permission{
+		&FuncPermission{Owned | Mutable, "func2", nil, nil, nil},
+	}}
+	if !MovableTo(a, b) {
+		t.Fatalf("Cannot move a to b")
+	}
+	func() {
+		defer func() {
+			r := recover()
+			if r == nil || !strings.Contains(fmt.Sprint(r), "Trying to move method func1, but does not exist in source") {
+				t.Fatalf("Did not panic or produced unexpected panic %v", r)
+			}
+
+		}()
+		if !MovableTo(b, a) {
+			t.Fatalf("Cannot move a to b")
+
+		}
+	}()
+}

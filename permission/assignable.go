@@ -218,9 +218,27 @@ func (p *InterfacePermission) isAssignableTo(p2 Permission, state assignableStat
 			return false
 		}
 
-		// TODO: Field length, structural subtyping
-		for i := 0; i < len(p.Methods); i++ {
-			if !movableTo(p.Methods[i], p2.Methods[i], state) {
+		for i := 0; i < len(p2.Methods); i++ {
+			var l, r *FuncPermission
+			r = p2.Methods[i].(*FuncPermission)
+			if i < len(p.Methods) {
+				l = p.Methods[i].(*FuncPermission)
+			}
+			if l == nil || l.Name != r.Name {
+				l = nil
+				for _, m := range p.Methods {
+					if m.(*FuncPermission).Name == r.Name {
+						l = m.(*FuncPermission)
+						break
+					}
+				}
+			}
+
+			if l == nil {
+				panic(fmt.Errorf("Trying to move method %s, but does not exist in source %v", r.Name, p))
+			}
+
+			if !movableTo(l, r, state) {
 				return false
 			}
 		}
