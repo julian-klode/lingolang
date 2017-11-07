@@ -93,12 +93,12 @@ func (perm BasePermission) isAssignableTo(p2 Permission, state assignableState) 
 		return false
 	}
 	switch state.mode {
-	case assignMove:
-		return (perm&Read != 0 || perm == 0) && perm2&^perm == 0
-	case assignReference:
-		return perm2&^perm == 0 && !perm.isLinear() && !perm2.isLinear()
 	case assignCopy:
-		return perm&Read != 0 || (perm == 0 && p2.GetBasePermission() == 0)
+		return perm&Read != 0 || (perm == 0 && perm2 == 0) // Either A readable, or both empty permissions (hack!)
+	case assignMove:
+		return perm2&^perm == 0 && (perm&Read != 0 || (perm == 0 && perm2 == 0)) // No new permission && copy
+	case assignReference:
+		return perm2&^perm == 0 && !perm.isLinear() && !perm2.isLinear() // No new permissions and not linear
 	}
 	panic(fmt.Errorf("Unreachable, assign mode is %v", state.mode))
 
