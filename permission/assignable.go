@@ -31,6 +31,16 @@ func newAssignableState(mode assignableMode) assignableState {
 	return assignableState{make(map[assignableStateKey]bool), mode}
 }
 
+// copyAsReference converts a copy state into a reference state.
+func copyAsReference(state assignableState) assignableState {
+	switch state.mode {
+	case assignCopy:
+		return assignableState{state.values, assignReference}
+	default:
+		return state
+	}
+}
+
 // MovableTo checks that a capability of permission A can be moved to
 // a capability with permission B.
 //
@@ -51,12 +61,15 @@ func RefcopyableTo(A, B Permission) bool {
 	return assignableTo(A, B, newAssignableState(assignReference))
 }
 
-func movableTo(A, B Permission, state assignableState) bool {
-	return assignableTo(A, B, assignableState{state.values, assignMove})
+// CopyableTo checks whether an object with permission A be copied into
+// an object with permission B. The base requirement is that A is readable,
+// or both have no permissions.
+func CopyableTo(A, B Permission) bool {
+	return assignableTo(A, B, newAssignableState(assignCopy))
 }
 
-func refcopyableTo(A, B Permission, state assignableState) bool {
-	return assignableTo(A, B, assignableState{state.values, assignReference})
+func movableTo(A, B Permission, state assignableState) bool {
+	return assignableTo(A, B, assignableState{state.values, assignMove})
 }
 
 func assignableTo(A, B Permission, state assignableState) bool {
@@ -84,21 +97,25 @@ func (perm BasePermission) isAssignableTo(p2 Permission, state assignableState) 
 		return (perm&Read != 0 || perm == 0) && perm2&^perm == 0
 	case assignReference:
 		return perm2&^perm == 0 && !perm.isLinear() && !perm2.isLinear()
+	case assignCopy:
+		return perm&Read != 0 || (perm == 0 && p2.GetBasePermission() == 0)
 	}
 	panic(fmt.Errorf("Unreachable, assign mode is %v", state.mode))
 
 }
 
 func (p *PointerPermission) isAssignableTo(p2 Permission, state assignableState) bool {
+	copyAsReferenceState := copyAsReference(state)
 	switch p2 := p2.(type) {
 	case *PointerPermission:
-		return assignableTo(p.BasePermission, p2.BasePermission, state) && assignableTo(p.Target, p2.Target, state)
+		return assignableTo(p.BasePermission, p2.BasePermission, state) && assignableTo(p.Target, p2.Target, copyAsReferenceState)
 	default:
 		return false
 	}
 }
 
 func (p *ChanPermission) isAssignableTo(p2 Permission, state assignableState) bool {
+	state = copyAsReference(state)
 	switch p2 := p2.(type) {
 	case *ChanPermission:
 		return assignableTo(p.BasePermission, p2.BasePermission, state) && assignableTo(p.ElementPermission, p2.ElementPermission, state)
@@ -122,6 +139,7 @@ func (p *ArrayPermission) isAssignableTo(p2 Permission, state assignableState) b
 }
 
 func (p *SlicePermission) isAssignableTo(p2 Permission, state assignableState) bool {
+	state = copyAsReference(state)
 	switch p2 := p2.(type) {
 	case *SlicePermission:
 		return assignableTo(p.BasePermission, p2.BasePermission, state) && assignableTo(p.ElementPermission, p2.ElementPermission, state)
@@ -131,6 +149,7 @@ func (p *SlicePermission) isAssignableTo(p2 Permission, state assignableState) b
 }
 
 func (p *MapPermission) isAssignableTo(p2 Permission, state assignableState) bool {
+	state = copyAsReference(state)
 	switch p2 := p2.(type) {
 	case *MapPermission:
 		return assignableTo(p.BasePermission, p2.BasePermission, state) && assignableTo(p.KeyPermission, p2.KeyPermission, state) && assignableTo(p.ValuePermission, p2.ValuePermission, state)
@@ -159,6 +178,7 @@ func (p *StructPermission) isAssignableTo(p2 Permission, state assignableState) 
 }
 
 func (p *FuncPermission) isAssignableTo(p2 Permission, state assignableState) bool {
+	state = copyAsReference(state)
 	switch p2 := p2.(type) {
 	case *FuncPermission:
 		// Ownership needs to be respected
@@ -196,6 +216,7 @@ func (p *FuncPermission) isAssignableTo(p2 Permission, state assignableState) bo
 }
 
 func (p *InterfacePermission) isAssignableTo(p2 Permission, state assignableState) bool {
+	state = copyAsReference(state)
 	switch p2 := p2.(type) {
 	case *InterfacePermission:
 		if !assignableTo(p.BasePermission, p2.BasePermission, state) {
