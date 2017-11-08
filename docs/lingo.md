@@ -157,35 +157,78 @@ Finally, we have some special cases: The wildcard and nil. The wildcard is not a
 \end{align*}
 
 ### Converting to a base permission
-Another set of operations, closely related to the ones coming up next, are conversions to a base permission. Given a permission and a base permission, return a new permission that replaces all base permissions in the input permission with the given base permission.
+Converting a given permission to a base permission essentially replaces all base permissions in that permission with the specified one, except for some exception, which we'll see later. It's major use case is specifying an incomplete type, for example:
 
-There are two variants of conversion: The strict one, which replaces all base permissions except for function receivers, parameters, and return values, and a more relaxed one that converts a pointer target differently:
-
-Instead of converting the pointer target to the given base permission, a new base permission for the pointer target is constructed as follow:
-
-1. The owned flag from the old target base permission is replaced with the owned flag from the given base permission
-2. If the new base permission has no exclusive read right, but the new target has exclusive write and write flags (is linearly writable), these flags are dropped. (TODO: Bug)
-3. If the new base permission has no exclusive read right, but the new target has exclusive read and read flags (is linearly readable), these flags are dropped.
-
-or in code:
 ```go
-nextTarget := p.Target.GetBasePermission()&^Owned |
-              (next.BasePermission & Owned)
-// Strip linear write rights.
-if (next.BasePermission&ExclRead) == 0
-    && (nextTarget&(ExclWrite|Write)) == (ExclWrite|Write) {
-    nextTarget &^= Write | ExclWrite
-}
-// Strip linearity from linear read rights
-if (next.BasePermission&ExclRead) == 0
-    && (nextTarget&(ExclRead|Read)) == (ExclRead|Read) {
-    nextTarget &^= ExclRead
-}
+var x /* @perm om */ *int
 ```
+It's a pointer, but the permission is only for a base. We can convert the default permission for the type (we'll discuss them later) to `om`, giving us a complete permission. And in the next section, we'll extend conversion to arbitrary prefixes of the permission graph.
 
-For example, a pointer `ol * om = orRW * om` converted to `ol` yields `ol * om`, but with strict conversion it yields `ol * ol`.
+Most cases of to-base conversions are rather simple:
+\begin{align*}
+    ctb(a, b) &:= b \\
+    ctb(\_, b) &:= b \\
+    ctb(nil, b) &:= nil \\
+    ctb(a \textbf{ chan } A, b) &:= ctb(a, b) \textbf{ chan } ctb(B, ctb(a, b)) \\
+    ctb(a \textbf{ } []A, b) &:= ctb(a, b) \textbf{ } []ctb(B, ctb(a, b))       \\
+    ctb(a \textbf{ } [\_]A, b) &:= ctb(a, b) \textbf{ } [\_]ctb(B, ctb(a, b))   \\
+    ctb(a \textbf{ map} [A]B, b) &:= ctb(a, b) \textbf{ map} [ctb(A)]ctb(B, ctb(a, b))   \\
+    ctb(a \textbf{ struct } \{ A_0; \ldots; A_n \}, b) &:= ctb(a, b) \textbf{ struct }  \{ ctb(A_0, ctb(a, b)); \ldots; ctb(A_n, ctb(a, b)) \}   \\
+    ctb(a\ ( A_0; \ldots; A_n), b) &:= ctb(a, b)\ ( ctb(A_0, ctb(a, b)); \ldots; ctb(A_n, ctb(a, b)) )
+\end{align*}
 
-Converting an untyped nil permission to a base permission yields the untyped nil permission.
+Functions and interfaces are special, again: Methods, and receivers, parameters, results of functions are converted to their own base permission:
+\begin{align*}
+    ctb(a\ (R) \textbf{ func } ( P_0, \ldots, P_n ) (R_0, \ldots, R_m), b) &:=&&  ctb(a, b)\ (ctb(R, base(R))) \textbf{ func }  \\
+                                                                             &&&  ( ctb(P_0, base(P_0)), \ldots, ctb(P_n, base(P_n)) )  \\
+                                                                             &&&  (ctb(R_0, base(R_0)), \ldots, ctb(R_m, base(R_m)))  \\
+    ctb(a \textbf{ interface } \{ A_0; \ldots; A_n \}, b) &:=&& ctb(a, b) \textbf{ interface } \{ \\
+                &&&\quad ctb(A_0, base(A_0)) \\
+                &&&\quad\ldots; \\
+                &&&\quad ctb(A_n, base(A_n)) \\
+                &&&\}
+\end{align*}
+The reason for this is simple: Consider the following example:
+```go
+    var x /* or */ func(int) *int
+```
+`x` should be `or`, but this does not mean that it should be `or func (or) or`. While the result seems OK here, the default for a function parameter should be unowned (and read-only).
+
+
+For pointers, it is important to add one thing: There are two types of conversions: Normal ones and strict ones. The difference is simple: While the normal one works combines the old target's permission with the permission being converted to, strict conversion just converts the target to the specified permission. Strict conversions will become important when converting (in the type sense) a value to interfaces:
+```go
+var x /* om * or */ *int
+var y /* om interface {} */ = x
+var z /* om * om */ = y.(*int)     // um, target is mutable now?
+```
+Converting to an interface is a lossy operation: We can only maintain the outer permission. But we cannot allow the case above to happen: We just converted a pointer to read-only data to a pointer to writeable data. Not good. One way to solve this is to ensure that a permission can be assigned to it's strict permission, gathered by strictly converting the type-default permission to the current permissions base permission:
+$$
+y = x \Leftrightarrow  ass(perm(x), ctb_{strict}(perm(typeof(x)), base(perm(x)) \text { and } ass(base(x), base(y))
+$$
+\begin{samepage}
+The rules for converting a pointer permission to a base permission are thus a bit complex:
+\begin{align*}
+    &&ctb(a * A, b)                  :&= a' * ctb(A, t_2)\\
+    &&\quad \text { where }  a' &= ctb(a, b) \\
+    &&                       t_0 &= (base(A) \setminus \{o\}) \cup (a' \cap \{o\}) \\
+    &&                       t_1 &= \begin{cases}
+                                    t_0 \setminus \{w, W\} & \text{if } R \not\in a' \text{ and } t_0 \supset \{w,W\} \\
+                                    t_0 & \text{else} \\
+                                    \end{cases} \\
+    &&                       t_2 &= \begin{cases}
+                                    t_1 \setminus \{R\} & \text{if } R \not\in a' \text{ and } t_1 \supset \{r, R\} \\
+                                    t_1 & \text{else} \\
+                                    \end{cases} \\
+    &&ctb_{strict}(a * A, b)   :&= ctb_{strict}(a, b) * ctb_{strict}(A, ctb_{strict}(a, b)) \\
+\end{align*}
+\end{samepage}
+The steps $t_0, t_1, t_2$ do the following:
+
+0. The owned flag from the old target base permission is replaced with the owned flag from the given base permission. This is needed to ensure that we don't accidentally convert `om * om` to `m * om`. Keeping ownership the same throughout pointers also simplifies some other aspects in later code.
+1. If the new base permission has no exclusive read right, but the new target has exclusive write and write flags (is linearly writable), these flags are dropped.
+2. If the new base permission has no exclusive read right, but the new target has exclusive read and read flags (is linearly readable), the exclusive read flag is dropped.
+
+Steps 1 and 2 make it consistent: Without them, we could have a non-linear pointer pointing to a linear target. Since the target could only have one reference, but the pointer appears to be copyable (it's not, as the assignability rules also work recursively), we get the impression that we could have two pointers for the same target. It also allows us to just gather linearity info from the outside: If the base permission of a value is non-linear, it cannot contain linear values - this can be used to simplify some checks.
 
 ### Merging and Converting
 The idea of conversion to base types from the previous paragraph can be extended to converting between structured types. When converting between two structured types, replace all base permissions in the source with the base permissions in the same position in the target, and when the source permission is structured and the target is base, it just switches to a to-base conversion.
