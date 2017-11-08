@@ -48,35 +48,115 @@ Apart from primitive and structured permissions, there are also some special per
 **Summary**: Lingo has 5 permission flags to form base permissions. There are four kinds of permissions: base permissions, structured permissions, nil permissions, and wildcard permissions.
 
 ## Basic operations on permissions
-Lingo was designed bottom-up, by starting with the permissions, and then defining operations on them that will be needed later on.
+The following basic operations are primitives for the static analysis, that is, they allow to construct a static analyser for permissions.
 
-### Assignability
+### Assignments
 Some of the core operations on permissions involve assignability: Given a source permission and a target permission, can I assign an object with the source permission to a variable of the target permission?
 
-Three forms of assigning have been identified: copying, moving, and referencing. The shape of source and target permissions must be the same, that means, for example, that a `om * om` cannot be assigned to an `om` value. Since the shape of a structured permission equals the shape of a type, that should always be the case in practice.
+There are three modes of assignability: Copy, Move, Reference. The function $ass$ operates in the current mode, $cop$ in copy, $ref$ in reference, and $mov$ in move mode. The set of permissions bit is
+$P = \{o, r, w, R, W\}$. A base permission $b \subset P$ is a subset of all possible bits.
 
-Moving
+The base case for assigning is base permissions. For copying, the only requirement is that the source is readable (or it and target are empty). A move additionally requires that no more permissions are added - this is needed: If I move a pointer to a read-only object, I can't move it to a pointer to a writeable object, for example. When referencing, the same no-additional-permissions requirement persists, but both sides may not be linear - a linear value can only have one reference, so allowing to create another would be wrong.
+\begin{align*}
+    ass(a, b) &:\Leftrightarrow \begin{cases}
+        r \in a \text{ or } a = b =  \emptyset                                           & \text{if copying} \\
+        b  \subset a \text{ and } (r \in A \text{ or } a = b = \emptyset)                & \text{if moving} \\
+        b  \subset a \text{ and } \text{ and not } lin(a) \text{ and not } lin(b)        & \text{if referencing}
+    \end{cases} \\
+    \text{where } & lin(a) :\Leftrightarrow r, R \in a \text{ or } w, W \in a
+\end{align*}
 
-: An object can be moved if the source base permission includes the read bit, and the target base permission is a subset of the source base permission (no new bits may be added).
-If there are children, they must be movable as well.
+Next up are permissions with value semantics: arrays, structs, and tuples (tuples are only used internally to represent multiple function results). They are assignable if all their children are assignable.
+\begin{align*}
+    ass(a\ [\_]A, b\ [\_]B) &:\Leftrightarrow ass(a, b) \text{ and } ass(A, B)     \\
+    \begin{aligned}
+        ass(&a \textbf{ struct } \{ A_0; \ldots; A_n \}, \\
+            &b \textbf{ struct } \{ B_0; \ldots; B_m \})
+    \end{aligned} &:\Leftrightarrow
+        ass(a, b) \text{ and } ass(A_i, B_i)    \quad \forall 0 \le i \le n \\
+    \begin{aligned}
+        ass(a \ ( A_0, \ldots, A_n),
+            b \ ( B_0, \ldots, B_m))
+    \end{aligned} &:\Leftrightarrow
+        ass(a, b) \text{ and } ass(A_i, B_i)    \quad \forall 0 \le i \le n
+\end{align*}
 
-Copying
+Channels, slices, and maps are reference types. They behave like value types, except that copying is replaced by referencing.
+\begin{align*}
+    ass(a \textbf{ chan } A, b \textbf{ chan } B) &:\Leftrightarrow \begin{cases}
+        ref(a, b) \text{ and } ref(A, B)    & \text{copy} \\
+        ass(a, b) \text{ and } ass(A, B)    & \text{else}
+    \end{cases} \\
+    ass(a\ []A, b\ []B) &:\Leftrightarrow \begin{cases}
+        ref(a, b) \text{ and } ref(A, B)    & \text{copy} \\
+        ass(a, b) \text{ and } ass(A, B)    & \text{else}
+    \end{cases} \\
+    ass(a \textbf{ map }[A_0] A_1, b \textbf{ map }[B_0] B_1) &:\Leftrightarrow \begin{cases}
+        ref(a, b) \text{ and } ref(A_0, B_0) \text{ and } ref(A_1, B_1)    & \text{copy} \\
+        ass(a, b) \text{ and } ass(A_0, B_0) \text{ and } ass(A_1, B_1)    & \text{else} \\
+    \end{cases}
+\end{align*}
 
-: An object can be copied if it is readable, and the children are copyable. If the object is of reference-like type, copying is equivalent to referencing. For non-reference-like objects, copying may add permission bits to the base permission. When a pointer is copied, it's target must be referenceable.
+Function permissions are a fairly special case.
+The base permission here indicates the permissions of elements in the closure, essentially.
+A mutable function is thus a function that can have different results for the same immutable parameters.
+The receiver of a function, it's parameters, and the closure are essentially parameters of the function,
+and parameters are contravariant: I can pass a mutable object when a read-only object is expected, but I
+can't pass more. For the closure, ownership is the exception: An owned function can be assigned to an
+unowned function, but not vice versa:
+\begin{align*}
+    \begin{aligned}
+        ass(&a\ (R) \textbf{ func } ( P_0 \ldots, P_n ) (R_0, \ldots, R_m), \\
+            &b\ (R') \textbf{ func } ( P'_0 \ldots, P'_n ) (R'_0, \ldots, R'_m)
+    \end{aligned} &:\Leftrightarrow  \begin{cases}
+        ref(a \cap \{o\}, b \cap \{o\}) \\
+                     \quad\text{and } ref(b \setminus \{o\}, a \setminus \{o\})  \\
+                     \quad\text{and } mov(R, R) \\
+                     \quad\text{and } mov(P'_i, P_i) \\
+                     \quad\text{and } mov(R_j, R'_j)   & \text{copy}\\
+        ass(a \cap \{o\}, b \cap \{o\}) \\
+                     \quad\text{and } ass(b \setminus \{o\}, a \setminus \{o\})  \\
+                     \quad\text{and } mov(R', R) \\
+                     \quad\text{and } mov(P'_i, P_i) \\
+                     \quad\text{and } mov(R_j, R'_j)   & \text{else}\\
+        \end{cases} \\
+        & \qquad \ \text{ for all } 0 \le i \le n, 0 \le j \le m
+\end{align*}
+TODO: Why do we use $mov$ for receivers, parameters, return values?
 
-Referencing
+Pointers are another special case: When a pointer is copied, itself is copied, but the target is referenced (as we now have two pointers to the same target):
+\begin{align*}
+    ass(a * A, b * B) &:\Leftrightarrow \begin{cases}
+        ass(a, b) \text{ and } ref(A, B)    & \text{copy} \\
+        ass(a, b) \text{ and } ass(A, B)    & \text{else}
+    \end{cases}
+\end{align*}
+There is one minor deficiency with this approach: A pointer `ol * om` cannot be moved into a pointer `om * om`, due to the rule about not adding any permissions. This is the correct behaviour when moving a reference to such a pointer, but when we have two pointer variables with these permissions, we should be able to move the value itself. That is, there should probably be two types of moving: moving by reference, and moving by value. It is unclear if it is worth the effort, though - it does mean that function parameters should not require `om * om` pointers, but rather 'ol * om', but that is a minor issue.
 
-: An object can be referenced if neither source nor target permission are linear, and the children can be referenced. As special cases, function receivers, parameters, return values must be movable instead; and functions in an interface must be movable as well.
+Interfaces are method sets that work like reference types, but the methods are always moved rather than referenced. TODO This actually seems wrong.
+\begin{align*}
+    \begin{aligned}
+        ass(&a \textbf{ interface } \{ A_0; \ldots; A_n \}, \\
+            &b \textbf{ interface } \{ B_0; \ldots; B_m \})
+    \end{aligned} &:\Leftrightarrow  \begin{cases}
+        ref(a, b) \text{ and } mov(A_{idx(B_i, A)}, B_i)    & \text{copy}\\
+        ass(a, b) \text{ and } mov(A_{idx(B_i, A)}, B_i)    & \text{else}\\
+        \end{cases} \\
+        & \qquad \ \text{ for all } 0 \le i \le m
+\end{align*}
+where  $idx(B_i, A)$ determines the position of a method with the same name as $B_i$ in $A$.
 
-Function permissions are a fairly special case. Here, the `w` flag does not really mean writable, but it means that the function may return different results even for the same input parameters. As such, a readable function may be used in places where a writable function is expected, which is exactly the opposite of all other permissions, and the checks for referencing and moving are thus done in reverse for a function's base permission, except for the ownership flag.
+Finally, we have some special cases: The wildcard and nil. The wildcard is not assignable, it's only used when writing permissions to mean "default". The `nil` permission is assignable to itself, to pointers, and permissions for reference and reference-like types.
+\begin{align*}
+        ass(\textbf{\_}, B)  &:\Leftrightarrow \text{ false } \\
+        ass(\textbf{nil}, a * B)  &:\Leftrightarrow \text{ true } & ass(\textbf{nil}, a \textbf{ chan } B)  &:\Leftrightarrow \text{ true } \\
+        ass(\textbf{nil}, a \textbf{ map } [B]C)  &:\Leftrightarrow \text{ true } &
+        ass(\textbf{nil}, a []C)  &:\Leftrightarrow \text{ true } \\
+        ass(\textbf{nil}, a \textbf{ interface } \{ \ldots \})  &:\Leftrightarrow \text{ true } &
+        ass(\textbf{nil}, \textbf{nil})  &:\Leftrightarrow \text{ true }
+\end{align*}
 
-Another special case with assignability is the untyped nil permission: It can be assigned to itself, and to any pointer permission.
-
-While copying and moving requires read permissions on the source, neither operation requires write permission on the target. The reason for that is simple: We also want to be able to initialize read-only variables or construct read-only objects. There are limited ways of doing (re-)assignments in Go, and adding a special check that the target is writable there does not seem like a huge burden.
-
-Referencing values does not require read permissions. This makes sense, given that we do not copy or move the value, and thus do not have to read it, but only need to move or copy the reference. For example, when copying a pointer, we need to be able to read the pointer, but we do not need read permissions on the target of the pointer. The target could be inaccessible for all we care.
-
-### Converting to base permission
+### Converting to a base permission
 Another set of operations, closely related to the ones coming up next, are conversions to a base permission. Given a permission and a base permission, return a new permission that replaces all base permissions in the input permission with the given base permission.
 
 There are two variants of conversion: The strict one, which replaces all base permissions except for function receivers, parameters, and return values, and a more relaxed one that converts a pointer target differently:
