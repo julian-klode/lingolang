@@ -1,4 +1,4 @@
-# Introduction
+# Basics
 
 ## The Go programming language
 \vskip-3.5cm \hfill\includegraphics[height=3cm]{gopherbw}
