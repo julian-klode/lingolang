@@ -1,4 +1,4 @@
-# Linear Go
+# Permissions for Go
 As explained in the introduction, Go is mostly a value-, rather than reference-based language.
 Therefore, approaches like capabilities or fractional permissions cannot be used as is, but require some changes.
 
@@ -7,8 +7,6 @@ We want to have both linear types and non-linear types, for compatibility with e
 
 For capabilities it is much easier, we essentially only need to eliminate the identity permission, as we do not have such a concept.
 It could be argued that taking a pointer to an addressable object is similar in concept, and it might be worthwhile exploring a permission bit for that, but I can not imagine any applications.
-
-## Permissions in Go
 
 For this approach, dubbed _Lingo_ (short for linear Go), we therefore end up with 5 permissions bits:
 `r` (read), `w` (write), `R` (exclusive read), `W` (exclusive write), and `o` (ownership).
@@ -47,10 +45,7 @@ Apart from primitive and structured permissions, there are also some special per
 
 **Summary**: Lingo has 5 permission flags to form base permissions. There are four kinds of permissions: base permissions, structured permissions, nil permissions, and wildcard permissions.
 
-## Basic operations on permissions
-The following basic operations are primitives for the static analysis, that is, they allow to construct a static analyser for permissions.
-
-### Assignments
+## Assignments
 Some of the core operations on permissions involve assignability: Given a source permission and a target permission, can I assign an object with the source permission to a variable of the target permission?
 
 There are three modes of assignability: Copy, Move, Reference. The function $ass$ operates in the current mode, $cop$ in copy, $ref$ in reference, and $mov$ in move mode. The set of permissions bit is
@@ -156,7 +151,7 @@ Finally, we have some special cases: The wildcard and nil. The wildcard is not a
         ass(\textbf{nil}, \textbf{nil})  &:\Leftrightarrow \text{ true }
 \end{align*}
 
-### Converting to a base permission
+## Converting to a base permission
 Converting a given permission to a base permission essentially replaces all base permissions in that permission with the specified one, except for some exception, which we'll see later. It's major use case is specifying an incomplete type, for example:
 
 ```go
@@ -230,7 +225,7 @@ The steps $t_0, t_1, t_2$ do the following:
 
 Steps 1 and 2 make it consistent: Without them, we could have a non-linear pointer pointing to a linear target. Since the target could only have one reference, but the pointer appears to be copyable (it's not, as the assignability rules also work recursively), we get the impression that we could have two pointers for the same target. It also allows us to just gather linearity info from the outside: If the base permission of a value is non-linear, it cannot contain linear values - this can be used to simplify some checks.
 
-### Merging and Converting
+## Merging and Converting
 The idea of conversion to base types from the previous paragraph can be extended to converting between structured types. When converting between two structured types, replace all base permissions in the source with the base permissions in the same position in the target, and when the source permission is structured and the target is base, it just switches to a to-base conversion.
 
 There are two more kinds of recursive merge operations: intersection and union.
@@ -264,81 +259,6 @@ As a further special exception, if either side is a nil permission and the other
 * For intersection, the question is: Can values of $p$ or $nil$ be assigned to $p \cap nil$. Yes, they can be, $nil$ is assignable to every pointer, and $p$ is assignable to itself.
 
 
-### Creating a new permission from a type
+## Creating a new permission from a type
 Since permissions have a similar shape as types and Go provides a well-designed types package, we can easily navigate type structures and create structured permissions for them with some defaults. Currently, it just places maximum `om`
 permissions in all base permission fields.
-
-## Static analysis
-Based on the operations described in the previous section, a static analyser can be written that ensures that the rules of linearity are respected. This static analysis can be done in the form of an abstract interpreter; that is, an interpreter that does not operate on concrete values, but abstract values and tries to interpret all possible paths through a program.
-
-The abstract interpreter has a store $S: V \rightarrow P$ that maps variables to permissions.
-A variable, in this case is simply a string with the variables name.
-The store is ordered, and grouped into blocks, in order to implement scoping (TODO: Scoping is incomplete).
-It is immutable, changes are done by creating a new store with the changes in it, thus making it easy to implement branching in the interpreter.
-
-### Interpreting expressions
-Expression evaluation functions take an expression and a store, and return a new store, a new permission, and a slice of dependencies.
-The new store contains all changes that the execution would perform on the input store when executed, and the new permission is the permission of the object the expression would compute to.
-The slice of dependencies is more interesting:
-
-Go has several addressable expressions. For example, an element in the array is addressable and thus a pointer to it can be created: `&array[1]` is a pointer to the first element in array.
-
-When `array` is evaluated, a permission for the array is returned and the dependencies contains a pair of (array, old permissions of array) - the permissions for `array` in the store are moved into the expression result, effectively by perform `store[array] convertToBase(store[array], n)` - the variable is effectively marked as unusable.
-When the index and address-of operation are then evaluated, the dependencies stay the same.
-When we now assign `&array[1]` to another variable, the permissions for `array` are gone, so we can't accidentally refer to `array[1]` via two different references.
-
-When the expression is bound to a owned variable, access to `array` is lost - the dependencies are dropped. When the result is bound to an unowned variable, access to `array` will be restored when the variable goes out of scope.
-In order to simplify the implementation, binding a value with dependencies to an unowned place is only allowed at initialization time (or when constructing an unowned object). This ensures that we can drop any unowned variables when the block (or for function calls, the call) ends. (TODO: Something is a bit off)
-
-TODO: Currently, the moving also happens for non-linear values. This seems rather pointless, and might complicate things a bit.
-
-### Interpreting statements
-Statements are slightly more complex than expressions, (1) because they allow introducing new variable bindings in the current scope; and (2) because they allow jumping: There can be `return`, `goto`, `break`, `fallthrough` and all other kinds of statements in there.
-
-There are two common ways to handle "early" exits in an interpreter:
-
-1. Raise an exception (for example, a ContinueException, or BreakException)
-2. Return a value for a block statement describing where the statement exited, and pass that through
-
-In an abstract interpreter, option 1 does not work - there may be multiple exits involved; some leaving the block normally (by falling out of it), some with a branching statement.
-The second option is applicable, with the change that instead of returning one value we return multiple ones. Each statement visitor returns a pair of
-
-1. a new store, with the changes the statement made
-2. an indicator of how the block was left (in this implementation, it is either nil or a pointer to the `ReturnStmt` or `BranchStmt` (`goto`, `break`, `continue`, `falltrough`))
-
-Handling `goto`, `break`, and `continue` in a block means we cannot just iterate over the block and return, but might need to iterate multiple times, at potentially different start positions in a block (`goto` to labelled statement). The algorithm for that is simple:
-
-1. `labels` := a map of label to position in the block
-1. `work` := a list of (store, position in block) pairs, empty
-1. `seen` := a list of stores, empty
-1. Push `store, 0` to the block
-1. While there is work:
-    1. `store, position` := Pop one item out of work
-    2. If `store` in `seen`: continue
-    1. append `store` to `seen`
-    1. `exits` := Visit the statement
-    1. For each `exit` in `exits`:
-        1. If `exit` has `branch` reference and `position` = lookup label in map is in this block:
-            1. Add (store of `exit`, `position`) to work
-        1. Else, If it is a break statement, add (store of `exit`, `nil`) to `exits`
-        1. Otherwise, add `exit` to `exits`
-
-This algorithm ensures that every possible store that is generated by the loop and could be used in another iteration will be used in another iteration:
-Loops and blocks are iterated until we have seen all possible outcomes.
-
-It is however suboptimal in one aspect: Some unreachable code is not checked.
-In order to prevent unchecked statements, we can simply keep track of which statements we visited, and then walk over all statements again and warn about any unvisited statements.
-
-The concrete implementation of the algorithm varies:
-
-* For block statements, it is as written.
-* In a `for` or `range` loop, the position is gone, it's only possible to jump to the beginning (the body is a block statement, so `goto` is handled there)
-* A `for` loop:
-    * executes an initialization statement before pushing the initial store
-    * before the body is visited, the condition is visited, and the resulting store appended to exits (handling the not entering case)
-    * after the execution of the body, a post statement is executed on all stores to be appended to work
-* A `range` loop:
-    * before the initial store is pushed, the value to be ranged above is borrowed
-    * for each iteration after the initial one, before the seen check, the current store is appended to the list of exits.
-    * for each iteration, after the seen check, the key, and value on the lhs of the range loop are instantiated
-    * after the iterations, the borrowed value is released on all exits if it was unowned.
