@@ -1,7 +1,9 @@
 # Basics
+This chapter gives a quick overview of the Go programming language before discussing existing attempts to solving the
+problem with aliases of mutable objects.
 
 ## The Go programming language
-\vskip-3.5cm \hfill\includegraphics[height=3cm]{gopherbw}
+\vskip-2cm \hfill\includegraphics[height=1.5cm]{gopherbw}
 
 Go[^Go] is an imperative programming language for concurrent programming created and mainly developed by Google, initially mostly by Robert Griesemer, Rob Pike, and Ken Thompson.
 Design of the language started in 2007, and an initial version was released in 2009; with the first stable version, 1.0 released in 2012[@gofaq].
@@ -210,11 +212,13 @@ someValue, ok := someMap[someKey]   // ok is false if key not in someMap
 someMap[someKey] = someValue
 ```
 
-## State in functional programming and linear types
+## Approaches to dealing with mutability
+
 (Purely) Functional programming is a form of programming in which side effects do (should) not exist.
 That is, there should be no such things as mutable data structures, or even I/O operations, only pure
 transformations from one data structure to another.
 
+### Monads and Linear Types
 There is a way to express mutability or side effects in functional programming: Haskell and some other
 languages use a construct called monads[@launchbury1995state].
 A monad is a data structur  e that essentially represents a computation. For example, an array monad could have
@@ -258,7 +262,7 @@ another function, for example. Rust has no garbage collector, but a system of li
 
 [^Rust]: <https://www.rust-lang.org>
 
-## Capabilities for Sharing
+### Capabilities for Sharing
 The several implementations of linear types in different programming languages, are all slightly incompatible with each other, which is why 'Capabilities for Sharing'[@Boyland:2001:CSG:646158.680004] tried to introduce a common system for describing linearity.
 
 It describes a simple reference based language with objects containing fields. A _capability_ is a pair of an address and a permission - a set of the following flags:
@@ -289,16 +293,8 @@ This means that while `a` and `b` can have different _views_ on `x`, they must h
 
 Permissions might also be overly flexible: Should we really care about exclusive identity, or values that have no permission at all? There are 7 flags with two values each, so for a primitive value we end up with $2^7 = 128$ possible permissions.
 
-## Fractional permissions
+### Fractional permissions
 Another approach to linear values is fractional permissions[@Boyland:2003:CIF:1760267.1760273] and fractional permissions without fractions[@Heule:2011:FPW:2076674.2076675].
 In the fractional permission world, an object starts out with a permission of 1, and each time it is borrowed, the permissions are split. A permission of 1 can write, other permissions can only read.
 
 Fractional permissions have one advantage over the permission approach outline in the previous section: They can be recombined. The approach is otherwise far less flexible though, offering only 2 possible kinds of values (writable and not-writable) rather than the $2^7$ possible combinations of permissions.
-
-## Tying it all together
-Go's easy-to-use abstraction of concurrent programming with goroutines and channels are incredibly useful. One of the common proverbs in Go is "Don't communicate by sharing memory, share memory by communicating." (Rob Pike), that is
-instead of directly sharing data structures send pointers via channels.
-
-Linear values allow us to prevent what I like to call _use-after-send_ issues: If we just sent a pointer to our mutable data to another goroutine, we should not access it anymore, unless it's read-only. If we did, we would end up with data races. With linear values, the value is _moved_ into the channel (and then into the receiving goroutine), and rendered inaccessible in the sender.
-
-The next chapter discusses applying permissions as used in capabilities to Go to describe linear values and at the same time also introduce read-only values to Go as a side-effect.
