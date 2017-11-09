@@ -1,55 +1,92 @@
 # Permissions for Go
-As explained in the introduction, Go is mostly a value-, rather than reference-based language.
-Therefore, approaches like capabilities or fractional permissions cannot be used as is, but require some changes.
+In the previous chapter, we saw monads, linear types, and the two generalisations of linear types as capabilities
+and fractional permissions. This chapter introduces permissions for Go based on the concepts from 'Capabilities for Sharing'[@Boyland:2001:CSG:646158.680004],
+and certain operations that will be useful to build a static analyser that checks permissions on a Go program.
 
-Since we are adapting an existing programming language, it seems that fractional permissions are ill-suited:
-We want to have both linear types and non-linear types, for compatibility with existing unannotated code.
+The reasons for going with a capabilities-derived approach are simple: Monads don't work in Go, as Go does not
+have generic types; and fractional permissions are less powerful: Capabilities allow you to define objects with
+single-writer, multiple reader permissions (where there are two references, $ow\overline{W}$ for writing and,
+$or` for reading), which might come in handy later, or even just non-linear writeable values, which can be useful
+for interaction with legacy code.
 
-For capabilities it is much easier, we essentially only need to eliminate the identity permission, as we do not have such a concept.
-It could be argued that taking a pointer to an addressable object is similar in concept, and it might be worthwhile exploring a permission bit for that, but I can not imagine any applications.
-
-For this approach, dubbed _Lingo_ (short for linear Go), we therefore end up with 5 permissions bits:
+This approach is called _Lingo_ (short for linear Go). Permissions in Lingo are different from the original
+approach in 'Capabilities for Sharing' in a few points. First of all, because Go has no notion of identity,
+since it uses pointers, the right for that is dropped. We end up with 5 rights, or permission bits:
 `r` (read), `w` (write), `R` (exclusive read), `W` (exclusive write), and `o` (ownership).
+
+A permission is called _linear_ iff it contains an exclusive right matched with its base right, that is, either
+`rR` or `wW`.
+Compared to the introduction of linear types, the ones to be introduced are not single-use values, but rather may only have a single reference at a time, which is conceptually equivalent to having the same parameter act as both input and output arguments, where passing a value makes a function use it and then write back a new one.
+A linear object can only be referenced by or contained in other linear objects, in order to preserve linearity.
+
 
 Out of the $2^5$ possible combinations of permissions bits we have a few built-in aliases:
 
 * `m`, _mutable_, is equivalent to `rwRW`
 * `v`, _value_, is equivalent to `rW`
-* `l`, _linear value_, is equivalent to `rRW` (the term linear value actually conflicts with the usage in this thesis)
+* `l`, _linear value_, is equivalent to `rRW`
 * `n`, _none_, is equivalent to, well, none bits set
 * `a`, _any_, is equivalent to all non-exclusive bits set, that is `orwRW`.
 
-An object is considered as _linear_ iff it has a read/write right with a matching exclusive right, that is, it must contain either `rR` or `wW`.
-A linear object here may be used more than once, but it might have only a single reference at a time.
-This is conceptually equivalent to having the same parameter act as both input and output arguments, where passing a value makes a function use it and then write back a new one.
-A linear object can only be referenced by or contained in other linear objects, in order to preserve linearity.
-
-Unwritable objects may not embed any writable objects, but they may store pointers to writable objects. For linear objects, a linear unwritable object may store a linear writable object. There are some odd corner cases with reference-like types like maps and slices, as they are conceptually embedded at the moment, and thus must be unwritable as well if the outer object is unwritable.
 
 Ownership plays an interesting role with linear objects: It determines whether a reference is _moved_ or _borrowed_ (temporarily moved). For example, when passing a linear map to a function expecting an owned map, the map will be moved inside the function; if the parameter is unowned, the map will be borrowed instead. Coming back to the analogy with in and out parameters, owned parameters are both in and out, whereas unowned parameters are only in.
+
+```{#syntax caption="Permission syntax" float=t frame=tb}
+main <- inner EOF
+inner <- '_' | [[basePermission] [func | map | chan | pointer | sliceOrArray] | basePermission]
+basePermission ('o'|'r'|'w'|'R'|'W'|'m'|'l'|'v'|'a'|'n')+
+func <- ['(' param List ')'] 'func' '(' [paramList] ')'
+        ( [inner] |  '(' [paramList] ')')
+paramList <- inner (',' inner)*
+fieldList <- inner (';' inner)*
+sliceOrArray <- '[' [NUMBER|_] ']' inner
+chan <- 'chan' inner
+chan <- 'interface' '{' [fieldList] '}'
+map <- 'map' '[' inner ']' inner
+pointer <- '*' inner
+struct <- 'struct' '{' fieldList '}'
+```
 
 Instead of using a store mapping objects, and (object, field) tuples to capabilities, that is, (object, permission) pairs, Lingo employs a different approach in order to combat the limitations shown in the introduction.
 Lingo's store maps a variable to a permission.
 It does however, not just have the permission bits introduced earlier (from now on called _base permission_), but also _structured_ permissions, equivalent to types.
-A structured permission consists of a base permission and permissions for child elements, and is essentially a graph with the same shape as the graph describing the type. Some examples:
-
-* Primitive values (integers, strings, floats, etc.) have a base permission
-* An object of type `*T` has the structured permission `<base> * <perm of T>`.
-* An object of type `struct { x int; y int}` has the structured permission `<base> struct { <base>; <base>}`
-* An object of type `[]int` has the structured permission `<base> [] <base>`
+These structured permissions consist of a base permission and permissions for each child, target, etc.
 
 Apart from primitive and structured permissions, there are also some special permissions:
 
 * The untyped nil permission, representing the `nil` literal.
 * The wildcard permission, written `_`. It is used in permission annotations whenever the default permission for a type should be used.
 
-**Summary**: Lingo has 5 permission flags to form base permissions. There are four kinds of permissions: base permissions, structured permissions, nil permissions, and wildcard permissions.
+The full syntax for these permissions is given in listing \ref{syntax}. The base permission does not need to be specified for structured types, if absent, it is considered to be `om`.
+
+In the rest of the chapter, we will discuss permissions using a set based notation: The set of permissions bits is $B = \{o, r, w, R, W\}$. A base permission
+$b \subset B$ (single lower case character) is a subset of all possible bits. The set $P$ is the set of all possible permissions, and a single upper case character
+$A \subset P$ indicates any member in it.
 
 ## Assignments
 Some of the core operations on permissions involve assignability: Given a source permission and a target permission, can I assign an object with the source permission to a variable of the target permission?
 
-There are three modes of assignability: Copy, Move, Reference. The function $ass$ operates in the current mode, $cop$ in copy, $ref$ in reference, and $mov$ in move mode. The set of permissions bit is
-$P = \{o, r, w, R, W\}$. A base permission $b \subset P$ is a subset of all possible bits.
+As a value based language, one of the most common forms of assignability is copying:
+```go
+var x = 0
+var y = x   // copy
+```
+Another one is referencing:
+```go
+var x = 0
+var y = &x   // reference
+var z = y    // still a reference to x, so while we copy the pointer, we also reference x one more time
+```
+Finally, in order to implement linearity, we need a way to move things:
+```go
+var x = 0    // a mutable value
+var y = &x   // have to move x, otherwise y and x both reach x
+var z = y    // have to move the pointer from y to z, otherwise both reach x
+```
+
+In the following, the function $ass: P \times P \to bool$ describes whether a value of the left permission can be assigned to a location of
+the right permission; it takes an implicit parameter describing the current mode of copying. The functions $cop$, $ref$,
+and $mov$ are functions doing assignment in copy, reference, and move mode.
 
 The base case for assigning is base permissions. For copying, the only requirement is that the source is readable (or it and target are empty). A move additionally requires that no more permissions are added - this is needed: If I move a pointer to a read-only object, I can't move it to a pointer to a writeable object, for example. When referencing, the same no-additional-permissions requirement persists, but both sides may not be linear - a linear value can only have one reference, so allowing to create another would be wrong.
 \begin{align*}
@@ -159,6 +196,14 @@ var x /* @perm om */ *int
 ```
 It's a pointer, but the permission is only for a base. We can convert the default permission for the type (we'll discuss them later) to `om`, giving us a complete permission. And in the next section, we'll extend conversion to arbitrary prefixes of the permission graph.
 
+Another major use case is ensuring consistency of rules, like:
+
+- Unwritable objects may not embed any writable objects
+- Non-linear unwriteable objects may contain pointers to non-linear writable objects
+- Linear unwritable objects may point to linear unwritable objects.
+
+As every specified permission will be converted to its base type, we can ensure that every permission is consistent, and we don't end up with inconsistent permissions like `or * om` - a pointer that could be copied, but pointing to a linear object.
+
 Most cases of to-base conversions are rather simple:
 \begin{align*}
     ctb(a, b) &:= b \\
@@ -224,6 +269,7 @@ The steps $t_0, t_1, t_2$ do the following:
 2. If the new base permission has no exclusive read right, but the new target has exclusive read and read flags (is linearly readable), the exclusive read flag is dropped.
 
 Steps 1 and 2 make it consistent: Without them, we could have a non-linear pointer pointing to a linear target. Since the target could only have one reference, but the pointer appears to be copyable (it's not, as the assignability rules also work recursively), we get the impression that we could have two pointers for the same target. It also allows us to just gather linearity info from the outside: If the base permission of a value is non-linear, it cannot contain linear values - this can be used to simplify some checks.
+
 
 ## Merging and Converting
 The idea of conversion to base types from the previous paragraph can be extended to converting between structured types. When converting between two structured types, replace all base permissions in the source with the base permissions in the same position in the target, and when the source permission is structured and the target is base, it just switches to a to-base conversion.

@@ -95,24 +95,6 @@ for {
 }
 ```
 
-The complete syntax is described in listing \ref{syntax}.
-
-```{#syntax caption="Permission syntax" float=ht frame=tb}
-main <- inner EOF
-inner <- '_' | basePermission [func | map | chan | pointer | sliceOrArray]
-basePermission ('o'|'r'|'w'|'R'|'W'|'m'|'l'|'v'|'a'|'n')+
-func <- ['(' param List ')'] 'func' '(' [paramList] ')'
-        ( [inner] |  '(' [paramList] ')')
-paramList <- inner (',' inner)*
-fieldList <- inner (';' inner)*
-sliceOrArray <- '[' [NUMBER|'_'] ']' inner
-chan <- 'chan' inner
-chan <- 'interface' '{' [fieldList] '}'
-map <- 'map' '[' inner ']' inner
-pointer <- '*' inner
-struct <- 'struct' '{' fieldList '}'
-```
-
 ## Representation of permissions
 Base permissions are implemented as integer bitfields. Intersection is the bitwise and operation; union is the bitwise or operation.
 
