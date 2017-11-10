@@ -270,6 +270,86 @@ The steps $t_0, t_1, t_2$ do the following:
 
 Steps 1 and 2 make it consistent: Without them, we could have a non-linear pointer pointing to a linear target. Since the target could only have one reference, but the pointer appears to be copyable (it's not, as the assignability rules also work recursively), we get the impression that we could have two pointers for the same target. It also allows us to just gather linearity info from the outside: If the base permission of a value is non-linear, it cannot contain linear values - this can be used to simplify some checks.
 
+#### Theorem: $cbt_b(A) = cbt(A, b)$ is idempotent
+_Theorem:_ Conversion to base, $cbt$ is idempotent, or rather $cbt_b(A) = cbt(A, b)$ is. That is, for all $A \in P, b \in R$: $ctb_b(A) = ctb(A, b) = ctb(ctb(A, b), b) = ctb_b(ctb_b(A))$.
+
+_Background:_ This theorem is important because we generally assume that $ctb(A, base(A)) = A$ for all $A \in P$ that have been converted once (what is called consistent, and is the case for
+all permissions the static analysis works with).
+
+_Proof._
+
+1. Simple cases:
+    \begin{align*}
+        ctb(ctb(a, b), b) &= ctb(b, b) = b = ctb(a, b) \\
+        ctb(ctb(\_, b), b) &= ctb(b, b) = b = ctb(\_, b)\\
+        ctb(ctb(nil, b), b) &= ctb(nil, b) = nil = ctb(nil, b)\\
+    \end{align*}
+1. Channels, slices, arrays, maps, structs, and tuples basically have the same rules: All children are converted to the same base permission as well. It suffices to prove one of them. Let us pick channels:
+    \begin{align*}
+        ctb(ctb(a \textbf{ chan } A, b), b) &= ctb(ctb(a, b) \textbf{ chan } ctb(A, ctb(a, b)), b) & \text{(def chan)} \\
+                                            &= ctb(ctb(a, b), b) \textbf{ chan } ctb(ctb(A, ctb(a, b)), b) & \text{(def chan)}\\
+                                            &= ctb(b, b) \textbf{ chan } ctb(ctb(A, b), b) & (ctb(a, b) = b) \\
+                                            &= b \textbf{ chan } ctb(A, b)  & \text{other case} \\
+                                            &= ctb(a, b) \textbf{ chan } ctb(A, ctb(a, b)) & (ctb(a, b) = b) \\
+                                            &= ctb(a \textbf{ chan } A, b) & \text{(def chan)}
+    \end{align*}
+1. Functions and interfaces convert their child permissions to their own bases. We can proof the property for the special case of an interface with one method without loosing genericity, since these are structured the same.
+    \begin{align*}
+        &ctb(ctb(a \textbf{ interface } \{ A_0 \}, b), b) \\
+        =& ctb(ctb(a, b) \textbf{ interface } \{  ctb(A_0, base(A_0))  \}, b) & \text{by definition}  \\
+        =& \underbrace{ctb(ctb(a, b), b)}_{= ctb(a, b)} \textbf{ interface } \{ ctb(ctb(A_0, base(A_0)), \underbrace{base(ctb(A_0, base(A_0))))}_{= base(A_0) \text{(trivial)}} \}  & \text{by definition}\\
+        =& ctb(a, b) \textbf{ interface } \{  \underbrace{ctb(ctb(A_0, base(A_0)), base(A_0))}_{\text{case of $ctb(ctb(A, b), b)$}} \} \\
+        =& ctb(a, b) \textbf{ interface } \{ ctb(A_0, base(A_0)) \} \\
+        =& ctb(a \textbf{ interface } \{ A_0 \}, b) & \text{by definition}
+    \end{align*}
+1. Pointers are more complicated. Let $ctb(a * A, b) = a' * ctb(A, t_2)$ with $a' = ctb(a,b)$ and a $t_2$ according to the definition. And  ctb(ctb(a * A, b), b) = ctb(a' * ctb(A, t_2), b) = a'' * ctb(A, t_2')$. We have to show that $a' = a''$ and $t_2 = t_2'$.
+
+    1. $a' = ctb(a, b) = ctb(ctb(a, b), b) = a''$.
+    2. $t_2$ essentially has the form $t_0 \setminus X = base(A) \setminus \{o\} \cup (a \cap \{o\}) \setminus X$ for some set $X \in \{\{R\}, \{w, W\}, \{R, w, W\}\}$; depending on the value of A.
+
+    Given that $a = a'$, it follows that:
+
+    \begin{align*}
+        t_0' &= ( \underbrace{base(ctb(A, t_2)}_{= t_2}) \setminus \{o\}) \cup (\underbrace{a''}_{= a'} \cap \{o\}) \\
+            &= ( t_2 \setminus \{o\}) \cup (a' \cap \{o\}) \\
+            &=  t_2 \\
+            &= ( (base(A) \underbrace{\setminus \{o\} \cup (a' \cap \{o\})}_{\text{no effect due to } \setminus \{o\} \text{ later}} \setminus X)  \setminus \{o\}) \cup (a' \cap \{o\}) \\
+            &= ( (base(A) \setminus X)  \setminus \{o\}) \cup (a' \cap \{o\}) \\
+            &= ( base(A) \setminus \{o\}) \cup (a' \cap \{o\}) \setminus X & \text{because }  o \not\in X\\
+            &= t_0 \setminus X = t_2
+    \end{align*}
+
+    Now, let's look at $t_1'$ and $t_2'$. There are two variants each: $t_i = t_{i-1}$ and $t_i = t_{i-1} \setminus X$ for some $X$ if  $R \not\in a'$ and some other condition holds. Therefore, for $R \in a'$,
+    it trivially follows that $t_0 = t_1 = t_2$ and $t_0' = t_1' = t_2'$. Let's assume $R \not\in a'$, and thus . For $t_1'$, this means:
+    \begin{align*}
+                            t_1' &= \begin{cases}
+                                        t_0' \setminus \{w, W\} & \text{if } R \not\in a'' \text{ and } t_0' \supset \{w,W\} \\
+                                        t_0' & \text{else} \\
+                                        \end{cases} \\
+                                    &= \begin{cases}
+                                        t_0' \setminus \{w, W\} & \text{if } t_0' \supset \{w,W\} \\
+                                        t_0' & \text{else} \\
+                                        \end{cases}
+    \end{align*}
+    The first case cannot happen: $t_0' \supset \{w, W\} \Rightarrow ( t_2 \setminus \{o\}) \cup (a' \cap \{o\}) \supset \{w, W\} \Rightarrow t_2 \supset \{w, W\}$. But that can't be the case as $t_2 \subset t_1$, and $t_1$ is $t_0$ with $\{r, W\}$ removed if they were part of it. Therefore, $t_1' = t_0' = t_2$.
+    Now consider $t_2'$:
+    \begin{align*}
+                            t_2' &= \begin{cases}
+                                        t_1' \setminus \{R\} & \text{if } R \not\in a'' \text{ and } t_1' \supset \{r,R\} \\
+                                        t_1' & \text{else} \\
+                                        \end{cases} \\
+                                    &= \begin{cases}
+                                        t_1' \setminus \{R\} & \text{if } t_1' \supset \{r,R\} \\
+                                        t_1' & \text{else} \\
+                                        \end{cases}
+    \end{align*}
+    And again, the first case cannot happen, it leads to a contradiction: $t_1' = t_2 \supset \{r, R\} \Rightarrow t_1 \supset \{r, R\} \Rightarrow t_2 = t_1 \setminus \{R\} \Rightarrow t_2 \not\supset \{r, R\}$.
+
+    Therefore, $t_2' = t_1' = t_0' = t_2$, and thus $ctb(ctb(a * A, b), b) = ctb(a * A, b)$.
+1. The strict case of pointers is trivial and can be proven like channels.
+
+In conclusion, $ctb(ctb(A, b), b) = ctb(A, b)$ for all $A \in P, b \in R$, as was to be shown.  $\qed$
+
 
 ## Merging and Converting
 The idea of conversion to base types from the previous paragraph can be extended to converting between structured types. When converting between two structured types, replace all base permissions in the source with the base permissions in the same position in the target, and when the source permission is structured and the target is base, it just switches to a to-base conversion.
