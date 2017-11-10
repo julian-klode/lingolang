@@ -9,11 +9,16 @@ subtitle: |
  Master's Thesis
 documentclass: scrreprt
 #classoption: twoside
+secnumdepth: 2
+toc-depth: 1
 header-includes:
- - \usepackage[draft]{graphicx}
+ - \usepackage[]{graphicx}
+ - \usepackage{amsmath,amsthm}
+ - \lstset{basicstyle=\small\ttfamily,commentstyle=\ttfamily\itshape\color{gray},columns=fullflexible,keepspaces=true,breaklines=true,basewidth={0.5em,0.5em},frame=tb}
 links-as-notes: true
 toc: true
-highlight-style: monochrome
+listings: true
+highlight-style: monochrome - \fontfamily{lmvtt}\selectfont
 author: |
  Julian Andres Klode \
  Philipps-Universität Marburg
