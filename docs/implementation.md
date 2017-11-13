@@ -1,12 +1,10 @@
 # Implementation
 
-The program is available in the ``github.com/julian-klode/lingolang` import, and provides three packages:
+The reference implementation is available in the `github.com/julian-klode/lingolang` import, and provides three packages:
 
 1. `permission` implements permission objects, parsing permissions, and operations involving permissions, like conversions, merges, assignability checks, and constructing permissions from types.
 2. `capabilities` implements the store and the abstract interpreter
 3. `lingolint` or rather `main`, implements a command-line binary
-
-The permission library is thoroughly tested and achieves 100% line coverage. Likewise, the capabilities package is tested as far as possible, but it only achieves between 99% and 100% line coverage. The high coverage rate with the rule of not introducing any new changes that reduce coverage if possible, lead to a solid code base that can easily be extended without worrying much about breaking stuff.
 
 The permission library is organized into several files, by function, rather than by types. There is one file dealing with checking copyability, one file dealing with convert-to-base operations, one file declaring all the types, one file contains the scanner, one file the parser, and so on.
 
