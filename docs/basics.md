@@ -6,21 +6,21 @@ problem with aliases of mutable objects.
 \vskip-2cm \hfill\includegraphics[height=1.5cm]{gopherbw}
 
 Go[^Go] is an imperative programming language for concurrent programming created and mainly developed by Google, initially mostly by Robert Griesemer, Rob Pike, and Ken Thompson.
-Design of the language started in 2007, and an initial version was released in 2009; with the first stable version, 1.0 released in 2012[@gofaq].
+Design of the language started in 2007, and an initial version was released in 2009; with the first stable version, 1.0 released in 2012 [@gofaq].
 
 
 [^Go]: <https://golang.org> -	The Go gopher was designed by Renee French. (http://reneefrench.blogspot.com/)
      The design is licensed under the Creative Commons 3.0 Attributions license.
       Read this article for more details: https://blog.golang.org/gopher
 
-Go has a C-like syntax (without a preprocessor), garbage collection, and, like it's predecessors devloped at Bell Labs -- Newsqueak (Rob Pike), Alef (Phil Winterbottom), and Inferno (Pike, Ritchie, et al) -- provides built-in support for concurrency using so-called goroutines and channels, a form of co-routines, based on the idea of Hoare's 'Communicating Sequential Processes'[@hoare1978communicating].
+Go has a C-like syntax (without a preprocessor), garbage collection, and, like its predecessors devloped at Bell Labs -- Newsqueak (Rob Pike), Alef (Phil Winterbottom), and Inferno (Pike, Ritchie, et al.) -- provides built-in support for concurrency using so-called goroutines and channels, a form of co-routines, based on the idea of Hoare's 'Communicating Sequential Processes' [@hoare1978communicating].
 
 Go programs are organized in packages. A package is essentially a directory containing Go files. All files in a package share the same namespace, and there are two visibilities for symbols in a package: Symbols starting with an upper case character are visible to other packages, others are private to the package.
 
 #### Types
 Go has a fairly simple type system: There is no subtyping (but there are conversions), no generics, no polymorphic functions, and there are only a few basic categories of types:
 
-1. base types: `int`, `int64`, `int8`, `uint`, `float`, etc.
+1. base types: `int`, `int64`, `int8`, `uint`, `float32`, `float64`, etc.
 1. `struct`
 1. `interface` - a set of methods
 1. `map[K, V]` - a map from a key type to a value type
@@ -36,15 +36,37 @@ Go has a fairly simple type system: There is no subtyping (but there are convers
     type T OtherNamedType
     ```
 
-    A named type is a (mostly) distinct type from the underlying type - an
-    explicit conversion is required to use them (in most cases). In some cases,
-    like if the underlying type is a number, operators like `+` do work on them.
+    A named type is a mostly distinct type from the underlying type - an
+    explicit conversion is required to use them, at least in most cases: In some cases,
+    like if the underlying type is a number, some operators like `+` do work on them.
 
-Maps, slices, and channels are (mostly) reference types (or rather, structs containing pointers)
+Maps, slices, and channels are mostly reference types (or rather, structs containing pointers)
 but all other types are passed by value. Especially arrays are copied entirely when passed around,
 instead of just copying the pointer, like C does.
 
-Constants are untyped. For example, while a named type is different from an underlying type, and an `int` can not be copied to a `type MyInt int`, the value `1` is untyped and can be copied into both. Only a rough kind of type is available, classifying a literal into integral, floating point, string, etc.
+##### Constants
+
+Go has untyped literals and constants.
+
+```
+    1    // untyped integer literal
+    const foo = 1 // untyped integer constant
+    const foo int = 1 // int constant
+```
+
+
+Untyped values are classified into the following categories: `UntypedBool`, `UntypedInt`, `UntypedRune`, `UntypedFloat`, `UntypedComplex`, `UntypedString`, and `UntypedNil` (Go calls them _basic kinds_, other basic kinds are available for the concrete types like `uint8`). An untyped value can be assigned to a named type derived from a base type; for example:
+
+```go
+
+// What are we doing?
+type someType int
+
+const untyped = 2             // UntypedInt
+const bar someType = untyped  // OK: untyped can be assigned to someType
+const typed int = 2           // int
+const bar2 someType = typed   // error: int cannot be assigned to someType
+```
 
 #### Interfaces and 'objects'
 As mentioned before, interfaces are a set of methods.
@@ -84,13 +106,13 @@ The statements are fairly similar to their equivalent in other C-like languages,
 
 * The `switch` statement can use arbitrary expressions in cases
 * The `switch` statement can switch over nothing (equals switching over true)
-* Cases not fall through by default (no `break` needed), use `fallthrough` at the end of a block to fall through.
+* Cases do not fall through by default (no `break` needed), use `fallthrough` at the end of a block to fall through.
 * The `for` loop can loop over ranges: `for key, val := range map { do something }`
 
 
 
 #### Goroutines
-The keyword `go` spawns a new go-routine, a concurrently executed function. It can be used with any function call, even a function literal:
+The keyword `go` spawns a new goroutine, a concurrently executed function. It can be used with any function call, even a function literal:
 
 ```go
 func main() {
@@ -104,7 +126,7 @@ func main() {
 ```
 
 #### Channels
-Goroutines are often combined with channels to provide an extended form of CSP [@hoare1978communicating]. A channel is a concurrent-safe queue, and can be buffering or unbuffered:
+Goroutines are often combined with channels to provide an extended form of Communicating Sequential Processes [@hoare1978communicating]. A channel is a concurrent-safe queue, and can be buffering or unbuffered:
 
 ```go
 var unbuffered = make(chan int)  // sending blocks until value has been read
@@ -156,6 +178,7 @@ type error interface {
 Errors have to be checked in the code, or can be assigned to `_`:
 
 ```go
+n0, _ := Read(Buffer)   // ignore error
 n, err := Read(buffer)
 if err != nil {
     return err
@@ -184,7 +207,7 @@ func Function() (err error) {
 ```
 
 #### Arrays and slices
-As mentioned before, an array is a value type and a slice is a pointer into an array, created either by slicing an existing array or using an anonymous backing store:
+As mentioned before, an array is a value type and a slice is a pointer into an array, created either by slicing an existing array or by using `make()` to create a slice, which will create an anonymous array to hold the elements.
 
 ```go
 slice1 := make([]int, 2, 5) // 5 elements allocated, 2 initialized to 0
@@ -214,20 +237,20 @@ someMap[someKey] = someValue
 
 ## Approaches to dealing with mutability
 
-(Purely) Functional programming is a form of programming in which side effects do (should) not exist.
-That is, there should be no such things as mutable data structures, or even I/O operations, only pure
+Functional programming is a form of programming in which side effects do not exist.
+That is, there is no such things as mutable data structures, or even I/O operations, only pure
 transformations from one data structure to another.
 
 ### Monads and Linear Types
 There is a way to express mutability or side effects in functional programming: Haskell and some other
-languages use a construct called monads[@launchbury1995state].
-A monad is a data structur  e that essentially represents a computation. For example, an array monad could have
+languages use a construct called monads [@launchbury1995state].
+A monad is a data structure that essentially represents a computation. For example, an array monad could have
 operations 'modifying' an array that compute a new monad that when 'executed' produces a final array - it is essentially a form of embedded language. TODO: How is a monad composed
 
 Monads solve the problem of referential transparency: A function with the same input will
 produce the same output (a function operating on a monad produces a new monad describing any
 computations to be made, and is thus pure). They have one major drawback however: They are not
-easily combinable: As soon as you have more than one Monad, you need to 'lift' Monad operations into
+easily combinable: As soon as you have more than one monad, you need to 'lift' monad operations into
 other monads in order to use them together. This makes it hard to read code.
 
 An alternative approach to representing mutability are linear types. A value of a linear type can only
@@ -237,7 +260,7 @@ optimize the operation to use the same array, because it knows that nobody else 
 
 Consuming and returning linear values is a bit annoying, which is why some programming languages started
 introducing shortcuts for it: A parameter with a special annotation serves as both an input
-and an output parameter. For example, in Mercury, an efficient purely declarative logic programming language[@somogyi1995mercury][@dowd2000using, section 2.2], an operation could look like this:
+and an output parameter. For example, in Mercury, an efficient purely declarative logic programming language [@somogyi1995mercury][@dowd2000using, section 2.2], an operation could look like this:
 ```prolog
 :- module hello.
 :- interface.
@@ -263,7 +286,7 @@ another function, for example. Rust has no garbage collector, but a system of li
 [^Rust]: <https://www.rust-lang.org>
 
 ### Capabilities for Sharing
-The several implementations of linear types in different programming languages, are all slightly incompatible with each other, which is why 'Capabilities for Sharing'[@Boyland:2001:CSG:646158.680004] tried to introduce a common system for describing linearity.
+The several implementations of linear types in different programming languages, are all slightly incompatible with each other, which is why 'Capabilities for Sharing' [@Boyland:2001:CSG:646158.680004] tried to introduce a common system for describing linearity.
 
 It describes a simple reference based language with objects containing fields. A _capability_ is a pair of an address and a permission - a set of the following flags:
 
@@ -275,12 +298,15 @@ It describes a simple reference based language with objects containing fields. A
 * $\overline{I}$ - exclusive identity - no other capability has identity access to the object
 * $O$ - ownership
 
-Exclusive read and write do not imply their non-exclusive counter parts, allowing to create absolutely read-only object ($R\overline{W}$). Permissions also must be asserted: Other capabilities can have their conflicting access rights stripped at run-time. Asserting the permissions of an unowned object strips away incompatible permissions from other unowned objects, but asserting on an owned object strips away all incompatible permissions elsewhere.
+Exclusive read and write do not imply their non-exclusive counter parts; for example, an object $R\overline{W}$ prevents others from writing, but cannot write itself - it is essentially a read-only object.
+Permissions also must be asserted: Other capabilities can have their conflicting access rights stripped at run-time.
+Asserting the exclusive permissions of an unowned capability strips away incompatible permissions from other unowned capabilities, but asserting on an owned capability strips away all incompatible permissions on all other capabilities
+- so for example, if there are two capabilities $A$ and $B$ for the location $x$, both with $R\overline{W}$, asserting the permissions one one will strip away the permission from the other.
 If not asserted, exclusive permissions mean nothing: There could be multiple capabilities with exclusive reads for the same object in the program.
 
-They provide a small-step evaluation of a tiny language which operates on a _store_ which maps addresses and (object, field) pairs to capabilities. It's not entirely clear if this was intended, but this approach has a somewhat serious drawback:
+They provide small-step semantics of a tiny language which operates on a _store_ which maps addresses and (object, field) pairs to capabilities. One thing follows from that approach:
 
-Given four objects `a`, `b`, `x`, `y`, with `a`, `b` having fields `x` referencing `x`, and `x` having a field referencing `y`, the capability for `a.x.y` and `b.x.y` have to be the same:
+Given four objects `a`, `b`, `x`, `y`, with `a`, `b` each having a field `x` referencing `x`, and `x` having a field referencing `y`, the capability for `a.x.y` and `b.x.y` have to be the same:
 
 * Evaluating `a.x.y`:
     1. $(A, X) \rightarrow (X, \text{permissions for } X \text{ in } A)$
@@ -290,11 +316,12 @@ Given four objects `a`, `b`, `x`, `y`, with `a`, `b` having fields `x` referenci
     1. $(X, Y) \rightarrow (Y, \text{permissions for } Y \text{ in } X)$
 
 This means that while `a` and `b` can have different _views_ on `x`, they must have the same one for `y`.
+It's unclear if this was intended to keep things simple, or if it was not considered that it might be useful to have different permissions for `y`.
 
 Permissions might also be overly flexible: Should we really care about exclusive identity, or values that have no permission at all? There are 7 flags with two values each, so for a primitive value we end up with $2^7 = 128$ possible permissions.
 
 ### Fractional permissions
-Another approach to linear values is fractional permissions[@Boyland:2003:CIF:1760267.1760273] and fractional permissions without fractions[@Heule:2011:FPW:2076674.2076675].
+Another approach to linear values is fractional permissions [@Boyland:2003:CIF:1760267.1760273] and fractional permissions without fractions [@Heule:2011:FPW:2076674.2076675].
 In the fractional permission world, an object starts out with a permission of 1, and each time it is borrowed, the permissions are split. A permission of 1 can write, other permissions can only read.
 
 Fractional permissions have one advantage over the permission approach outline in the previous section: They can be recombined. The approach is otherwise far less flexible though, offering only 2 possible kinds of values (writable and not-writable) rather than the $2^7$ possible combinations of permissions.
