@@ -51,6 +51,10 @@ It does however, not just have the permission bits introduced earlier (from now 
 These structured permissions consist of a base permission and permissions for each child, target, etc. - in short, the implementation is sort of a "shadow" type
 system.
 
+There is one problem with the approach of one base permission and one permission per child: Reference types like maps or functions actually need two base permissions:
+The permission of the reference (as in, "can I assign a different map to this variable") and the permission of the referenced value (as in, "can I insert something
+into this map").
+
 Apart from primitive and structured permissions, there are also some special permissions:
 
 * The untyped nil permission, representing the `nil` literal.
@@ -211,7 +215,6 @@ Another major use case is ensuring consistency of rules, like:
 - Linear unwritable objects may point to linear unwritable objects.
 
 As every specified permission will be converted to its base type, we can ensure that every permission is consistent, and we don't end up with inconsistent permissions like `or * om` - a pointer that could be copied, but pointing to a linear object.
-TODO: Conversion is overly strict: We cannot have a struct with a read-only and a writeable map, for example.
 
 Most cases of to-base conversions are rather simple:
 \begin{align*}
@@ -225,6 +228,12 @@ Most cases of to-base conversions are rather simple:
     ctb(a \textbf{ struct } \{ A_0; \ldots; A_n \}, b) &:= ctb(a, b) \textbf{ struct }  \{ ctb(A_0, ctb(a, b)); \ldots; ctb(A_n, ctb(a, b)) \}   \\
     ctb(a\ ( A_0; \ldots; A_n), b) &:= ctb(a, b)\ ( ctb(A_0, ctb(a, b)); \ldots; ctb(A_n, ctb(a, b)) )
 \end{align*}
+
+The rules are problematic in some sense, though: All children have the same base permission as their parent. This kind of makes sense for non-reference
+values like structs containing ints - after all, they are in one memory location; but with reference types, it's somewhat confusing: For example, a struct
+cannot have both a mutable (`om map...`) and a read-only map (`or map...`) as their base permissions are different. As mentioned before, these really need
+a second base permission for the object being referenced (like a pointer, see below). Then both maps could be (linear) read-only references, one referencing
+a mutable map, one referencing a read-only map.
 
 Functions and interfaces are special, again: Methods, and receivers, parameters, results of functions are converted to their own base permission:
 \begin{align*}
