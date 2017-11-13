@@ -282,9 +282,7 @@ and an output parameter. For example, in Mercury, an efficient purely declarativ
 :- interface.
 
 :- import_module io.
-
 :- pred main(io::di, io::uo) is det.
-
 :- implementation.
 main(!IO) :-
     write_string("Hello, world!\n", !IO).

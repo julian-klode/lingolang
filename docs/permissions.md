@@ -90,7 +90,7 @@ var x /* om */ = 0
 var y = &x   // have to move x, otherwise y and x both reach x
 var z = y    // have to move the pointer from y to z, otherwise both reach x
 ```
-(Though we are moving the permissions, not the values in that case, `y` still points to `x`)
+(Though we are moving the permissions, not the values in `&x` - the value is still stored in the location of `x`)
 
 In the following, the function $ass: P \times P \to bool$ describes whether a value of the left permission can be assigned to a location of
 the right permission; it takes an implicit parameter describing the current mode of copying. The functions $cop$, $ref$,
