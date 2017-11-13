@@ -207,6 +207,7 @@ Another major use case is ensuring consistency of rules, like:
 - Linear unwritable objects may point to linear unwritable objects.
 
 As every specified permission will be converted to its base type, we can ensure that every permission is consistent, and we don't end up with inconsistent permissions like `or * om` - a pointer that could be copied, but pointing to a linear object.
+TODO: Conversion is overly strict: We cannot have a struct with a read-only and a writeable map, for example.
 
 Most cases of to-base conversions are rather simple:
 \begin{align*}
@@ -447,5 +448,7 @@ Then merging functions is:
 \end{align*}
 
 ## Creating a new permission from a type
-Since permissions have a similar shape as types and Go provides a well-designed types package, we can easily navigate type structures and create structured permissions for them with some defaults. Currently, it just places maximum `om`
-permissions in all base permission fields.
+Since permissions have a similar shape as types and Go provides a well-designed types package, we can easily navigate type structures and create structured permissions for them with some defaults. Currently, it just places maximum `m`
+permissions in all base permission fields. And the interpreter, discussed in the next section, converts to owned as needed, using $ctb()$.
+
+One special case exists: If a type is not understood, we try to create the permission from it's _underlying type_. For example, `type Foo int` is a named type, but we don't support named types, so we use the underlying type, `int`, for creating the permission.
