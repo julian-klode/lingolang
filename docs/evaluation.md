@@ -163,6 +163,9 @@ the other stuff to be tested were single functions with lots of cases; the store
 #### Abstract statement interpretation
 
 ## Known issues
+Permissions are _too uniform_: All permissions have one base permission. But reference types like maps or functions actually need two: The permission of the
+reference and the permission of the referenced value (like a pointer).
+
 The implementation is _coarse_: If I borrow anything uniquely referred to by a variable, then the entire variable is marked as unusable, rather than just the part
 of the permission that was borrowed. A solution to this problem would be to collect a path from a variable to an object (like, select field x, select field y), when
 evaluating an expression - then we could create a new permission where the borrowed part is replaced by an unusable permission. But this leads to another problem:
