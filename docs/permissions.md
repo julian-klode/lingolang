@@ -279,8 +279,8 @@ The steps $t_0, t_1, t_2$ do the following:
 
 Steps 1 and 2 make it consistent: Without them, we could have a non-linear pointer pointing to a linear target. Since the target could only have one reference, but the pointer appears to be copyable (it's not, as the assignability rules also work recursively), we get the impression that we could have two pointers for the same target. It also allows us to just gather linearity info from the outside: If the base permission of a value is non-linear, it cannot contain linear values - this can be used to simplify some checks.
 
-#### Theorem: $cbt_b(A) = cbt(A, b)$ is idempotent
-_Theorem:_ Conversion to base, $cbt$ is idempotent, or rather $cbt_b(A) = cbt(A, b)$ is. That is, for all $A \in P, b \in R$: $ctb_b(A) = ctb(A, b) = ctb(ctb(A, b), b) = ctb_b(ctb_b(A))$.
+#### Theorem: $ctb_b(A) = ctb(A, b)$ is idempotent
+_Theorem:_ Conversion to base, $ctb$ is idempotent, or rather $ctb_b(A) = ctb(A, b)$ is. That is, for all $A \in P, b \in R$: $ctb_b(A) = ctb(A, b) = ctb(ctb(A, b), b) = ctb_b(ctb_b(A))$.
 
 _Background:_ This theorem is important because we generally assume that $ctb(A, base(A)) = A$ for all $A \in P$ that have been converted once (what is called consistent, and is the case for
 all permissions the static analysis works with).
@@ -340,7 +340,7 @@ _Proof._
                                         t_0' & \text{else} \\
                                         \end{cases}
     \end{align*}
-    The first case cannot happen: $t_0' \supset \{w, W\} \Rightarrow ( t_2 \setminus \{o\}) \cup (a' \cap \{o\}) \supset \{w, W\} \Rightarrow t_2 \supset \{w, W\}$. But that can't be the case as $t_2 \subset t_1$, and $t_1$ is $t_0$ with $\{r, W\}$ removed if they were part of it. Therefore, $t_1' = t_0' = t_2$.
+    The first case cannot happen: If $t_0' \supset \{w, W\} \Rightarrow ( t_2 \setminus \{o\}) \cup (a' \cap \{o\}) \supset \{w, W\} \Rightarrow t_2 \supset \{w, W\}$. But that cannot be the case as $t_2 \subset t_1$, and $t_1 = t_0 \setminus \{w, W\}$ removed if they were part of it (otherwise $t_1 = t_0$). Therefore, $t_1' = t_0' = t_2$.
     Now consider $t_2'$:
     \begin{align*}
                             t_2' &= \begin{cases}
@@ -352,7 +352,7 @@ _Proof._
                                         t_1' & \text{else} \\
                                         \end{cases}
     \end{align*}
-    And again, the first case cannot happen, it leads to a contradiction: $t_1' = t_2 \supset \{r, R\} \Rightarrow t_1 \supset \{r, R\} \Rightarrow t_2 = t_1 \setminus \{R\} \Rightarrow t_2 \not\supset \{r, R\}$.
+    And again, the first case cannot happen, it leads to a contradiction: If $t_1' = t_2 \supset \{r, R\} \Rightarrow t_1 \supset \{r, R\} \Rightarrow t_2 = t_1 \setminus \{R\} \Rightarrow t_2 \not\supset \{r, R\}$.
 
     Therefore, $t_2' = t_1' = t_0' = t_2$, and thus $ctb(ctb(a * A, b), b) = ctb(a * A, b)$.
 1. The strict case of pointers is trivial and can be proven like channels.
