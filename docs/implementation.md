@@ -11,13 +11,13 @@ The permission library is thoroughly tested and achieves 100% line coverage. Lik
 The permission library is organized into several files, by function, rather than by types. There is one file dealing with checking copyability, one file dealing with convert-to-base operations, one file declaring all the types, one file contains the scanner, one file the parser, and so on.
 
 ## Parsing permission annotations
-Permission annotations are stored in comments attached to functions, and declarations of variables. A comment line introducing a permission annotation starts with `@cap`, for example:
+Permission annotations are stored in comments attached to functions, and declarations of variables. A comment line introducing a permission annotation starts with `@perm`, for example:
 
 ```go
-// @cap om * om
+// @perm om * om
 var pointerToInt *int
 
-var pointerToInt *int // @cap om * om
+var pointerToInt *int // @perm om * om
 ```
 
 Go's excellent built-in AST package (located in `go/ast`) provides native support for associating comments to nodes in the syntax tree in a understandable and reusable way. We can simply walk the AST, and map each node to an existing annotation or `nil`.

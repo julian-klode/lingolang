@@ -104,7 +104,7 @@ var testcasesAssignableTo = []assignableToTestCase{
 	{"om interface{}", "m interface{}", true, false, false},
 	{"m interface{}", "om interface{}", false, false, false},
 	// Inaccurate test: The receiver might actually be recursive, if no
-	// @cap declaration is given, the receiver actually becomes identical (!)
+	// @perm declaration is given, the receiver actually becomes identical (!)
 	// to the interface permission itself.
 	{"om interface { ov (om) func()}", "om interface { om (om) func()}", true, false, false},
 	{"om interface { om (om) func()}", "om interface { ov (om) func()}", false, false, false},

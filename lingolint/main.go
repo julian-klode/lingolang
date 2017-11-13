@@ -32,7 +32,7 @@ func main() {
 	f, err := goparser.ParseFile(fset, "/home/jak/Projects/Go/src/github.com/golang/example/gotypes/defsuses/example/test.go",
 		`package main
 				// Bananas
-				// @cap ol
+				// @perm ol
 				// Mango
 				var a = 5
 

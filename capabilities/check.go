@@ -120,12 +120,12 @@ func (p assignPass) Visit(node ast.Node) (w ast.Visitor) {
 	}
 
 	// Iterate through the comment groups to find a comment in a group that
-	// starts with @cap and parse the specification there.
+	// starts with @perm and parse the specification there.
 	for _, cmtGrp := range cmtGrps {
 		for _, cmt := range cmtGrp.List {
 			text := cmt.Text[2:]
-			if strings.HasPrefix(strings.TrimSpace(text), "@cap") {
-				cap := text[strings.Index(text, "@cap")+len("@cap"):]
+			if strings.HasPrefix(strings.TrimSpace(text), "@perm") {
+				cap := text[strings.Index(text, "@perm")+len("@perm"):]
 
 				perm, err := permission.NewParser(cap).Parse()
 				if err != nil {

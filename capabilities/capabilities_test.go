@@ -18,7 +18,7 @@ func TestCapabilitiesSuccess(t *testing.T) {
 	f, err := goparser.ParseFile(fset, "TestCapabilitiesSuccess.go",
 		`package main
             // Bananas
-            // @cap ol
+            // @perm ol
             // Mango
             var a = 5`, goparser.ParseComments)
 	if err != nil {
@@ -41,11 +41,11 @@ func TestCapabilitiesError(t *testing.T) {
 	f, err := goparser.ParseFile(fset, "TestCapabilitiesError.go",
 		`package main
             // Bananas
-            // @cap olx
+            // @perm olx
             // Mango
             var a = 5
             func foo() {
-				// @cap error
+				// @perm error
                 var x = 9
                 println(x)
             }`, goparser.ParseComments)
@@ -69,17 +69,17 @@ func TestCapabilitiesErrorBailout(t *testing.T) {
 	fset := token.NewFileSet()
 	f, err := goparser.ParseFile(fset, "TestCapabilitiesErrorBailout.go",
 		`package main
-            var a = 5		// @cap olx
-            var b = 5		// @cap olx
-            var c = 5		// @cap olx
-            var d = 5		// @cap olx
-            var e = 5		// @cap olx
-            var f = 5		// @cap olx
-            var g = 5		// @cap olx
-            var h = 5		// @cap olx
-            var i = 5		// @cap olx
-            var j = 5		// @cap olx
-            var k = 5		// @cap olx`, goparser.ParseComments)
+            var a = 5		// @perm olx
+            var b = 5		// @perm olx
+            var c = 5		// @perm olx
+            var d = 5		// @perm olx
+            var e = 5		// @perm olx
+            var f = 5		// @perm olx
+            var g = 5		// @perm olx
+            var h = 5		// @perm olx
+            var i = 5		// @perm olx
+            var j = 5		// @perm olx
+            var k = 5		// @perm olx`, goparser.ParseComments)
 	if err != nil {
 		t.Fatalf("Parse error: %s", err) // parse error
 	}
@@ -100,8 +100,8 @@ func TestCapabilitiesTypeError(t *testing.T) {
 	fset := token.NewFileSet()
 	f, err := goparser.ParseFile(fset, "TestCapabilitiesTypeError.go",
 		`package main
-            var a = 5		// @cap ol
-            var a = 5 		// @cap ol`, goparser.ParseComments)
+            var a = 5		// @perm ol
+            var a = 5 		// @perm ol`, goparser.ParseComments)
 	if err != nil {
 		t.Fatalf("Parse error: %s", err) // parse error
 	}
