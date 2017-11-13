@@ -69,8 +69,8 @@ Internally the scanner is implemented by a set of functions:
 * `func (sc *Scanner) unreadRune()` moves on rune back in the input stream
 * `func (sc *Scanner) scanWhile(typ TokenType, acceptor func(rune) bool) Token` creates a token by reading and appending runes as long as the given acceptor returns true.
 
-The main Scan() function calls `readRune` to read a rune and based on that rune decides the next step. For single character tokens, the token matching the rune is returned directly. If the rune is a character, it is `unreadRune()`
-and `sc.scanWhile(TokenWord, unicode.IsLetter)` is called to scan an entire word. Then it is checked if the word is a keyword, and the proper keyword token is returned, otherwise the word is returned as a token of type `Word` (which is used to represent permission bitsets, since the flags may appear in any order). Whitespace in the input is skipped:
+The main Scan() function calls `readRune` to read a rune and based on that rune decides the next step. For single character tokens, the token matching the rune is returned directly. If the rune is a character, then `unreadRune()` is called to put it back
+and `sc.scanWhile(TokenWord, unicode.IsLetter)` is called to scan the entire word (including the unread rune). Then it is checked if the word is a keyword, and if so, the proper keyword token is returned, otherwise the word is returned as a token of type `Word` (which is used to represent permission bitsets, since the flags may appear in any order). Whitespace in the input is skipped:
 
 ```go
 for {
@@ -99,6 +99,19 @@ for {
 Base permissions are implemented as integer bitfields. Intersection is the bitwise and operation; union is the bitwise or operation.
 
 ## Representation of the store
+The store stores a slice of structs where each struct contains a name, an effective permission, a maximal permission, and the number of times
+the variable has been referenced so far. Defining a new variable or beginning a new block scope prepends to the store.
 
-The store is represented as a simple slice of structs containing two fields: The name of a variable and the permission associated with it (two pointers per element basically), similar to an association list in Lisp languages, but backed by a contiguous array,.
-A block is marked by a struct where the fields have their zero values (empty string, and nil), and more specifically checked by the name being empty.
+```go
+type Store []struct {
+	name string
+	eff  permission.Permission
+	max  permission.Permission
+	uses int
+}
+```
+
+The beginning of a block scope is marked by a struct where the fields have their zero values, that is `{"", 0, 0, 0}`. More specifically,
+such a block marker is identified by checking if the name field is empty.
+
+When exiting a block, we simply find the first such marker, and then create a slice starting with the element following it.
