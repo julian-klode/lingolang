@@ -324,4 +324,12 @@ Permissions might also be overly flexible: Should we really care about exclusive
 Another approach to linear values is fractional permissions [@Boyland:2003:CIF:1760267.1760273] and fractional permissions without fractions [@Heule:2011:FPW:2076674.2076675].
 In the fractional permission world, an object starts out with a permission of 1, and each time it is borrowed, the permissions are split. A permission of 1 can write, other permissions can only read.
 
-Fractional permissions have one advantage over the permission approach outline in the previous section: They can be recombined. The approach is otherwise far less flexible though, offering only 2 possible kinds of values (writable and not-writable) rather than the $2^7$ possible combinations of permissions.
+Fractional permissions have one advantage over the permission approach outline in the previous section: They can be recombined.
+They are also far less flexible, offering only linear writeable and non-linear read-only kinds of values, rather than $2^7$ possible combinations,
+which might be an advantage or not, depending on what they are to be used for.
+
+It seems possible to extend fractional permissions with some non-linear writeable object: Introduce infinity as a valid value, and define fractions
+of infinity as infinity; and defining a writeable object as having a permission $\ge 1$, rather than equal to 1. This way, there could be an infinite
+number of references to a writeable object.
+
+Likewise, a linear read-only value could perhaps be introduced by introducing a special fraction that cannot be divided into smaller fractions.
