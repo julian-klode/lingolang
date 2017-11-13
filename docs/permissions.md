@@ -1,3 +1,4 @@
+
 # Permissions for Go
 In the previous chapter, we saw monads, linear types, and the two generalisations of linear types as capabilities
 and fractional permissions. This chapter introduces permissions for Go based on the concepts from 'Capabilities for Sharing'[@Boyland:2001:CSG:646158.680004],
@@ -47,20 +48,23 @@ struct <- 'struct' '{' fieldList '}'
 Instead of using a store mapping objects, and (object, field) tuples to capabilities, that is, (object, permission) pairs, Lingo employs a different approach in order to combat the limitations shown in the introduction.
 Lingo's store maps a variable to a permission.
 It does however, not just have the permission bits introduced earlier (from now on called _base permission_), but also _structured_ permissions, equivalent to types.
-These structured permissions consist of a base permission and permissions for each child, target, etc.
+These structured permissions consist of a base permission and permissions for each child, target, etc. - in short, the implementation is sort of a "shadow" type
+system.
 
 Apart from primitive and structured permissions, there are also some special permissions:
 
 * The untyped nil permission, representing the `nil` literal.
 * The wildcard permission, written `_`. It is used in permission annotations whenever the default permission for a type should be used.
 
-The full syntax for these permissions is given in listing \ref{syntax}. The base permission does not need to be specified for structured types, if absent, it is considered to be `om`. There also are some shortcuts for some common combinations:
+There also are some shortcuts for some common combinations:
 
 * `m`, for _mutable_, is equivalent to `rwRW`
 * `v`, for _value_, is equivalent to `rW`
 * `l`, for _linear value_, is equivalent to `rRW` and a linear variant of value
 * `n`, for _none_, is equivalent to, well, none bits set
 * `a`, for _any_, is equivalent to all non-exclusive bits set, that is `orwRW`.
+
+The full syntax for these permissions is given in listing \ref{syntax}. The base permission does not need to be specified for structured types, if absent, it is considered to be `om`.
 
 In the rest of the chapter, we will discuss permissions using a set based notation: The set of rights, or permissions bits is $R = \{o, r, w, R, W\}$. A base permission
 $b \subset R$ (single lower case character) is a subset of all possible bits. The set $P$ is the set of all possible permissions, and a single upper case character
