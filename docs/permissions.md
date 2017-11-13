@@ -361,12 +361,6 @@ The idea of conversion to base permissions from the previous paragraph can be ex
 There are two more kinds of recursive merge operations: intersection and union.
 These are essentially just recursive relaxations of intersection and union on the base permissions, that is, they simply perform intersection and union on all base types
 in the structure.
-
-Except for functions of course: An intersection of a function requires union for parameters and receivers, because just like with subtyping (in languages that have it), parameters and receivers are contravariant:
-If one function expects `orw` and another expects `or` a place that needs either of those functions (an intersection) needs a function that accepts $orw \cup or = orw$ - because passing a writable object to a function only needing a read-only one would work, but passing a read-only value to a function that needs a writable one would not be legal.
-
-Intersections are sort of a parallel to phi nodes in a program's static single assignment form. They can effectively be used to join different paths:
-
 A static analyser could use intersections to join the results of different branches, for example:
 
 ```go
@@ -381,16 +375,76 @@ myfun = intersect(myfun in first branch, my fun in second branch)
 
 In this example, after the if/else block has been evaluated, the permissions of `myfun` are an intersection of the permission it would have in both branches.
 
-As a special exception to the recursive relaxation and same-shape rules, when either side of a merge is a wildcard permission, the result is the other side - the wildcard permission acts as the neutral element. [^monoid]
+The function performing merges and conversions is $merge: P \times P \to P$. It has an implicit mode, which can be either one of the merge types union or intersection; or
+can be conversion or strict conversion.
 
-[^monoid]: I believe that makes permissions with these operations monoids (a semi group (set with associative operation) with a neutral element), but proofing associativity for this recursive operation is a bit too involved
+The wildcard exists just as a placeholder for annotation purposes, so merging it with anything should yield the other value. For nil permissions, merging them with a nilable
+permission (a chan, func, interface, map, nil, pointer, or slice permission) yields the other permission:
+\begin{align*}
+    merge(\_, B)    &:= \_ &&& merge(A, \_)     &:= \_ \\
+    merge(N, nil)   &:= N   &&& merge(nil, N)   &:= N  & \text{ for all nilable } N \in P \text{ and } N = nil
+\end{align*}
+Regarding the soundness of the merging nils with nilable permissions:
 
-As a further special exception, if either side is a nil permission and the other side a pointer permission, the pointer permission is the result. For conversions, this does make sense: Given that I can assign nil to any pointer, I can also convert nil permissions to any pointer permission. For union and intersection, consider the classical examples:
-
-* For union, the question is: Can $p \cup nil$ be used in place of both $p$ and $nil$? Technically the answer is no, because $p$ cannot be used where $nil$ is expected. But nil permissions are only ever
+* For union, the question is: Can $union(N, nil)$ be used in place of both $N$ and $nil$? Technically the answer is no, because $N$ cannot be used where $nil$ is expected. But nil permissions are only ever
   used for $nil$ literals (they cannot even be specified, there is no syntax for them), so we never reach that situation.
-* For intersection, the question is: Can values of $p$ or $nil$ be assigned to $p \cap nil$. Yes, they can be, $nil$ is assignable to every pointer, and $p$ is assignable to itself.
+* For intersection, the question is: Can values of $N$ or $nil$ be assigned to $intersect(N, nil)$. Yes, they can be, $nil$ is assignable to every pointer, and $p$ is assignable to itself.
 
+Another special case is if the left side is not a base permission, but the right side is, and we are converting or strictly converting, it falls back to $ctb()$:
+\begin{align*}
+    merge(A, b)     &:= \begin{cases}
+                            ctb(A, b)   & \text{if conversion and } A \not\in R \\
+                            ctb_{strict}(A, b)   & \text{if strict conversion and } A \not\in R
+                        \end{cases}
+\end{align*}
+
+Otherwise, the base case for a merge is merging primitive values, and the rules for that are quite simple:
+\begin{align*}
+    merge(a, b)     &:= \begin{cases}
+                            b & \text{if conversion or strict conv} \\
+                            a \cap b & \text{if intersection}       \\
+                            a \cup b & \text{if union}
+                        \end{cases}
+\end{align*}
+
+Pointers, channels, arrays, slices, maps, tuples, structs, and interfaces are trivial (structs and interfaces must have same number of members / methods):
+\begin{align*}
+    merge(a * A, b * B)     &:= merge(a, b) * merge(A, B) \\
+    merge(a \textbf{ chan } A, b \textbf{ chan } B)  &:= merge(a, b) \textbf{ chan } merge(b, B) \\
+    merge(a [\_] A, b [\_] B)  &:= merge(a, b) [\_] merge(b, B) \\
+    merge(a [] A, b [] B)  &:= merge(a, b) [] merge(b, B) \\
+    merge(a \textbf{ map}[A_0]\ A_1, b \textbf{ map}[B_0]\ B_1)  &:= merge(a, b) \textbf{ map}[merge(A_0, B_0)]\ merge(A_1, B_1) \\
+    merge(a ( A_0, \ldots, A_n ), b (B_0, \ldots, B_n ) ) &:= merge(a, b) (merge(A_0, B_0), \ldots, merge(A_n, B_n) ) \\
+    merge(a \textbf{ struct } \{A_0, \ldots, A_n \}, \\
+          \qquad b \textbf{ struct } \{B_0, \ldots, B_n \} )
+        &:= merge(a, b) \textbf{ struct } \{merge(A_0, B_0), \ldots,  \\
+                                           & \qquad merge(A_n, B_n) \} \\
+    merge(a \textbf{ interface } \{A_0, \ldots, A_n \}, \\
+          \qquad b \textbf{ interface } \{B_0, \ldots, B_n \} )
+        &:= merge(a, b) \textbf{ interface } \{merge(A_0, B_0), \ldots,  \\
+                                           & \qquad merge(A_n, B_n) \}
+\end{align*}
+
+Functions are more difficult: An intersection of a function requires union for closure, receivers, and parameters, because just like with subtyping (in languages that have it), parameters and receivers are contravariant:
+If one function expects `orw` and another expects `or` a place that needs either of those functions (an intersection) needs a function that accepts $orw \cup or = orw$ - because passing a writable object to a function only needing a read-only one would work, but passing a read-only value to a function that needs a writable one would not be legal.
+
+For that, let
+$$
+mergeContra(A, B) := \begin{cases}
+    intersect(A, B) & \text{if union} \\
+    union(A, B) & \text{if intersection} \\
+    merge(A, B) & \text{else}
+\end{cases}
+$$
+be a helper function that merges contravariant things by replacing swapping union and intersection.
+
+Then merging functions is:
+\begin{align*}
+    merge(&a (R) \textbf{ func } (P_0, \ldots, P_n) (R_0, \ldots, R_n),  b (R') \textbf{ func } (P'_0, \ldots, P'_n) (R'_0, \ldots, R'_n)) \\
+       := &mergeContra(a, b) (mergeContra(R, R')) \textbf{ func } \\
+          &\qquad (mergeContra(P_0, P'_0), \ldots, mergeContra(P_n, P'_n)) \\
+          &\qquad (merge(R_0, R'_0), \ldots, merge(R_n, R'_n))
+\end{align*}
 
 ## Creating a new permission from a type
 Since permissions have a similar shape as types and Go provides a well-designed types package, we can easily navigate type structures and create structured permissions for them with some defaults. Currently, it just places maximum `om`
