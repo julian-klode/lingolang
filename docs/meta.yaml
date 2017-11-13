@@ -13,7 +13,7 @@ secnumdepth: 2
 toc-depth: 1
 header-includes:
  - \usepackage[]{graphicx}
- - \usepackage{amsmath,amsthm}
+ - \usepackage{amsmath,amsthm,mathtools}
  - \usepackage{lstgolang}
  - \usepackage{xcolor}
  - \lstset{language=Go,basicstyle=\small\ttfamily,commentstyle=\ttfamily\itshape\color{gray},columns=fullflexible,keepspaces=true,breaklines=true,basewidth={0.5em,0.5em},frame=tb}

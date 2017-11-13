@@ -5,12 +5,9 @@ and fractional permissions. This chapter introduces permissions for Go based on 
 and certain operations that will be useful to build a static analyser that checks permissions on a Go program.
 
 The reasons for going with a capabilities-derived approach are simple: Monads don't work in Go, as Go does not
-have generic types; and fractional permissions are less powerful: Capabilities allow you to define objects with
-single-writer, multiple reader permissions (where there are two references, $ow\overline{W}$ for writing and,
-$or$ for reading), which might come in handy later, or even just non-linear writeable values, which can be useful
-for interaction with legacy code.
+have generic types; and fractional permissions are less powerful, and we also need to deal with legacy code and perhaps could use some other permissions for describing Go-specific operations, like a permission for allowing a function to be executed as a goroutine.
 
-This approach is called _Lingo_ (short for linear Go). Permissions in Lingo are different from the original
+This approach to linear types in Go is called _Lingo_ (short for linear Go). Permissions in Lingo are different from the original
 approach in 'Capabilities for Sharing' in a few points. First of all, because Go has no notion of identity,
 since it uses pointers, the right for that is dropped. We end up with 5 rights, or permission bits:
 `r` (read), `w` (write), `R` (exclusive read), `W` (exclusive write), and `o` (ownership).
@@ -25,9 +22,9 @@ could copy it to $b$, creating two references to each linear element, which is n
     var a /* orR [] owW * owW */ = make([]int)
     var b = a
 ```
+We will see later that this actually would not be a problem, as the checks are recursive and would prevent such an object from being copied, but it makes no real sense to have an object marked as non-linear contain a linear one - it would be nothing more than a lie.
 
 Ownership plays an interesting role with linear objects: It determines whether a reference is _moved_ or _borrowed_ (temporarily moved). For example, when passing a linear map to a function expecting an owned map, the map will be moved inside the function; if the parameter is unowned, the map will be borrowed instead. Coming back to the analogy with in and out parameters, owned parameters are both in and out, whereas unowned parameters are only in.
-
 
 ```{#syntax caption="Permission syntax" float=t frame=tb}
 main <- inner EOF
@@ -45,15 +42,14 @@ pointer <- '*' inner
 struct <- 'struct' '{' fieldList '}'
 ```
 
-Instead of using a store mapping objects, and (object, field) tuples to capabilities, that is, (object, permission) pairs, Lingo employs a different approach in order to combat the limitations shown in the introduction.
+Instead of using a store mapping objects, and (object, field) tuples to capabilities, that is, (object, permission) pairs, Lingo employs a different approach in order to combat the limitations shown in the introduction:
 Lingo's store maps a variable to a permission.
-It does however, not just have the permission bits introduced earlier (from now on called _base permission_), but also _structured_ permissions, equivalent to types.
-These structured permissions consist of a base permission and permissions for each child, target, etc. - in short, the implementation is sort of a "shadow" type
-system.
+In order to represents complex data structures, it does however not just have the permission bits introduced earlier (from now on called _base permission_), but also _structured_ permissions, equivalent to types.
+These structured permissions consist of a base permission and permissions for each child, target, etc. - a "shadow" type system essentially.
 
 There is one problem with the approach of one base permission and one permission per child: Reference types like maps or functions actually need two base permissions:
-The permission of the reference (as in, "can I assign a different map to this variable") and the permission of the referenced value (as in, "can I insert something
-into this map").
+The permission of the reference (as in, "can I assign a different map to this variable") and the permission of the referenced value (as in, "can I insert something into this map").
+We will see later that this causes some issues.
 
 Apart from primitive and structured permissions, there are also some special permissions:
 
@@ -142,9 +138,9 @@ Channels, slices, and maps are reference types. They behave like value types, ex
 \end{align*}
 
 Function permissions are a fairly special case.
-The base permission here indicates the permissions of elements in the closure, essentially.
+The base permission here essentially indicates the permission of (elements in) the closure.
 A mutable function is thus a function that can have different results for the same immutable parameters.
-The receiver of a function, it's parameters, and the closure are essentially parameters of the function,
+The receiver of a function, it is parameters, and the closure are essentially parameters of the function,
 and parameters are contravariant: I can pass a mutable object when a read-only object is expected, but I
 can't pass more. For the closure, ownership is the exception: An owned function can be assigned to an
 unowned function, but not vice versa:
@@ -166,9 +162,11 @@ unowned function, but not vice versa:
         \end{cases} \\
         & \qquad \ \text{ for all } 0 \le i \le n, 0 \le j \le m
 \end{align*}
-TODO: Why do we use $mov$ for receivers, parameters, return values?
+$mov$ is used for the receiver, parameters, and return values, because $mov$ is essentially just the sub-permission-of operation,
+or at least that's what it was. It later gained the requirement that sources be readable, which means it is currently impossible to
+assign functions with unreadable receivers, parameters, or return values.
 
-Pointers are another special case: When a pointer is copied, itself is copied, but the target is referenced (as we now have two pointers to the same target):
+Pointers are another special case: When a pointer is copied, the pointer itself is copied, but the target is referenced (as we now have two pointers to the same target):
 \begin{align*}
     ass(a * A, b * B) &:\Leftrightarrow \begin{cases}
         ass(a, b) \text{ and } ref(A, B)    & \text{copy} \\
@@ -190,7 +188,7 @@ Interfaces are method sets that work like reference types, but the methods are a
 \end{align*}
 where  $idx(B_i, A)$ determines the position of a method with the same name as $B_i$ in $A$.
 
-Finally, we have some special cases: The wildcard and nil. The wildcard is not assignable, it's only used when writing permissions to mean "default". The `nil` permission is assignable to itself, to pointers, and permissions for reference and reference-like types.
+Finally, we have some special cases: The wildcard and nil. The wildcard is not assignable, it is only used when writing permissions to mean "default". The `nil` permission is assignable to itself, to pointers, and permissions for reference and reference-like types.
 \begin{align*}
         ass(\textbf{\_}, B)  &:\Leftrightarrow \text{ false } \\
         ass(\textbf{nil}, a * B)  &:\Leftrightarrow \text{ true } & ass(\textbf{nil}, a \textbf{ chan } B)  &:\Leftrightarrow \text{ true } \\
@@ -206,7 +204,7 @@ Converting a given permission to a base permission essentially replaces all base
 ```go
 var x /* @perm om */ *int
 ```
-It's a pointer, but the permission is only for a base. We can convert the default permission for the type (we'll discuss them later) to `om`, giving us a complete permission. And in the next section, we'll extend conversion to arbitrary prefixes of the permission graph.
+It's a pointer, but the permission is only for a base. We can convert the default permission for the type (we'll discuss them later) to `om`, giving us a complete permission. And in the next section, we'll extend conversion to arbitrary prefixes of a permission.
 
 Another major use case is ensuring consistency of rules, like:
 
@@ -230,12 +228,12 @@ Most cases of to-base conversions are rather simple:
 \end{align*}
 
 The rules are problematic in some sense, though: All children have the same base permission as their parent. This kind of makes sense for non-reference
-values like structs containing ints - after all, they are in one memory location; but with reference types, it's somewhat confusing: For example, a struct
+values like structs containing integers - after all, they are in one memory location; but for reference types, it is somewhat confusing: For example, a struct
 cannot have both a mutable (`om map...`) and a read-only map (`or map...`) as their base permissions are different. As mentioned before, these really need
 a second base permission for the object being referenced (like a pointer, see below). Then both maps could be (linear) read-only references, one referencing
 a mutable map, one referencing a read-only map.
 
-Functions and interfaces are special, again: Methods, and receivers, parameters, results of functions are converted to their own base permission:
+Functions and interfaces are special, again: methods, and receivers, parameters, results of functions are converted to their own base permission:
 \begin{align*}
     ctb(a\ (R) \textbf{ func } ( P_0, \ldots, P_n ) (R_0, \ldots, R_m), b) &:=&&  ctb(a, b)\ (ctb(R, base(R))) \textbf{ func }  \\
                                                                              &&&  ( ctb(P_0, base(P_0)), \ldots, ctb(P_n, base(P_n)) )  \\
@@ -248,9 +246,9 @@ Functions and interfaces are special, again: Methods, and receivers, parameters,
 \end{align*}
 The reason for this is simple: Consider the following example:
 ```go
-    var x /* or */ func(int) *int
+    var x /* om */ func(int) *int
 ```
-`x` should be `or`, but this does not mean that it should be `or func (or) or`. While the result seems OK here, the default for a function parameter should be unowned (and read-only).
+`x` should be `om`, but this does not mean that it should be `om func (om) om` just because the closure might be mutable - `om func (r) om` seems a lot better.
 
 
 For pointers, it is important to add one thing: There are two types of conversions: Normal ones and strict ones. The difference is simple: While the normal one works combines the old target's permission with the permission being converted to, strict conversion just converts the target to the specified permission. Strict conversions will become important when converting (in the type sense) a value to interfaces:
@@ -259,12 +257,12 @@ var x /* om * or */ *int
 var y /* om interface {} */ = x
 var z /* om * om */ = y.(*int)     // um, target is mutable now?
 ```
-Converting to an interface is a lossy operation: We can only maintain the outer permission. But we cannot allow the case above to happen: We just converted a pointer to read-only data to a pointer to writeable data. Not good. One way to solve this is to ensure that a permission can be assigned to it's strict permission, gathered by strictly converting the type-default permission to the current permissions base permission:
+Converting to an interface is a lossy operation: We can only maintain the outer permission. But we cannot allow the case above to happen: We just converted a pointer to read-only data to a pointer to writeable data. Not good. One way to solve this is to ensure that a permission can be assigned to it is strict permission, gathered by strictly converting the type-default permission to the current permissions base permission:
 $$
 y = x \Leftrightarrow  ass(perm(x), ctb_{strict}(perm(typeof(x)), base(perm(x)) \text { and } ass(base(x), base(y))
 $$
 \begin{samepage}
-The rules for converting a pointer permission to a base permission are thus a bit complex:
+The rules for converting a pointer permission to a base permission are therefore a bit complicated:
 \begin{align*}
     &&ctb(a * A, b)                  :&= a' * ctb(A, t_2)\\
     &&\quad \text { where }  a' &= ctb(a, b) \\
@@ -286,7 +284,7 @@ The steps $t_0, t_1, t_2$ do the following:
 1. If the new base permission has no exclusive read right, but the new target has exclusive write and write flags (is linearly writable), these flags are dropped.
 2. If the new base permission has no exclusive read right, but the new target has exclusive read and read flags (is linearly readable), the exclusive read flag is dropped.
 
-Steps 1 and 2 make it consistent: Without them, we could have a non-linear pointer pointing to a linear target. Since the target could only have one reference, but the pointer appears to be copyable (it's not, as the assignability rules also work recursively), we get the impression that we could have two pointers for the same target. It also allows us to just gather linearity info from the outside: If the base permission of a value is non-linear, it cannot contain linear values - this can be used to simplify some checks.
+Steps 1 and 2 make it consistent: Without them, we could have a non-linear pointer pointing to a linear target. Since the target could only have one reference, but the pointer appears to be copyable (it is not, as the assignability rules also work recursively), we get the impression that we could have two pointers for the same target. It also allows us to just gather linearity info from the outside: If the base permission of a value is non-linear, it cannot contain linear values - this can be used to simplify some checks.
 
 #### Theorem: $ctb_b(A) = ctb(A, b)$ is idempotent
 _Theorem:_ Conversion to base, $ctb$ is idempotent, or rather $ctb_b(A) = ctb(A, b)$ is. That is, for all $A \in P, b \in R$: $ctb_b(A) = ctb(A, b) = ctb(ctb(A, b), b) = ctb_b(ctb_b(A))$.
@@ -304,11 +302,12 @@ _Proof._
     \end{align*}
 1. Channels, slices, arrays, maps, structs, and tuples basically have the same rules: All children are converted to the same base permission as well. It suffices to prove one of them. Let us pick channels:
     \begin{align*}
-        ctb(ctb(a \textbf{ chan } A, b), b) &= ctb(ctb(a, b) \textbf{ chan } ctb(A, ctb(a, b)), b) & \text{(def chan)} \\
+        & ctb(ctb(a \textbf{ chan } A, b), b) \\
+                                            &= ctb(ctb(a, b) \textbf{ chan } ctb(A, ctb(a, b)), b) & \text{(def chan)} \\
                                             &= ctb(ctb(a, b), b) \textbf{ chan } ctb(ctb(A, ctb(a, b)), b) & \text{(def chan)}\\
                                             &= ctb(b, b) \textbf{ chan } ctb(ctb(A, b), b) & (ctb(a, b) = b) \\
-                                            &= b \textbf{ chan } ctb(A, b)  & \text{other case} \\
-                                            &= ctb(a, b) \textbf{ chan } ctb(A, ctb(a, b)) & (ctb(a, b) = b) \\
+                                            &= b \textbf{ chan } ctb(A, b)  &  (ctb(a, b) = b, \text{other case}) \\
+                                            &= ctb(a, b) \textbf{ chan } ctb(A, ctb(a, b)) & (ctb(a, b) = b, \text{other case}) \\
                                             &= ctb(a \textbf{ chan } A, b) & \text{(def chan)}
     \end{align*}
 1. Functions and interfaces convert their child permissions to their own bases. We can proof the property for the special case of an interface with one method without loosing genericity, since these are structured the same.
@@ -320,25 +319,22 @@ _Proof._
         =& ctb(a, b) \textbf{ interface } \{ ctb(A_0, base(A_0)) \} \\
         =& ctb(a \textbf{ interface } \{ A_0 \}, b) & \text{by definition}
     \end{align*}
-1. Pointers are more complicated. Let $ctb(a * A, b) = a' * ctb(A, t_2)$ with $a' = ctb(a,b)$ and a $t_2$ according to the definition. And  ctb(ctb(a * A, b), b) = ctb(a' * ctb(A, t_2), b) = a'' * ctb(A, t_2')$. We have to show that $a' = a''$ and $t_2 = t_2'$.
+1. While the strict case of pointers is trivial and can be proven like channels, the normal case is more complicated:
 
-    1. $a' = ctb(a, b) = ctb(ctb(a, b), b) = a''$.
-    2. $t_2$ essentially has the form $t_0 \setminus X = base(A) \setminus \{o\} \cup (a \cap \{o\}) \setminus X$ for some set $X \in \{\{R\}, \{w, W\}, \{R, w, W\}\}$; depending on the value of A.
+    Let $ctb(a * A, b) = a' * ctb(A, t_2)$ with $a' = ctb(a,b)$ and a $t_2$ according to the definition. And  $ctb(ctb(a * A, b), b) = ctb(a' * ctb(A, t_2), b) = a'' * ctb(A, t_2')$. We have to show that $a' = a''$ and $t_2 = t_2'$.
 
-    Given that $a = a'$, it follows that:
+    We can write $$t_2 = t_0 \setminus X = \overbrace{base(A) \setminus \{o\} \cup (a' \cap \{o\})}^{= t_0} \setminus X   \qquad\qquad \text{(short } t_2 \text{)}$$ for some set $X \in \{\{R\}, \{w, W\}, \{R, w, W\}\}$; depending on the value of A, and likewise for $t_2'$.
+
+    Given that $a' = a''$, it follows that:
 
     \begin{align*}
         t_0' &= ( \underbrace{base(ctb(A, t_2)}_{= t_2}) \setminus \{o\}) \cup (\underbrace{a''}_{= a'} \cap \{o\}) \\
             &= ( t_2 \setminus \{o\}) \cup (a' \cap \{o\}) \\
-            &=  t_2 \\
-            &= ( (base(A) \underbrace{\setminus \{o\} \cup (a' \cap \{o\})}_{\text{no effect due to } \setminus \{o\} \text{ later}} \setminus X)  \setminus \{o\}) \cup (a' \cap \{o\}) \\
-            &= ( (base(A) \setminus X)  \setminus \{o\}) \cup (a' \cap \{o\}) \\
-            &= ( base(A) \setminus \{o\}) \cup (a' \cap \{o\}) \setminus X & \text{because }  o \not\in X\\
-            &= t_0 \setminus X = t_2
+            &=  t_2 & \text{(short } t_2 \text{)}
     \end{align*}
 
     Now, let's look at $t_1'$ and $t_2'$. There are two variants each: $t_i = t_{i-1}$ and $t_i = t_{i-1} \setminus X$ for some $X$ if  $R \not\in a'$ and some other condition holds. Therefore, for $R \in a'$,
-    it trivially follows that $t_0 = t_1 = t_2$ and $t_0' = t_1' = t_2'$. Let's assume $R \not\in a'$, and thus . For $t_1'$, this means:
+    it trivially follows that $t_0 = t_1 = t_2$ and $t_0' = t_1' = t_2'$. Let's assume $R \not\in a'$. For $t_1'$, this means:
     \begin{align*}
                             t_1' &= \begin{cases}
                                         t_0' \setminus \{w, W\} & \text{if } R \not\in a'' \text{ and } t_0' \supset \{w,W\} \\
@@ -349,7 +345,9 @@ _Proof._
                                         t_0' & \text{else} \\
                                         \end{cases}
     \end{align*}
-    The first case cannot happen: If $t_0' \supset \{w, W\} \Rightarrow ( t_2 \setminus \{o\}) \cup (a' \cap \{o\}) \supset \{w, W\} \Rightarrow t_2 \supset \{w, W\}$. But that cannot be the case as $t_2 \subset t_1$, and $t_1 = t_0 \setminus \{w, W\}$ removed if they were part of it (otherwise $t_1 = t_0$). Therefore, $t_1' = t_0' = t_2$.
+    The first case cannot happen: If $t_0' \supset \{w, W\} \Rightarrow t_2 \supset \{w, W\} \xRightarrow{t_2 \subset t_1} t_1 \supset \{w, W\} \Rightarrow t_0 \supset \{w,W\} \Rightarrow t_1 = t_0 \setminus \{w, W\} \Rightarrow t_1 \not\supset \{w, W\}$ - a contradication.
+    Thus $t_1' = t_0' = t_2$.
+
     Now consider $t_2'$:
     \begin{align*}
                             t_2' &= \begin{cases}
@@ -364,7 +362,6 @@ _Proof._
     And again, the first case cannot happen, it leads to a contradiction: If $t_1' = t_2 \supset \{r, R\} \Rightarrow t_1 \supset \{r, R\} \Rightarrow t_2 = t_1 \setminus \{R\} \Rightarrow t_2 \not\supset \{r, R\}$.
 
     Therefore, $t_2' = t_1' = t_0' = t_2$, and thus $ctb(ctb(a * A, b), b) = ctb(a * A, b)$.
-1. The strict case of pointers is trivial and can be proven like channels.
 
 In conclusion, $ctb(ctb(A, b), b) = ctb(A, b)$ for all $A \in P, b \in R$, as was to be shown.  $\qed$
 
@@ -407,8 +404,8 @@ Regarding the soundness of the merging nils with nilable permissions:
 Another special case is if the left side is not a base permission, but the right side is, and we are converting or strictly converting, it falls back to $ctb()$:
 \begin{align*}
     merge(A, b)     &:= \begin{cases}
-                            ctb(A, b)   & \text{if conversion and } A \not\in R \\
-                            ctb_{strict}(A, b)   & \text{if strict conversion and } A \not\in R
+                            ctb(A, b)   & \text{if conversion and } A \not\subset R \\
+                            ctb_{strict}(A, b)   & \text{if strict conversion and } A \not\subset R
                         \end{cases}
 \end{align*}
 
@@ -450,7 +447,7 @@ mergeContra(A, B) := \begin{cases}
     merge(A, B) & \text{else}
 \end{cases}
 $$
-be a helper function that merges contravariant things by replacing swapping union and intersection.
+be a helper function that merges contravariant things after swapping union and intersection modes.
 
 Then merging functions is:
 \begin{align*}
@@ -464,4 +461,4 @@ Then merging functions is:
 Since permissions have a similar shape as types and Go provides a well-designed types package, we can easily navigate type structures and create structured permissions for them with some defaults. Currently, it just places maximum `m`
 permissions in all base permission fields. And the interpreter, discussed in the next section, converts to owned as needed, using $ctb()$.
 
-One special case exists: If a type is not understood, we try to create the permission from it's _underlying type_. For example, `type Foo int` is a named type, but we don't support named types, so we use the underlying type, `int`, for creating the permission.
+One special case exists: If a type is not understood, we try to create the permission from it is _underlying type_. For example, `type Foo int` is a named type, but we don't support named types, so we use the underlying type, `int`, for creating the permission.
