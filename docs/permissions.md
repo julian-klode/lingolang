@@ -6,7 +6,7 @@ and certain operations that will be useful to build a static analyser that check
 The reasons for going with a capabilities-derived approach are simple: Monads don't work in Go, as Go does not
 have generic types; and fractional permissions are less powerful: Capabilities allow you to define objects with
 single-writer, multiple reader permissions (where there are two references, $ow\overline{W}$ for writing and,
-$or` for reading), which might come in handy later, or even just non-linear writeable values, which can be useful
+$or$ for reading), which might come in handy later, or even just non-linear writeable values, which can be useful
 for interaction with legacy code.
 
 This approach is called _Lingo_ (short for linear Go). Permissions in Lingo are different from the original
@@ -18,18 +18,15 @@ A permission is called _linear_ iff it contains an exclusive right matched with 
 `rR` or `wW`.
 Compared to the introduction of linear types, the ones to be introduced are not single-use values, but rather may only have a single reference at a time, which is conceptually equivalent to having the same parameter act as both input and output arguments, where passing a value makes a function use it and then write back a new one.
 A linear object can only be referenced by or contained in other linear objects, in order to preserve linearity.
-
-
-Out of the $2^5$ possible combinations of permissions bits we have a few built-in aliases:
-
-* `m`, _mutable_, is equivalent to `rwRW`
-* `v`, _value_, is equivalent to `rW`
-* `l`, _linear value_, is equivalent to `rRW`
-* `n`, _none_, is equivalent to, well, none bits set
-* `a`, _any_, is equivalent to all non-exclusive bits set, that is `orwRW`.
-
+For example, in the following code, $b$ is an array of mutable pointers. If the array were non-linear, we
+could copy it to $b$, creating two references to each linear element, which is not allowed.
+```go
+    var a /* orR [] owW * owW */ = make([]int)
+    var b = a
+```
 
 Ownership plays an interesting role with linear objects: It determines whether a reference is _moved_ or _borrowed_ (temporarily moved). For example, when passing a linear map to a function expecting an owned map, the map will be moved inside the function; if the parameter is unowned, the map will be borrowed instead. Coming back to the analogy with in and out parameters, owned parameters are both in and out, whereas unowned parameters are only in.
+
 
 ```{#syntax caption="Permission syntax" float=t frame=tb}
 main <- inner EOF
@@ -57,10 +54,16 @@ Apart from primitive and structured permissions, there are also some special per
 * The untyped nil permission, representing the `nil` literal.
 * The wildcard permission, written `_`. It is used in permission annotations whenever the default permission for a type should be used.
 
-The full syntax for these permissions is given in listing \ref{syntax}. The base permission does not need to be specified for structured types, if absent, it is considered to be `om`.
+The full syntax for these permissions is given in listing \ref{syntax}. The base permission does not need to be specified for structured types, if absent, it is considered to be `om`. There also are some shortcuts for some common combinations:
 
-In the rest of the chapter, we will discuss permissions using a set based notation: The set of permissions bits is $B = \{o, r, w, R, W\}$. A base permission
-$b \subset B$ (single lower case character) is a subset of all possible bits. The set $P$ is the set of all possible permissions, and a single upper case character
+* `m`, for _mutable_, is equivalent to `rwRW`
+* `v`, for _value_, is equivalent to `rW`
+* `l`, for _linear value_, is equivalent to `rRW` and a linear variant of value
+* `n`, for _none_, is equivalent to, well, none bits set
+* `a`, for _any_, is equivalent to all non-exclusive bits set, that is `orwRW`.
+
+In the rest of the chapter, we will discuss permissions using a set based notation: The set of rights, or permissions bits is $R = \{o, r, w, R, W\}$. A base permission
+$b \subset R$ (single lower case character) is a subset of all possible bits. The set $P$ is the set of all possible permissions, and a single upper case character
 $A \subset P$ indicates any member in it.
 
 ## Assignments
@@ -68,21 +71,22 @@ Some of the core operations on permissions involve assignability: Given a source
 
 As a value based language, one of the most common forms of assignability is copying:
 ```go
-var x = 0
+var x /* or */ = 0
 var y = x   // copy
 ```
 Another one is referencing:
 ```go
-var x = 0
+var x /* or */ = 0
 var y = &x   // reference
 var z = y    // still a reference to x, so while we copy the pointer, we also reference x one more time
 ```
 Finally, in order to implement linearity, we need a way to move things:
 ```go
-var x = 0    // a mutable value
+var x /* om */ = 0
 var y = &x   // have to move x, otherwise y and x both reach x
 var z = y    // have to move the pointer from y to z, otherwise both reach x
 ```
+(Though we are moving the permissions, not the values in that case, `y` still points to `x`)
 
 In the following, the function $ass: P \times P \to bool$ describes whether a value of the left permission can be assigned to a location of
 the right permission; it takes an implicit parameter describing the current mode of copying. The functions $cop$, $ref$,
@@ -352,15 +356,18 @@ In conclusion, $ctb(ctb(A, b), b) = ctb(A, b)$ for all $A \in P, b \in R$, as wa
 
 
 ## Merging and Converting
-The idea of conversion to base types from the previous paragraph can be extended to converting between structured types. When converting between two structured types, replace all base permissions in the source with the base permissions in the same position in the target, and when the source permission is structured and the target is base, it just switches to a to-base conversion.
+The idea of conversion to base permissions from the previous paragraph can be extended to converting between structured types. When converting between two structured types, replace all base permissions in the source with the base permissions in the same position in the target, and when the source permission is structured and the target is base, it just switches to a to-base conversion.
 
 There are two more kinds of recursive merge operations: intersection and union.
-These are essentially just recursive relaxations of intersection and union on the base permissions.
+These are essentially just recursive relaxations of intersection and union on the base permissions, that is, they simply perform intersection and union on all base types
+in the structure.
 
-Except for functions of course: An intersection of a function requires union of parameters and receivers, because just like with subtyping (in languages that have it), parameters and receivers are contravariant:
-If one function expects `orw` and another expects `or` a place that needs either of those functions (an intersection) needs a function that accepts $orw \cup or = orw$ - because passing a writable object to a function only needing a read-only one would work, but passing a read-only value to a function that needs a writable one would lead to funny results.
+Except for functions of course: An intersection of a function requires union for parameters and receivers, because just like with subtyping (in languages that have it), parameters and receivers are contravariant:
+If one function expects `orw` and another expects `or` a place that needs either of those functions (an intersection) needs a function that accepts $orw \cup or = orw$ - because passing a writable object to a function only needing a read-only one would work, but passing a read-only value to a function that needs a writable one would not be legal.
 
 Intersections are sort of a parallel to phi nodes in a program's static single assignment form. They can effectively be used to join different paths:
+
+A static analyser could use intersections to join the results of different branches, for example:
 
 ```go
 if (...) {
