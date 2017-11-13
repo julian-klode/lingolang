@@ -382,6 +382,8 @@ func (p *NilPermission) merge(p2 Permission, state *mergeState) Permission {
 	switch p2 := p2.(type) {
 	case *ChanPermission, *FuncPermission, *InterfacePermission, *MapPermission, *NilPermission, *PointerPermission, *SlicePermission:
 		return p2
+	case *WildcardPermission:
+		return p
 	default:
 		return nil
 	}

@@ -108,6 +108,8 @@ var testcasesMerge = []mergeTestCase{
 	{mergeUnion, "orw", "or", "orw", ""},
 	{mergeIntersection, "om", "or", "or", ""},
 	{mergeIntersection, "m", "or", "r", ""},
+	{mergeIntersection, &NilPermission{}, "_", &NilPermission{}, ""},
+	{mergeIntersection, "_", &NilPermission{}, &NilPermission{}, ""},
 	{mergeIntersection, &NilPermission{}, "or * or", "or * or", ""},
 	{mergeIntersection, &NilPermission{}, "or chan or", "or chan or", ""},
 	{mergeIntersection, &NilPermission{}, "or interface {}", "or interface{}", ""},
