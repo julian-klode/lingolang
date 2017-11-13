@@ -236,7 +236,7 @@ func (p *InterfacePermission) isAssignableTo(p2 Permission, state assignableStat
 				panic(fmt.Errorf("Trying to move method %s, but does not exist in source %v", r.Name, p))
 			}
 
-			if !movableTo(l, r, state) {
+			if !assignableTo(l, r, state) {
 				return false
 			}
 		}

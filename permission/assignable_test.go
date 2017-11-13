@@ -109,7 +109,7 @@ var testcasesAssignableTo = []assignableToTestCase{
 	{"om interface { ov (om) func()}", "om interface { om (om) func()}", true, false, false},
 	{"om interface { om (om) func()}", "om interface { ov (om) func()}", false, false, false},
 	{"ov interface { ov (ov) func()}", "ov interface { ov (ov) func()}", true, true, true},
-	{"ov interface { om (om) func()}", "ov interface { om (om) func()}", true, true, true},
+	{"ov interface { om (om) func()}", "ov interface { om (om) func()}", true, false, false},
 	{"ov interface { om (om) func()}", "ov interface { ov (om) func()}", false, false, false},
 
 	// An inconsistent permission. Should not be possible to actually generate (atm).

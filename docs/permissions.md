@@ -137,6 +137,19 @@ Channels, slices, and maps are reference types. They behave like value types, ex
     \end{cases}
 \end{align*}
 
+Interfaces work the same, but methods are looked up by name:
+\begin{align*}
+    \begin{aligned}
+        ass(&a \textbf{ interface } \{ A_0; \ldots; A_n \}, \\
+            &b \textbf{ interface } \{ B_0; \ldots; B_m \})
+    \end{aligned} &:\Leftrightarrow  \begin{cases}
+        ref(a, b) \text{ and } ref(A_{idx(B_i, A)}, B_i)    & \text{copy}\\
+        ass(a, b) \text{ and } ass(A_{idx(B_i, A)}, B_i)    & \text{else}\\
+        \end{cases} \\
+        & \qquad \ \text{ for all } 0 \le i \le m
+\end{align*}
+where  $idx(B_i, A)$ determines the position of a method with the same name as $B_i$ in $A$.
+
 Function permissions are a fairly special case.
 The base permission here essentially indicates the permission of (elements in) the closure.
 A mutable function is thus a function that can have different results for the same immutable parameters.
@@ -174,19 +187,6 @@ Pointers are another special case: When a pointer is copied, the pointer itself 
     \end{cases}
 \end{align*}
 There is one minor deficiency with this approach: A pointer `ol * om` cannot be moved into a pointer `om * om`, due to the rule about not adding any permissions. This is the correct behaviour when moving a reference to such a pointer, but when we have two pointer variables with these permissions, we should be able to move the value itself. That is, there should probably be two types of moving: moving by reference, and moving by value. It is unclear if it is worth the effort, though - it does mean that function parameters should not require `om * om` pointers, but rather 'ol * om', but that is a minor issue.
-
-Interfaces are method sets that work like reference types, but the methods are always moved rather than referenced. TODO This actually seems wrong.
-\begin{align*}
-    \begin{aligned}
-        ass(&a \textbf{ interface } \{ A_0; \ldots; A_n \}, \\
-            &b \textbf{ interface } \{ B_0; \ldots; B_m \})
-    \end{aligned} &:\Leftrightarrow  \begin{cases}
-        ref(a, b) \text{ and } mov(A_{idx(B_i, A)}, B_i)    & \text{copy}\\
-        ass(a, b) \text{ and } mov(A_{idx(B_i, A)}, B_i)    & \text{else}\\
-        \end{cases} \\
-        & \qquad \ \text{ for all } 0 \le i \le m
-\end{align*}
-where  $idx(B_i, A)$ determines the position of a method with the same name as $B_i$ in $A$.
 
 Finally, we have some special cases: The wildcard and nil. The wildcard is not assignable, it is only used when writing permissions to mean "default". The `nil` permission is assignable to itself, to pointers, and permissions for reference and reference-like types.
 \begin{align*}
