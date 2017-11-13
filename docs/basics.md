@@ -1,11 +1,10 @@
 # Basics
-This chapter gives a quick overview of the Go programming language before discussing existing attempts to solving the
-problem with aliases of mutable objects.
+This chapter gives a quick overview of the Go programming language before discussing approaches to solving the problem of aliases of mutable objects.
 
 ## The Go programming language
 \vskip-2cm \hfill\includegraphics[height=1.5cm]{gopherbw}
 
-Go[^Go] is an imperative programming language for concurrent programming created and mainly developed by Google, initially mostly by Robert Griesemer, Rob Pike, and Ken Thompson.
+Go[^Go] is an imperative programming language for concurrent programming created mainly developed by Google, initially mostly by Robert Griesemer, Rob Pike, and Ken Thompson.
 Design of the language started in 2007, and an initial version was released in 2009; with the first stable version, 1.0 released in 2012 [@gofaq].
 
 
@@ -15,7 +14,17 @@ Design of the language started in 2007, and an initial version was released in 2
 
 Go has a C-like syntax (without a preprocessor), garbage collection, and, like its predecessors devloped at Bell Labs -- Newsqueak (Rob Pike), Alef (Phil Winterbottom), and Inferno (Pike, Ritchie, et al.) -- provides built-in support for concurrency using so-called goroutines and channels, a form of co-routines, based on the idea of Hoare's 'Communicating Sequential Processes' [@hoare1978communicating].
 
-Go programs are organized in packages. A package is essentially a directory containing Go files. All files in a package share the same namespace, and there are two visibilities for symbols in a package: Symbols starting with an upper case character are visible to other packages, others are private to the package.
+Go programs are organised in packages. A package is essentially a directory containing Go files. All files in a package share the same namespace, and there are two visibilities for symbols in a package: Symbols starting with an upper case character are visible to other packages, others are private to the package:
+
+```go
+func PublicFunction() {
+    fmt.Println("Hello world")
+}
+
+func privateFunction() {
+    fmt.Println("Hello package")
+}
+```
 
 #### Types
 Go has a fairly simple type system: There is no subtyping (but there are conversions), no generics, no polymorphic functions, and there are only a few basic categories of types:
@@ -58,8 +67,6 @@ Go has untyped literals and constants.
 Untyped values are classified into the following categories: `UntypedBool`, `UntypedInt`, `UntypedRune`, `UntypedFloat`, `UntypedComplex`, `UntypedString`, and `UntypedNil` (Go calls them _basic kinds_, other basic kinds are available for the concrete types like `uint8`). An untyped value can be assigned to a named type derived from a base type; for example:
 
 ```go
-
-// What are we doing?
 type someType int
 
 const untyped = 2             // UntypedInt
@@ -86,7 +93,7 @@ func main() {
 }
 ```
 
-An object implements an interface if it implements all methods; for example, the following interface `MyMethoder` is implemented by `*SomeType` (notice the pointer), and values of `*SomeType` can thus be used as values of `MyMethoder`. The most basic interface is `interface{}`, that is an interface with an empty method set - any object satisfies that interface.
+An object implements an interface if it implements all methods; for example, the following interface `MyMethoder` is implemented by `*SomeType` (note the pointer), and values of `*SomeType` can thus be used as values of `MyMethoder`. The most basic interface is `interface{}`, that is an interface with an empty method set - any object satisfies that interface.
 ```go
 type MyMethoder interface {
     MyMethod()
@@ -186,7 +193,7 @@ if err != nil {
 ```
 
 There are two functions to quickly unwind and recover the call stack, though: `panic()` and `recover()`.
-When panic is called, the call stack is unwinded, and any deferred functions are run as normally.
+When `panic()` is called, the call stack is unwound, and any deferred functions are run as normally.
 When a deferred function invokes `recover()`, the unwinding stops, and the value given to `panic()` is returned.
 If we are unwinding normally and not due to a panic, `recover()` simply returns `nil`.
 In the example below, a function is deferred and any `error` value that was given to `panic()` is recovered and stored in an error return value.
@@ -238,14 +245,23 @@ someMap[someKey] = someValue
 ## Approaches to dealing with mutability
 
 Functional programming is a form of programming in which side effects do not exist.
-That is, there is no such things as mutable data structures, or even I/O operations, only pure
+That is, there is no such things as mutable data structures, or even I/O operations; only pure
 transformations from one data structure to another.
 
 ### Monads and Linear Types
 There is a way to express mutability or side effects in functional programming: Haskell and some other
 languages use a construct called monads [@launchbury1995state].
 A monad is a data structure that essentially represents a computation. For example, an array monad could have
-operations 'modifying' an array that compute a new monad that when 'executed' produces a final array - it is essentially a form of embedded language. TODO: How is a monad composed
+operations 'modifying' an array that compute a new monad that when 'executed' produces a final array - it is essentially a form of embedded language.
+For example, in Haskell, a monad is defined like this:
+```haskell
+class Monad m where
+  return ::   a -> m a
+  (>>=)  :: m a -> (a -> m b) -> m b
+```
+`return` returns a value in the monad, and `>>=` takes a value in the monad, and passes it to
+a function which expects a raw value and returns a new value in the monad, yielding the new
+value in the monad.
 
 Monads solve the problem of referential transparency: A function with the same input will
 produce the same output (a function operating on a monad produces a new monad describing any
@@ -278,7 +294,9 @@ The exclamation mark here is equivalent to an input and output parameter, so it 
 main(IO0, IO) :-
     write_string("Hello, world!\n", IO0, IO).
 ```
-With such a notation, we immediately reach a level where the code basically just looks like imperative code but with all the same guarantees of purely functional code.
+With such a notation, we immediately reach a level where the code basically just looks like imperative code but with all the same guarantees of purely functional code. We can also make this the only notation, effectively gaining an imperative language with the same guarantees as a functional one.
+
+There are various names describing the same or fairly similar concepts as this: linear [@Baker:1995:LVL:199818.199860], unique [@achten1993high][@boyland2001alias], free [@hogg1991islands][@noble1998flexible], or unsharable[@minsky1996towards].
 
 One programming language using linear types is Rust ([^Rust]). In Rust, the input/output annotation is basically the only variant - it looks and works like an imperative language. Linear values can be created and 'borrowed' for passing them to
 another function, for example. Rust has no garbage collector, but a system of life times where each function parameter can be associated a named life time and the result can then refer to the names of the parameters. This allows it to be used even without a heap, at least in theory. Rust does not use linear types for I/O which is a bit unfortunate.
@@ -321,11 +339,11 @@ It's unclear if this was intended to keep things simple, or if it was not consid
 Permissions might also be overly flexible: Should we really care about exclusive identity, or values that have no permission at all? There are 7 flags with two values each, so for a primitive value we end up with $2^7 = 128$ possible permissions.
 
 ### Fractional permissions
-Another approach to linear values is fractional permissions [@Boyland:2003:CIF:1760267.1760273] and fractional permissions without fractions [@Heule:2011:FPW:2076674.2076675].
+Another approach to linear values is fractional permissions [@Boyland:2003:CIF:1760267.1760273] and fractional permissions without fractions [@Heule:2011:FPW:2076674.2076675]. Fractional permissions are of course, only permissions, they need to be associated with values somehow, compared to capabilities which also abstract away the object.
 In the fractional permission world, an object starts out with a permission of 1, and each time it is borrowed, the permissions are split. A permission of 1 can write, other permissions can only read.
 
 Fractional permissions have one advantage over the permission approach outline in the previous section: They can be recombined.
-They are also far less flexible, offering only linear writeable and non-linear read-only kinds of values, rather than $2^7$ possible combinations,
+They are also less flexible, offering only linear writeable and non-linear read-only kinds of values, rather than $2^7$ possible combinations,
 which might be an advantage or not, depending on what they are to be used for.
 
 It seems possible to extend fractional permissions with some non-linear writeable object: Introduce infinity as a valid value, and define fractions
