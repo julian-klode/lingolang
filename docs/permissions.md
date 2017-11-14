@@ -292,7 +292,7 @@ _Theorem:_ Conversion to base, $ctb$ is idempotent, or rather $ctb_b(A) = ctb(A,
 _Background:_ This theorem is important because we generally assume that $ctb(A, base(A)) = A$ for all $A \in P$ that have been converted once (what is called consistent, and is the case for
 all permissions the static analysis works with).
 
-_Proof._
+_Proof._ This only proves $ctb()$, not $ctb_{strict}()$, but the only difference is the pointer case, which can be proven like channels below.
 
 1. Simple cases:
     \begin{align*}
@@ -319,7 +319,7 @@ _Proof._
         =& ctb(a, b) \textbf{ interface } \{ ctb(A_0, base(A_0)) \} \\
         =& ctb(a \textbf{ interface } \{ A_0 \}, b) & \text{by definition}
     \end{align*}
-1. While the strict case of pointers is trivial and can be proven like channels, the normal case is more complicated:
+1. Pointers are more complicated:
 
     Let $ctb(a * A, b) = a' * ctb(A, t_2)$ with $a' = ctb(a,b)$ and a $t_2$ according to the definition. And  $ctb(ctb(a * A, b), b) = ctb(a' * ctb(A, t_2), b) = a'' * ctb(A, t_2')$. We have to show that $a' = a''$ and $t_2 = t_2'$.
 
@@ -363,7 +363,9 @@ _Proof._
 
     Therefore, $t_2' = t_1' = t_0' = t_2$, and thus $ctb(ctb(a * A, b), b) = ctb(a * A, b)$.
 
-In conclusion, $ctb(ctb(A, b), b) = ctb(A, b)$ for all $A \in P, b \in R$, as was to be shown.  $\qed$
+In conclusion, $ctb(ctb(A, b), b) = ctb(A, b)$ for all $A \in P, b \in R$, as was to be shown. It also follows that
+$ctb_{strict}(ctb_{strict}(A, b), b) = ctb_{strict}(A, B)$ because the functions are the same, except for the diverging
+pointer case, but that one is trivial to proof (like channels). \qed
 
 
 ## Merging and Converting
