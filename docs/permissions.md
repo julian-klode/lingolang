@@ -157,7 +157,7 @@ for {
 ```
 
 
-## Assignments
+## Assignment operations
 Some of the core operations on permissions involve assignability: Given a source permission and a target permission, can I assign an object with the source permission to a variable of the target permission?
 
 As a value based language, one of the most common forms of assignability is copying:
@@ -192,6 +192,26 @@ The base case for assigning is base permissions. For copying, the only requireme
     \end{cases} \\
     \text{where } & lin(a) :\Leftrightarrow r, R \in a \text{ or } w, W \in a
 \end{align*}
+
+In the code, the function is implemented like in listing\ref{assignabilitybase}:
+```{#assignabilitybase caption="Base case of assignability, in code form" float=t frame=tb}
+func (perm BasePermission) isAssignableTo(p2 Permission, state assignableState) bool {
+	perm2, ok := p2.(BasePermission)
+	if !ok {
+		return false
+	}
+	switch state.mode {
+	case assignCopy:
+		return perm&Read != 0 || (perm == 0 && perm2 == 0) // Either A readable, or both empty permissions (hack!)
+	case assignMove:
+		return perm2&^perm == 0 && (perm&Read != 0 || (perm == 0 && perm2 == 0)) // No new permission && copy
+	case assignReference:
+		return perm2&^perm == 0 && !perm.isLinear() && !perm2.isLinear() // No new permissions and not linear
+	}
+	panic(fmt.Errorf("Unreachable, assign mode is %v", state.mode))
+
+}
+```
 
 Next up are permissions with value semantics: arrays, structs, and tuples (tuples are only used internally to represent multiple function results). They are assignable if all their children are assignable.
 \begin{align*}
@@ -285,7 +305,7 @@ Finally, we have some special cases: The wildcard and nil. The wildcard is not a
         ass(\textbf{nil}, \textbf{nil})  &:\Leftrightarrow \text{ true }
 \end{align*}
 
-## Converting to a base permission
+## Conversions to base permissions
 Converting a given permission to a base permission essentially replaces all base permissions in that permission with the specified one, except for some exception, which we'll see later. It's major use case is specifying an incomplete type, for example:
 
 ```go
@@ -313,6 +333,13 @@ Most cases of to-base conversions are rather simple:
     ctb(a \textbf{ struct } \{ A_0; \ldots; A_n \}, b) &:= ctb(a, b) \textbf{ struct }  \{ ctb(A_0, ctb(a, b)); \ldots; ctb(A_n, ctb(a, b)) \}   \\
     ctb(a\ ( A_0; \ldots; A_n), b) &:= ctb(a, b)\ ( ctb(A_0, ctb(a, b)); \ldots; ctb(A_n, ctb(a, b)) )
 \end{align*}
+
+For comparison, this is how the first case looks in the reference implementation:
+```go
+func (perm BasePermission) convertToBaseBase(perm2 BasePermission) BasePermission {
+	return perm2
+}
+```
 
 The rules are problematic in some sense, though: All children have the same base permission as their parent. This kind of makes sense for non-reference
 values like structs containing integers - after all, they are in one memory location; but for reference types, it is somewhat confusing: For example, a struct
@@ -455,7 +482,7 @@ $ctb_{strict}(ctb_{strict}(A, b), b) = ctb_{strict}(A, B)$ because the functions
 pointer case, but that one is trivial to proof (like channels). \qed
 
 
-## Merging and Converting
+## Other conversions and merges
 The idea of conversion to base permissions from the previous paragraph can be extended to converting between structured types. When converting between two structured types, replace all base permissions in the source with the base permissions in the same position in the target, and when the source permission is structured and the target is base, it just switches to a to-base conversion.
 
 There are two more kinds of recursive merge operations: intersection and union.
@@ -507,6 +534,23 @@ Otherwise, the base case for a merge is merging primitive values, and the rules 
                         \end{cases}
 \end{align*}
 
+In the code, this is implemented as a function on some special `mergeState` type (listing \ref{mergebase}). This state happens to record the mode
+of operation for the merge function, so the recursion does not need to be duplicated for each of them. It also has another
+use case, to which we will get back later, at the end of the chapter. The fu
+```{#mergebase caption="Base case of merge, in code form" float=htb frame=tb}
+func (state *mergeState) mergeBase(p1, p2 BasePermission) BasePermission {
+	switch state.action {
+	case mergeConversion, mergeStrictConversion:
+		return p2
+	case mergeIntersection:
+		return p1 & p2
+	case mergeUnion:
+		return p1 | p2
+	}
+	panic(fmt.Errorf("Invalid merge action %d", state.action))
+}
+```
+
 Pointers, channels, arrays, slices, maps, tuples, structs, and interfaces are trivial (structs and interfaces must have same number of members / methods):
 \begin{align*}
     merge(a * A, b * B)     &:= merge(a, b) * merge(A, B) \\
@@ -551,3 +595,54 @@ Since permissions have a similar shape as types and Go provides a well-designed 
 permissions in all base permission fields. And the interpreter, discussed in the next section, converts to owned as needed, using $ctb()$.
 
 One special case exists: If a type is not understood, we try to create the permission from it is _underlying type_. For example, `type Foo int` is a named type, but we don't support named types, so we use the underlying type, `int`, for creating the permission.
+
+## Handling cyclic permissions
+So far, we have only looked at permissions without cycles. In the real world, permissions can have cycles, because types can have cycles too,
+for example, `type T []T` is a type that is a slice of itself. The functions discussed so far transparently handle cycles with a simple caching
+mechanism. Essentially, all functions seen so far recurse via a wrapper function that first checks the cache for the given arguments and returns the cached value if it exists,
+and only calls the real function if the arguments were not seen yet.
+
+For predicate functions, that is, the assignability functions, this wrapper function does all the work, including registering the arguments in the cache:
+```go
+func assignableTo(A, B Permission, state assignableState) bool {
+	key := assignableStateKey{A, B, state.mode}
+	isMovable, ok := state.values[key]
+
+	if !ok {
+		state.values[key] = true
+		isMovable = A.isAssignableTo(B, state)
+		state.values[key] = isMovable
+	}
+
+	return isMovable
+}
+```
+
+For producer functions, that is, functions producing permissions, it is similar. For example, for `convertToBase`:
+```go
+func convertToBase(perm Permission, goal BasePermission, state *convertToBaseState) Permission {
+	key := mergeStateKey{perm, goal, state.action}
+	result, ok := state.state[key]
+	if !ok {
+		result = perm.convertToBase(goal, state)
+	}
+	return result
+}
+```
+The actual registering of the expected output in the cache does not happen here, though. We need to do this in the concrete
+methods, as we need to construct a new permission first. Hence, all `merge` and `convertToBase` methods start with something like this:
+```go
+
+func (p *SlicePermission) convertToBase(p2 BasePermission, state *convertToBaseState) Permission {
+	next := &SlicePermission{}
+	state.register(next, p, p2)
+
+    // convertToBase(p, p2, state) returns next now
+```
+
+This also means that the proof for $ctb$ holds even in the face of cycles. For example, if we have the permission $A := a []A$ corresponding
+to our type above, then, when converting this to b, the inner $ctb(A, b)$ will be the result of the outer permission. As long as the rule holds
+for a cycle free permission, it thus also holds for a permission with cycles.
+
+Also noteworthy: For `merge`, it is this wrapper function that handles the fallback to `convertToBase` by checking if we are converting a non-base
+permission to a base-permission and then calling `convertBase` instead. This avoids having to implement a "to-base" case for each type.
