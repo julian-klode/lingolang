@@ -2,11 +2,12 @@
 # Permissions for Go
 In the previous chapter, we saw monads, linear types, and the two generalisations of linear types as capabilities
 and fractional permissions. This chapter introduces permissions for Go based on the concepts from 'Capabilities for Sharing'[@Boyland:2001:CSG:646158.680004],
-and certain operations that will be useful to build a static analyser that checks permissions on a Go program.
+and certain operations that will be useful to build a static analyser that checks permissions on a Go program. In the `github.com/julian-klode/lingolang` reference implementation, the permissions and operations are provided in the `permission` package.
 
 The reasons for going with a capabilities-derived approach are simple: Monads don't work in Go, as Go does not
 have generic types; and fractional permissions are less powerful, and we also need to deal with legacy code and perhaps could use some other permissions for describing Go-specific operations, like a permission for allowing a function to be executed as a goroutine.
 
+## Structure of permissions
 This approach to linear types in Go is called _Lingo_ (short for linear Go). Permissions in Lingo are different from the original
 approach in 'Capabilities for Sharing' in a few points. First of all, because Go has no notion of identity,
 since it uses pointers, the right for that is dropped. We end up with 5 rights, or permission bits:
@@ -19,7 +20,7 @@ A linear object can only be referenced by or contained in other linear objects, 
 For example, in the following code, $b$ is an array of mutable pointers. If the array were non-linear, we
 could copy it to $b$, creating two references to each linear element, which is not allowed.
 ```go
-    var a /* orR [] owW * owW */ = make([]int)
+    var a /* @perm orR [] owW * owW */ = make([]int)
     var b = a
 ```
 We will see later that this actually would not be a problem, as the checks are recursive and would prevent such an object from being copied, but it makes no real sense to have an object marked as non-linear contain a linear one - it would be nothing more than a lie.
@@ -44,7 +45,7 @@ struct <- 'struct' '{' fieldList '}'
 
 Instead of using a store mapping objects, and (object, field) tuples to capabilities, that is, (object, permission) pairs, Lingo employs a different approach in order to combat the limitations shown in the introduction:
 Lingo's store maps a variable to a permission.
-In order to represents complex data structures, it does however not just have the permission bits introduced earlier (from now on called _base permission_), but also _structured_ permissions, equivalent to types.
+In order to represents complex data structures, it does however not just have the permission bits introduced earlier (from now on called _base permission_), but also _structured_ permissions, which are similar to types.
 These structured permissions consist of a base permission and permissions for each child, target, etc. - a "shadow" type system essentially.
 
 There is one problem with the approach of one base permission and one permission per child: Reference types like maps or functions actually need two base permissions:
@@ -69,6 +70,92 @@ The full syntax for these permissions is given in listing \ref{syntax}. The base
 In the rest of the chapter, we will discuss permissions using a set based notation: The set of rights, or permissions bits is $R = \{o, r, w, R, W\}$. A base permission
 $b \subset R$ (single lower case character) is a subset of all possible bits. The set $P$ is the set of all possible permissions, and a single upper case character
 $A \subset P$ indicates any member in it.
+
+### Parsing the syntax
+In the implementation, base permissions are stored as bitfields and structured permissions are structs matching the abstract syntax. Permission annotations are stored in comments attached to functions, and declarations of variables. A comment line introducing a permission annotation starts with `@perm`, for example:
+
+```go
+// @perm om * om
+var pointerToInt *int
+
+var pointerToInt *int // @perm om * om
+```
+
+Go's excellent built-in AST package (located in `go/ast`) provides native support for associating comments to nodes in the syntax tree in a understandable and reusable way. We can simply walk the AST, and map each node to an existing annotation or `nil`.
+
+The permission specification itself is then parsed using a hand-written scanner and a hand-written recursive-descent parser. The scanner operates on a stream of runes, and represents a stream of tokens with a buffer of one token for look-ahead. It provides the following functions to the parser:
+
+* `func (sc *Scanner) Scan() Token` returns the next token in the token stream
+* `func (sc *Scanner) Unscan(tok Token)` returns the last token returned from `Scan()` to the stream
+* `func (sc *Scanner) Peek() Token` is equivalent to `Scan()` followed by `Unscan()`
+* `func (sc *Scanner) Accept(types ...TokenType) (tok Token, ok bool)` takes a list of acceptable token types and returns the next token in the token stream and whether it matched. If the token did not match the expected token type, `Unscan()` is called before returning it.
+* `func (sc *Scanner) Expect(types ...TokenType) Token` is like `Accept()` but errors out if the token does not match.
+
+Error handling is not done by the usual approach of returning error values, because that made the parser code hard to read. Instead, when an error occurs, the built-in `panic()` is called with a `scannerError` object as an argument. This makes the scanner not very friendly to use outside the package, but it simplifies the parser, which calls `recover` in its outer `Parse()` method to recover any such error and return it as an error value.
+
+```{#parse .go caption="The outer Parse() function of the parser" float=ht frame=tb}
+func (p *Parser) Parse() (perm Permission, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			switch rr := r.(type) {
+			case scannerError:
+				perm = nil
+				err = rr
+			default:
+				panic(rr)
+			}
+		}
+	}()
+	perm = p.parseInner()
+
+	// Ensure that the inner run is complete
+	p.sc.Expect(TokenEndOfFile)
+	return perm, nil
+}
+```
+
+With these functions, it is easy to write a recursive descent parser. For example, the code for parsing `<basePermission> * <permission>` for pointer permission is just this:
+
+```go
+func (p *Parser) parsePointer(bp BasePermission) Permission {
+	p.sc.Expect(TokenStar)
+	rhs := p.parseInner()
+	return &PointerPermission{BasePermission: bp, Target: rhs}
+}
+```
+
+Internally the scanner is implemented by a set of functions:
+
+* `func (sc *Scanner) readRune() rune` returns the next Unicode run from the input string
+* `func (sc *Scanner) unreadRune()` moves on rune back in the input stream
+* `func (sc *Scanner) scanWhile(typ TokenType, acceptor func(rune) bool) Token` creates a token by reading and appending runes as long as the given acceptor returns true.
+
+The main Scan() function calls `readRune` to read a rune and based on that rune decides the next step. For single character tokens, the token matching the rune is returned directly. If the rune is a character, then `unreadRune()` is called to put it back
+and `sc.scanWhile(TokenWord, unicode.IsLetter)` is called to scan the entire word (including the unread rune). Then it is checked if the word is a keyword, and if so, the proper keyword token is returned, otherwise the word is returned as a token of type `Word` (which is used to represent permission bitsets, since the flags may appear in any order). Whitespace in the input is skipped:
+
+```go
+for {
+    switch ch := sc.readRune(); {
+    case ch == 0:
+        return Token{}
+    case ch == '(':
+        return Token{TokenParenLeft, "("}
+    ...
+    case unicode.IsLetter(ch):
+        sc.unreadRune()
+        tok := sc.scanWhile(TokenWord, unicode.IsLetter)
+        assignKeyword(&tok)
+        return tok
+    case unicode.IsDigit(ch):
+        sc.unreadRune()
+        return sc.scanWhile(TokenNumber, unicode.IsDigit)
+    case unicode.IsSpace(ch):
+    default:
+        panic(sc.wrapError(errors.New("Unknown character to start token: " + string(ch))))
+    }
+}
+```
+
 
 ## Assignments
 Some of the core operations on permissions involve assignability: Given a source permission and a target permission, can I assign an object with the source permission to a variable of the target permission?

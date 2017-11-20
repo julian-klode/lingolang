@@ -1,6 +1,8 @@
 # Static analysis of Go programs
 Based on the operations described in the previous section, a static analyser can be written that ensures that the rules of linearity are respected. This static analysis can be done in the form of an abstract interpreter; that is, an interpreter that does not operate on concrete values, but abstract values and tries to interpret all possible paths through a program.
 
+In the `github.com/julian-klode/lingolang` reference implementation, the permissions and operations are provided in thea package called `capabilities` for historic reasons. A better name might have been `interpreter`.
+
 ## The store
 The store is an essential part of the interpreter. It maps variable names $\in V$ to:
 
