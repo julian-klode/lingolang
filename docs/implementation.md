@@ -95,21 +95,3 @@ for {
 
 ## Representation of permissions
 Base permissions are implemented as integer bitfields. Intersection is the bitwise and operation; union is the bitwise or operation.
-
-## Representation of the store
-The store stores a slice of structs where each struct contains a name, an effective permission, a maximal permission, and the number of times
-the variable has been referenced so far. Defining a new variable or beginning a new block scope prepends to the store.
-
-```go
-type Store []struct {
-	name string
-	eff  permission.Permission
-	max  permission.Permission
-	uses int
-}
-```
-
-The beginning of a block scope is marked by a struct where the fields have their zero values, that is `{"", 0, 0, 0}`. More specifically,
-such a block marker is identified by checking if the name field is empty.
-
-When exiting a block, we simply find the first such marker, and then create a slice starting with the element following it.
