@@ -19,7 +19,7 @@ The store has several operations:
 1. `Define`, written $S[v := p]$, is a new store where a new $v$ is defined if none is in the current block, otherwise, it's the same as $S[v = p]$.
 1. `SetEffective`, written $S[v = p]$, is a new store where $v$'s effective permission is set to $intersect(p, S[\overline{v}])$
 1. `SetMaximum`, written $S[v \overset{\wedge}{=} p]$, is a new store where $v$'s maximum permission is set to $p$. It also performs $S[v = intersect(p, S[\overline{v}])]$ to ensure that the effective permission is weaker than the maximum permission.
-1. `Release`, written $S[=D]$, where $D$ is a set of tuples $(V, P)$ is the same as setting the effective permissions of all $(v, p) \in D$ in S. We call that _releasing_ D.
+1. `Release`, written $S[=D]$, where $D$ is a set of tuples $V \times {\cal P}$ is the same as setting the effective permissions of all $(v, p) \in D$ in S. We call that _releasing_ D.
 1. `BeginBlock`, written $S[+]$, is a store where a new block has begun
 1. `EndBlock`, written $S[-]$, is S with the most recent block removed
 1. `Merge`, written $S \cap S'$, where S and S' have the same length and variables in the same order, is the result of intersecting all permissions in S with the ones at the same position in S'.
@@ -99,7 +99,7 @@ If `expr` has a pointer permission, the result is the same as evaluating the poi
 result replaced by the result's target permission:
 
 \begin{align*}
-    \frac{\langle E, s \rangle \leadsto (a * A, o, d, s') \text{ for some } a \in R, A \in P}{\langle *E, s \rangle \leadsto (A, o, d, s')} && \text{(P-Star)}
+    \frac{\langle E, s \rangle \leadsto (a * A, o, d, s') \text{ for some } a \subset {\cal R}, A \in {\cal P}}{\langle *E, s \rangle \leadsto (A, o, d, s')} && \text{(P-Star)}
 \end{align*}
 
 #### Binary expression: `A op B`

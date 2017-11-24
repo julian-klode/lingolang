@@ -67,11 +67,17 @@ There also are some shortcuts for some common combinations:
 
 The full syntax for these permissions is given in listing \ref{syntax}. The base permission does not need to be specified for structured types, if absent, it is considered to be `om`.
 
-In the rest of the chapter, we will discuss permissions using a set based notation: The set of rights, or permissions bits is $R = \{o, r, w, R, W\}$. A base permission
-$b \subset R$ (single lower case character) is a subset of all possible bits. The set $P$ is the set of all possible permissions, and a single upper case character
-$A \subset P$ indicates any member in it.
+In the rest of the chapter, we will discuss permissions using a set based notation: The set of rights, or permissions bits is ${\cal R} = \{o, r, w, R, W\}$. A base permission
+is a subset  $\subset \cal R$ of it, that is an element in $2^{\cal R}$. The set $\cal P$ is the infinite set of all permissions:
 
-### Parsing the syntax
+$$ {\cal P} = 2^R \cup \{p \textbf{ struct } \{P_0, ..., P_n \} | p \subset {\cal R}, P_i \in {\cal P} \} \cup \ldots \cup \{nil, \_\}$$
+
+Compare the syntax chart in listing \ref{syntax} for which permissions are possible.
+
+Base permissions like $b \in 2^{\cal R}$ are usually denoted by lower case, other permissions (or generically, all permissions) are
+denoted by uppercase characters like $P in {\cal R}$.
+
+### Excursus: Parsing the syntax
 In the implementation, base permissions are stored as bitfields and structured permissions are structs matching the abstract syntax. Permission annotations are stored in comments attached to functions, and declarations of variables. A comment line introducing a permission annotation starts with `@perm`, for example:
 
 ```go
@@ -401,9 +407,9 @@ The steps $t_0, t_1, t_2$ do the following:
 Steps 1 and 2 make it consistent: Without them, we could have a non-linear pointer pointing to a linear target. Since the target could only have one reference, but the pointer appears to be copyable (it is not, as the assignability rules also work recursively), we get the impression that we could have two pointers for the same target. It also allows us to just gather linearity info from the outside: If the base permission of a value is non-linear, it cannot contain linear values - this can be used to simplify some checks.
 
 #### Theorem: $ctb_b(A) = ctb(A, b)$ is idempotent
-_Theorem:_ Conversion to base, $ctb$ is idempotent, or rather $ctb_b(A) = ctb(A, b)$ is. That is, for all $A \in P, b \in R$: $ctb_b(A) = ctb(A, b) = ctb(ctb(A, b), b) = ctb_b(ctb_b(A))$.
+_Theorem:_ Conversion to base, $ctb$ is idempotent, or rather $ctb_b(A) = ctb(A, b)$ is. That is, for all $A \in {\cal P}, b \subset {\cal R}$: $ctb_b(A) = ctb(A, b) = ctb(ctb(A, b), b) = ctb_b(ctb_b(A))$.
 
-_Background:_ This theorem is important because we generally assume that $ctb(A, base(A)) = A$ for all $A \in P$ that have been converted once (what is called consistent, and is the case for
+_Background:_ This theorem is important because we generally assume that $ctb(A, base(A)) = A$ for all $A \in {\cal P}$ that have been converted once (what is called consistent, and is the case for
 all permissions the static analysis works with).
 
 _Proof._ This only proves $ctb()$, not $ctb_{strict}()$, but the only difference is the pointer case, which can be proven like channels below.
@@ -477,7 +483,7 @@ _Proof._ This only proves $ctb()$, not $ctb_{strict}()$, but the only difference
 
     Therefore, $t_2' = t_1' = t_0' = t_2$, and thus $ctb(ctb(a * A, b), b) = ctb(a * A, b)$.
 
-In conclusion, $ctb(ctb(A, b), b) = ctb(A, b)$ for all $A \in P, b \in R$, as was to be shown. It also follows that
+In conclusion, $ctb(ctb(A, b), b) = ctb(A, b)$ for all $A \in {\cal P}, b \subset {\cal R}$, as was to be shown. It also follows that
 $ctb_{strict}(ctb_{strict}(A, b), b) = ctb_{strict}(A, B)$ because the functions are the same, except for the diverging
 pointer case, but that one is trivial to proof (like channels). \qed
 
@@ -509,7 +515,7 @@ The wildcard exists just as a placeholder for annotation purposes, so merging it
 permission (a chan, func, interface, map, nil, pointer, or slice permission) yields the other permission:
 \begin{align*}
     merge(\_, B)    &:= \_ &&& merge(A, \_)     &:= \_ \\
-    merge(N, nil)   &:= N   &&& merge(nil, N)   &:= N  & \text{ for all nilable } N \in P \text{ and } N = nil
+    merge(N, nil)   &:= N   &&& merge(nil, N)   &:= N  & \text{ for all nilable } N \in {\cal P} \text{ and } N = nil
 \end{align*}
 Regarding the soundness of the merging nils with nilable permissions:
 
