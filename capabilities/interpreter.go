@@ -706,6 +706,10 @@ func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt, isASwitch bool) 
 
 	var output []StmtExit
 
+	if isASwitch {
+		output = append(output, StmtExit{st, nil})
+	}
+
 	for k, stmt := range stmts {
 		if l, ok := stmt.(*ast.LabeledStmt); ok {
 			labels[l.Label.Name] = k
@@ -1111,7 +1115,6 @@ func (i *Interpreter) visitSwitchStmt(st Store, stmt *ast.SwitchStmt) []StmtExit
 
 	st = st.BeginBlock()
 	for _, exit := range i.visitStmt(st, stmt.Init) {
-		exits = append(exits, exit)
 		st := exit.Store
 		perm, deps, st := i.visitExprNoOwner(st, stmt.Tag)
 		if stmt.Tag != nil {
@@ -1133,7 +1136,6 @@ func (i *Interpreter) visitSwitchStmt(st Store, stmt *ast.SwitchStmt) []StmtExit
 func (i *Interpreter) visitSelectStmt(st Store, stmt *ast.SelectStmt) []StmtExit {
 	var exits []StmtExit
 
-	exits = append(exits, StmtExit{st, nil})
 	st = st.BeginBlock()
 
 	for _, exit := range i.visitStmtList(st, stmt.Body.List, true) {

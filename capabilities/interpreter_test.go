@@ -726,6 +726,20 @@ func TestVisitStmt(t *testing.T) {
 			},
 			"",
 		},
+		{"switchStmtTagIsUsed",
+			[]storeItemDesc{
+				{"a", "om map[om]om * om"},
+				{"f", "om func (om * om) or"},
+				{"main", "om func (om) n"},
+			},
+			"func main(a map[string]*float64, f func(*float64) bool) { switch f(a[\"x\"]) {  } }",
+			[]exitDesc{
+				{[]storeItemDesc{
+					{"a", "n map[n]n * r"},
+				}, -1},
+			},
+			"",
+		},
 		{"switchStmtSameExits",
 			[]storeItemDesc{
 				{"a", "om map[om]om * om"},
