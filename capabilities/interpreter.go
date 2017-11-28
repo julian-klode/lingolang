@@ -75,8 +75,8 @@ func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, Ow
 	return i.Error(e, "Reached a bad expression %v - this should not happen", e)
 }
 
-// visitExprNoOwner is like VisitExpr(), but merges the owner into the borrowed
-func (i *Interpreter) visitExprNoOwner(st Store, e ast.Expr) (permission.Permission, []Borrowed, Store) {
+// visitExprOwnerToDeps is like VisitExpr(), but merges the owner into the borrowed
+func (i *Interpreter) visitExprOwnerToDeps(st Store, e ast.Expr) (permission.Permission, []Borrowed, Store) {
 	perm, owner, deps, st := i.VisitExpr(st, e)
 	if owner != NoOwner {
 		deps = append(deps, Borrowed(owner))
@@ -170,11 +170,11 @@ func (i *Interpreter) visitBinaryExpr(st Store, e *ast.BinaryExpr) (permission.P
 	// operator, the result is the intersection of LHS & (RHS after LHS), because
 	// it might be possible that only LHS is evaluated. Otherwise, both sides are
 	// always evaluated, so the result is RHS after LHS.
-	lhs, ldeps, stl := i.visitExprNoOwner(st, e.X)
+	lhs, ldeps, stl := i.visitExprOwnerToDeps(st, e.X)
 	stl = i.Release(e, stl, ldeps)
 	i.Assert(e.X, lhs, permission.Read)
 
-	rhs, rdeps, str := i.visitExprNoOwner(stl, e.Y)
+	rhs, rdeps, str := i.visitExprOwnerToDeps(stl, e.Y)
 	str = i.Release(e, str, rdeps)
 	i.Assert(e.Y, rhs, permission.Read)
 
@@ -320,9 +320,9 @@ func (i *Interpreter) visitCallExpr(st Store, e *ast.CallExpr, isDeferredOrGorou
 
 func (i *Interpreter) visitSliceExpr(st Store, e *ast.SliceExpr) (permission.Permission, Owner, []Borrowed, Store) {
 	arr, owner, arrDeps, st := i.VisitExpr(st, e.X)
-	low, lowDeps, st := i.visitExprNoOwner(st, e.Low)
-	high, highDeps, st := i.visitExprNoOwner(st, e.High)
-	max, maxDeps, st := i.visitExprNoOwner(st, e.Max)
+	low, lowDeps, st := i.visitExprOwnerToDeps(st, e.Low)
+	high, highDeps, st := i.visitExprOwnerToDeps(st, e.High)
+	max, maxDeps, st := i.visitExprOwnerToDeps(st, e.Max)
 
 	if e.Low != nil {
 		i.Assert(e.Low, low, permission.Read)
@@ -434,7 +434,7 @@ func pushReceiverToParams(perm *permission.FuncPermission) *permission.FuncPermi
 func (i *Interpreter) visitCompositeLit(st Store, e *ast.CompositeLit) (permission.Permission, Owner, []Borrowed, Store) {
 	var err error
 	// TODO: Types should be stored differently, possibly just wrapped in a *permission.Type or something.
-	typPermAsPerm, deps, st := i.visitExprNoOwner(st, e.Type)
+	typPermAsPerm, deps, st := i.visitExprOwnerToDeps(st, e.Type)
 	typPerm, ok := typPermAsPerm.(*permission.StructPermission)
 	st = i.Release(e, st, deps)
 	deps = nil
@@ -472,7 +472,7 @@ func (i *Interpreter) visitCompositeLit(st Store, e *ast.CompositeLit) (permissi
 			value = kve.Value
 		}
 
-		valPerm, valDeps, store := i.visitExprNoOwner(st, value)
+		valPerm, valDeps, store := i.visitExprOwnerToDeps(st, value)
 		st = store
 
 		if st, _, valDeps, err = i.moveOrCopy(e, st, valPerm, typPerm.Fields[index], NoOwner, valDeps); err != nil {
@@ -633,7 +633,7 @@ func (i *Interpreter) visitCaseClause(st Store, stmt *ast.CaseClause) []StmtExit
 	var mergedStore Store
 	// List of alternatives A, B, C, ...
 	for _, e := range stmt.List {
-		perm, deps, store := i.visitExprNoOwner(st, e)
+		perm, deps, store := i.visitExprOwnerToDeps(st, e)
 		st = store
 		i.Assert(e, perm, permission.Read)
 		st = i.Release(e, st, deps)
@@ -645,7 +645,7 @@ func (i *Interpreter) visitCaseClause(st Store, stmt *ast.CaseClause) []StmtExit
 }
 
 func (i *Interpreter) visitExprStmt(st Store, stmt *ast.ExprStmt) []StmtExit {
-	_, deps, st := i.visitExprNoOwner(st, stmt.X)
+	_, deps, st := i.visitExprOwnerToDeps(st, stmt.X)
 	st = i.Release(stmt.X, st, deps)
 	return []StmtExit{{st, nil}}
 }
@@ -657,7 +657,7 @@ func (i *Interpreter) visitIfStmt(st Store, stmt *ast.IfStmt) []StmtExit {
 		i.Error(stmt.Init, "Initializer to if statement has %d exits", len(exits))
 	}
 	st = exits[0].Store // assert len(exits) == 1
-	perm, deps, st := i.visitExprNoOwner(st, stmt.Cond)
+	perm, deps, st := i.visitExprOwnerToDeps(st, stmt.Cond)
 	i.Assert(stmt.Cond, perm, permission.Read)
 	st = i.Release(stmt.Cond, st, deps)
 
@@ -815,14 +815,14 @@ func (i *Interpreter) visitReturnStmt(st Store, s *ast.ReturnStmt) []StmtExit {
 }
 
 func (i *Interpreter) visitIncDecStmt(st Store, stmt *ast.IncDecStmt) []StmtExit {
-	p, deps, st := i.visitExprNoOwner(st, stmt.X)
+	p, deps, st := i.visitExprOwnerToDeps(st, stmt.X)
 	i.Assert(stmt.X, p, permission.Read|permission.Write)
 	st = i.Release(stmt.X, st, deps)
 	return []StmtExit{{st, nil}}
 }
 
 func (i *Interpreter) visitSendStmt(st Store, stmt *ast.SendStmt) []StmtExit {
-	chanRaw, chanDeps, st := i.visitExprNoOwner(st, stmt.Chan)
+	chanRaw, chanDeps, st := i.visitExprOwnerToDeps(st, stmt.Chan)
 	chn, isChan := chanRaw.(*permission.ChanPermission)
 	if !isChan {
 		i.Error(stmt.Chan, "Expected channel, received %v", chanRaw)
@@ -861,7 +861,7 @@ func (i *Interpreter) defineOrAssignMany(st Store, stmt ast.Stmt, lhsExprs []ast
 	var rhs []permission.Permission
 	if len(rhsExprs) == 1 && len(lhsExprs) > 1 {
 		// These really can't have owners.
-		rhs0, rdeps, store := i.visitExprNoOwner(st, rhsExprs[0])
+		rhs0, rdeps, store := i.visitExprOwnerToDeps(st, rhsExprs[0])
 		st = store
 		tuple, ok := rhs0.(*permission.TuplePermission)
 		if !ok {
@@ -949,7 +949,7 @@ func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs 
 	// Ensure we can do the assignment. If the left hand side is an identifier, this should always be
 	// true - it's either Defined to the same value, or set to something less than it in the previous block.
 
-	perm, _, _ := i.visitExprNoOwner(st, lhs) // We just need to know permission, don't care about borrowing.
+	perm, _, _ := i.visitExprOwnerToDeps(st, lhs) // We just need to know permission, don't care about borrowing.
 	if !allowUnowned {
 		i.Assert(lhs, perm, permission.Owned) // Make sure it's owned, so we don't move unowned to it.
 	}
@@ -972,7 +972,7 @@ func (i *Interpreter) visitRangeStmt(initStore Store, stmt *ast.RangeStmt) (rang
 	bm.addExit(StmtExit{initStore, nil})
 
 	// Evaluate the container specified on the right hand side.
-	perm, deps, initStore := i.visitExprNoOwner(initStore, stmt.X)
+	perm, deps, initStore := i.visitExprOwnerToDeps(initStore, stmt.X)
 	defer func() {
 		// TODO: canRelease = true
 		if canRelease {
@@ -1088,7 +1088,7 @@ func (i *Interpreter) visitSwitchStmt(st Store, stmt *ast.SwitchStmt) []StmtExit
 	st = st.BeginBlock()
 	for _, exit := range i.visitStmt(st, stmt.Init) {
 		st := exit.Store
-		perm, deps, st := i.visitExprNoOwner(st, stmt.Tag)
+		perm, deps, st := i.visitExprOwnerToDeps(st, stmt.Tag)
 		if stmt.Tag != nil {
 			i.Assert(stmt.Tag, perm, permission.Read)
 		}
@@ -1143,7 +1143,7 @@ func (i *Interpreter) visitForStmt(initStore Store, stmt *ast.ForStmt) (rangeExi
 		_, st := bm.nextWork()
 		log.Printf("for: Told to iterate %v", st)
 		// Check condition
-		perm, deps, st := i.visitExprNoOwner(st, stmt.Cond)
+		perm, deps, st := i.visitExprOwnerToDeps(st, stmt.Cond)
 		i.Assert(stmt.Cond, perm, permission.Read)
 		st = i.Release(stmt.Cond, st, deps)
 		// There might be no more items, exit
