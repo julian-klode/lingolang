@@ -725,66 +725,58 @@ func (bm *blockManager) addExit(exits ...StmtExit) {
 	bm.exits = append(bm.exits, exits...)
 }
 
-func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt, isASwitch bool) []StmtExit {
-	if len(stmts) == 0 {
-		return []StmtExit{{st, nil}}
-	}
+func collectLabels(stmts []ast.Stmt) map[string]int {
 	labels := make(map[string]int)
-	var bm blockManager
-
-	if isASwitch {
-		bm.addExit(StmtExit{st, nil})
-	}
-
 	for k, stmt := range stmts {
 		if l, ok := stmt.(*ast.LabeledStmt); ok {
 			labels[l.Label.Name] = k
 		}
 	}
+	return labels
+}
+
+func (i *Interpreter) visitStmtList(initStore Store, stmts []ast.Stmt, isASwitch bool) []StmtExit {
+	if len(stmts) == 0 {
+		return []StmtExit{{initStore, nil}}
+	}
+	var bm blockManager
+	var labels = collectLabels(stmts)
 
 	if isASwitch {
+		bm.addExit(StmtExit{initStore, nil})
 		for i := range stmts {
-			bm.addWork(work{st, i})
+			bm.addWork(work{initStore, i})
 		}
 	} else {
-		bm.addWork(work{st, 0})
+		bm.addWork(work{initStore, 0})
 	}
 
 	for bm.hasWork() {
-		start, st := bm.nextWork()
-		log.Printf("Visiting statement %d of %d in %v", start.int, len(stmts), st.GetEffective("a"))
+		item, _ := bm.nextWork()
 
-		stmt := stmts[start.int]
-		exits := i.visitStmt(st, stmt)
-
+		log.Printf("Visiting statement %d of %d in %v", item.int, len(stmts), item.Store.GetEffective("a"))
+		exits := i.visitStmt(item.Store, stmts[item.int])
 		log.Printf("Leaving statement with %d exits at %d outputs and %d work", len(exits), len(bm.exits), len(bm.todo))
-
 		for _, exit := range exits {
-			st := exit.Store
 			switch branch := exit.branch.(type) {
 			case nil:
-				if len(stmts) > start.int+1 && !isASwitch {
-					bm.addWork(work{st, start.int + 1})
+				if len(stmts) > item.int+1 && !isASwitch {
+					bm.addWork(work{exit.Store, item.int + 1})
 				} else {
-					bm.addExit(StmtExit{st, nil})
+					bm.addExit(StmtExit{exit.Store, nil})
 				}
 			case *ast.ReturnStmt:
-				// This exits the block
-				bm.addExit(exit)
-
+				bm.addExit(exit) // Always exits the block
 			case *ast.BranchStmt:
+				branchingThis := (branch.Label == nil || branch.Label.Name == "" /* | TODO current label */)
 				switch {
-				case isASwitch && branch.Tok == token.BREAK:
-					if branch.Label == nil || branch.Label.Name == "" /* | TODO current label */ {
-						bm.addExit(StmtExit{exit.Store, nil})
-					} else {
-						bm.addExit(exit)
-					}
+				case isASwitch && branch.Tok == token.BREAK && branchingThis:
+					bm.addExit(StmtExit{exit.Store, nil})
 				case isASwitch && branch.Tok == token.FALLTHROUGH:
-					bm.addWork(work{st, start.int + 1})
+					bm.addWork(work{exit.Store, item.int + 1})
 				case branch.Tok == token.GOTO:
 					if target, ok := labels[branch.Label.Name]; ok {
-						bm.addWork(work{st, target})
+						bm.addWork(work{exit.Store, target})
 					} else {
 						bm.addExit(exit)
 					}
@@ -1068,7 +1060,7 @@ func (i *Interpreter) endBlocksAndCollectLoopExits(exits []StmtExit, endAllBlock
 			exits[j].Store = exits[j].Store.EndBlock()
 		}
 	}
-	log.Printf("VIsiting exits")
+
 	for _, exit := range exits {
 		switch branch := exit.branch.(type) {
 		case nil:
@@ -1076,19 +1068,12 @@ func (i *Interpreter) endBlocksAndCollectLoopExits(exits []StmtExit, endAllBlock
 		case *ast.ReturnStmt:
 			realExits = append(realExits, exit)
 		case *ast.BranchStmt:
-			switch branch.Tok {
-			case token.BREAK:
-				if branch.Label == nil || branch.Label.Name == "" /* | TODO current label */ {
-					realExits = append(realExits, StmtExit{exit.Store, nil})
-				} else {
-					realExits = append(realExits, exit)
-				}
-			case token.CONTINUE:
-				if branch.Label == nil || branch.Label.Name == "" /* | TODO current label */ {
-					nextIterations = append(nextIterations, work{exit.Store, 0})
-				} else {
-					realExits = append(realExits, exit)
-				}
+			branchingThis := branch.Label == nil || branch.Label.Name == "" /* | TODO current label */
+			switch {
+			case branch.Tok == token.BREAK && branchingThis:
+				realExits = append(realExits, StmtExit{exit.Store, nil})
+			case branch.Tok == token.CONTINUE && branchingThis:
+				nextIterations = append(nextIterations, work{exit.Store, 0})
 			default:
 				realExits = append(realExits, exit)
 			}
