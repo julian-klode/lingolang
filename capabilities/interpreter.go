@@ -682,27 +682,18 @@ func (i *Interpreter) visitIfStmt(st Store, stmt *ast.IfStmt) []StmtExit {
 	return out
 }
 
+type Work struct {
+	Store
+	int
+}
+
 func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt, isASwitch bool) []StmtExit {
 	if len(stmts) == 0 {
 		return []StmtExit{{st, nil}}
 	}
 	labels := make(map[string]int)
-	var work []struct {
-		Store
-		int
-	}
-
-	seen := []struct {
-		Store
-		int
-	}{}
-
-	addWork := func(st Store, pos int) {
-		work = append(work, struct {
-			Store
-			int
-		}{st, pos})
-	}
+	var work []Work
+	var seen []Work
 
 	var output []StmtExit
 
@@ -718,10 +709,10 @@ func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt, isASwitch bool) 
 
 	if isASwitch {
 		for i := range stmts {
-			addWork(st, i)
+			work = append(work, Work{st, i})
 		}
 	} else {
-		addWork(st, 0)
+		work = append(work, Work{st, 0})
 	}
 
 nextWork:
@@ -754,7 +745,7 @@ nextWork:
 			switch branch := exit.branch.(type) {
 			case nil:
 				if len(stmts) > start.int+1 && !isASwitch {
-					addWork(st, start.int+1)
+					work = append(work, Work{st, start.int + 1})
 				} else {
 					output = append(output, StmtExit{st, nil})
 				}
@@ -771,10 +762,10 @@ nextWork:
 						output = append(output, exit)
 					}
 				case isASwitch && branch.Tok == token.FALLTHROUGH:
-					addWork(st, start.int+1)
+					work = append(work, Work{st, start.int + 1})
 				case branch.Tok == token.GOTO:
 					if target, ok := labels[branch.Label.Name]; ok {
-						addWork(st, target)
+						work = append(work, Work{st, target})
 					} else {
 						output = append(output, exit)
 					}
