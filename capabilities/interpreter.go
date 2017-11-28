@@ -710,7 +710,11 @@ func (bm *blockManager) nextWork() (Work, Store) {
 }
 
 func (bm *blockManager) addWork(work ...Work) {
-	bm.work = append(bm.work, work...)
+	for _, w := range work {
+		if !bm.isDuplicate(w) {
+			bm.work = append(bm.work, w)
+		}
+	}
 }
 
 func (bm *blockManager) hasWork() bool {
@@ -749,12 +753,6 @@ func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt, isASwitch bool) 
 	for bm.hasWork() {
 		start, st := bm.nextWork()
 		log.Printf("Visiting statement %d of %d in %v", start.int, len(stmts), st.GetEffective("a"))
-
-		// Hey guys, we've already been here, discard that path.
-		if bm.isDuplicate(start) {
-			log.Printf("Rejecting statement %d in store %v", start.int, st.GetEffective("a"))
-			continue
-		}
 
 		stmt := stmts[start.int]
 		exits := i.visitStmt(st, stmt)
@@ -1014,19 +1012,8 @@ func (i *Interpreter) visitRangeStmt(st Store, stmt *ast.RangeStmt) (rangeExits 
 	bm.addWork(Work{st, 0})
 
 	for iter := 0; bm.hasWork(); iter++ {
-		start, st := bm.nextWork()
-
+		_, st := bm.nextWork()
 		log.Printf("Iterating %s", st.GetEffective("a"))
-
-		// There might be no more items, exit
-		if iter > 0 {
-			log.Printf("Appending output with a = %s", st.GetEffective("a"))
-			bm.addExit(StmtExit{st, nil})
-		}
-
-		if bm.isDuplicate(start) {
-			continue
-		}
 
 		st = st.BeginBlock()
 		if stmt.Key != nil {
@@ -1054,6 +1041,12 @@ func (i *Interpreter) visitRangeStmt(st Store, stmt *ast.RangeStmt) (rangeExits 
 
 		nextIterations, exits := i.endBlocksAndCollectLoopExits(i.visitStmt(st, stmt.Body), true)
 		bm.addExit(exits...)
+		// Each next iteration is also possible work. This might generate duplicate exits, but we have
+		// to do it this way, as we might otherwise miss some exits
+		for _, iter := range nextIterations {
+			log.Printf("Appending output with a = %s", st.GetEffective("a"))
+			bm.addExit(StmtExit{iter.Store, nil})
+		}
 		bm.addWork(nextIterations...)
 	}
 
@@ -1168,14 +1161,9 @@ func (i *Interpreter) visitForStmt(st Store, stmt *ast.ForStmt) (rangeExits []St
 	}
 
 	for bm.hasWork() {
-		start, st := bm.nextWork()
+		_, st := bm.nextWork()
 
 		log.Printf("for: Told to iterate %v", st)
-
-		if bm.isDuplicate(start) {
-			log.Printf("for: Skipping to iterate %v", st)
-			continue
-		}
 
 		// Check condition
 		perm, deps, st := i.visitExprNoOwner(st, stmt.Cond)
