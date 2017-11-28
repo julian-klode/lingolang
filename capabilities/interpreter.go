@@ -1011,7 +1011,7 @@ func (i *Interpreter) visitRangeStmt(st Store, stmt *ast.RangeStmt) (rangeExits 
 
 	bm.addWork(work{st, 0})
 
-	for iter := 0; bm.hasWork(); iter++ {
+	for bm.hasWork() {
 		_, st := bm.nextWork()
 		log.Printf("Iterating %s", st.GetEffective("a"))
 
