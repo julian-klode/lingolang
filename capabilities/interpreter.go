@@ -682,18 +682,18 @@ func (i *Interpreter) visitIfStmt(st Store, stmt *ast.IfStmt) []StmtExit {
 	return out
 }
 
-type Work struct {
+type work struct {
 	Store
 	int
 }
 
 type blockManager struct {
-	work  []Work
-	seen  []Work
+	todo  []work
+	seen  []work
 	exits []StmtExit
 }
 
-func (bm *blockManager) isDuplicate(start Work) bool {
+func (bm *blockManager) isDuplicate(start work) bool {
 	for _, sn := range bm.seen {
 		if sn.int == start.int && sn.Store.Equal(start.Store) {
 			return true
@@ -703,22 +703,22 @@ func (bm *blockManager) isDuplicate(start Work) bool {
 	return false
 }
 
-func (bm *blockManager) nextWork() (Work, Store) {
-	last := (bm.work)[len(bm.work)-1]
-	bm.work = (bm.work)[:len(bm.work)-1]
+func (bm *blockManager) nextWork() (work, Store) {
+	last := (bm.todo)[len(bm.todo)-1]
+	bm.todo = (bm.todo)[:len(bm.todo)-1]
 	return last, last.Store
 }
 
-func (bm *blockManager) addWork(work ...Work) {
-	for _, w := range work {
+func (bm *blockManager) addWork(todo ...work) {
+	for _, w := range todo {
 		if !bm.isDuplicate(w) {
-			bm.work = append(bm.work, w)
+			bm.todo = append(bm.todo, w)
 		}
 	}
 }
 
 func (bm *blockManager) hasWork() bool {
-	return len(bm.work) > 0
+	return len(bm.todo) > 0
 }
 
 func (bm *blockManager) addExit(exits ...StmtExit) {
@@ -744,10 +744,10 @@ func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt, isASwitch bool) 
 
 	if isASwitch {
 		for i := range stmts {
-			bm.addWork(Work{st, i})
+			bm.addWork(work{st, i})
 		}
 	} else {
-		bm.addWork(Work{st, 0})
+		bm.addWork(work{st, 0})
 	}
 
 	for bm.hasWork() {
@@ -757,14 +757,14 @@ func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt, isASwitch bool) 
 		stmt := stmts[start.int]
 		exits := i.visitStmt(st, stmt)
 
-		log.Printf("Leaving statement with %d exits at %d outputs and %d work", len(exits), len(bm.exits), len(bm.work))
+		log.Printf("Leaving statement with %d exits at %d outputs and %d work", len(exits), len(bm.exits), len(bm.todo))
 
 		for _, exit := range exits {
 			st := exit.Store
 			switch branch := exit.branch.(type) {
 			case nil:
 				if len(stmts) > start.int+1 && !isASwitch {
-					bm.addWork(Work{st, start.int + 1})
+					bm.addWork(work{st, start.int + 1})
 				} else {
 					bm.addExit(StmtExit{st, nil})
 				}
@@ -781,10 +781,10 @@ func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt, isASwitch bool) 
 						bm.addExit(exit)
 					}
 				case isASwitch && branch.Tok == token.FALLTHROUGH:
-					bm.addWork(Work{st, start.int + 1})
+					bm.addWork(work{st, start.int + 1})
 				case branch.Tok == token.GOTO:
 					if target, ok := labels[branch.Label.Name]; ok {
-						bm.addWork(Work{st, target})
+						bm.addWork(work{st, target})
 					} else {
 						bm.addExit(exit)
 					}
@@ -793,7 +793,7 @@ func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt, isASwitch bool) 
 				}
 			}
 		}
-		log.Printf("Left statement with %d exits at %d outputs and %d work", len(exits), len(bm.exits), len(bm.work))
+		log.Printf("Left statement with %d exits at %d outputs and %d work", len(exits), len(bm.exits), len(bm.todo))
 	}
 
 	return bm.exits
@@ -1009,7 +1009,7 @@ func (i *Interpreter) visitRangeStmt(st Store, stmt *ast.RangeStmt) (rangeExits 
 		rval = perm.ValuePermission
 	}
 
-	bm.addWork(Work{st, 0})
+	bm.addWork(work{st, 0})
 
 	for iter := 0; bm.hasWork(); iter++ {
 		_, st := bm.nextWork()
@@ -1060,8 +1060,8 @@ func (i *Interpreter) visitRangeStmt(st Store, stmt *ast.RangeStmt) (rangeExits 
 //
 // If endAllBlocks is true, all inputs will have EndBlock() called on them, otherwise, only the returned []StmtExit
 // will have EndBlock() called on them.
-func (i *Interpreter) endBlocksAndCollectLoopExits(exits []StmtExit, endAllBlocks bool) ([]Work, []StmtExit) {
-	var nextIterations []Work
+func (i *Interpreter) endBlocksAndCollectLoopExits(exits []StmtExit, endAllBlocks bool) ([]work, []StmtExit) {
+	var nextIterations []work
 	var realExits []StmtExit
 	if endAllBlocks {
 		for j := range exits {
@@ -1072,7 +1072,7 @@ func (i *Interpreter) endBlocksAndCollectLoopExits(exits []StmtExit, endAllBlock
 	for _, exit := range exits {
 		switch branch := exit.branch.(type) {
 		case nil:
-			nextIterations = append(nextIterations, Work{exit.Store, 0})
+			nextIterations = append(nextIterations, work{exit.Store, 0})
 		case *ast.ReturnStmt:
 			realExits = append(realExits, exit)
 		case *ast.BranchStmt:
@@ -1085,7 +1085,7 @@ func (i *Interpreter) endBlocksAndCollectLoopExits(exits []StmtExit, endAllBlock
 				}
 			case token.CONTINUE:
 				if branch.Label == nil || branch.Label.Name == "" /* | TODO current label */ {
-					nextIterations = append(nextIterations, Work{exit.Store, 0})
+					nextIterations = append(nextIterations, work{exit.Store, 0})
 				} else {
 					realExits = append(realExits, exit)
 				}
@@ -1157,7 +1157,7 @@ func (i *Interpreter) visitForStmt(st Store, stmt *ast.ForStmt) (rangeExits []St
 		if entry.branch != nil {
 			i.Error(stmt.Init, "Initializer exits uncleanly")
 		}
-		bm.addWork(Work{entry.Store, 0})
+		bm.addWork(work{entry.Store, 0})
 	}
 
 	for bm.hasWork() {
@@ -1182,7 +1182,7 @@ func (i *Interpreter) visitForStmt(st Store, stmt *ast.ForStmt) (rangeExits []St
 				if nextExit.branch != nil {
 					i.Error(stmt.Init, "Post exits uncleanly")
 				}
-				bm.addWork(Work{nextExit.Store, 0})
+				bm.addWork(work{nextExit.Store, 0})
 			}
 		}
 
