@@ -687,18 +687,49 @@ type Work struct {
 	int
 }
 
+type blockManager struct {
+	work  []Work
+	seen  []Work
+	exits []StmtExit
+}
+
+func (bm *blockManager) isDuplicate(start Work) bool {
+	for _, sn := range bm.seen {
+		if sn.int == start.int && sn.Store.Equal(start.Store) {
+			return true
+		}
+	}
+	bm.seen = append(bm.seen, start)
+	return false
+}
+
+func (bm *blockManager) nextWork() (Work, Store) {
+	last := (bm.work)[len(bm.work)-1]
+	bm.work = (bm.work)[:len(bm.work)-1]
+	return last, last.Store
+}
+
+func (bm *blockManager) addWork(work ...Work) {
+	bm.work = append(bm.work, work...)
+}
+
+func (bm *blockManager) hasWork() bool {
+	return len(bm.work) > 0
+}
+
+func (bm *blockManager) addExit(exits ...StmtExit) {
+	bm.exits = append(bm.exits, exits...)
+}
+
 func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt, isASwitch bool) []StmtExit {
 	if len(stmts) == 0 {
 		return []StmtExit{{st, nil}}
 	}
 	labels := make(map[string]int)
-	var work []Work
-	var seen []Work
-
-	var output []StmtExit
+	var bm blockManager
 
 	if isASwitch {
-		output = append(output, StmtExit{st, nil})
+		bm.addExit(StmtExit{st, nil})
 	}
 
 	for k, stmt := range stmts {
@@ -709,75 +740,65 @@ func (i *Interpreter) visitStmtList(st Store, stmts []ast.Stmt, isASwitch bool) 
 
 	if isASwitch {
 		for i := range stmts {
-			work = append(work, Work{st, i})
+			bm.addWork(Work{st, i})
 		}
 	} else {
-		work = append(work, Work{st, 0})
+		bm.addWork(Work{st, 0})
 	}
 
-nextWork:
-	for len(work) != 0 {
-		// We treat work as a stack. Semantically, it feels like a queue would be a better
-		// fit, but it does not make any difference IRL, and by using a stack approach we
-		// do not end up with indefinitely growing arrays (because we'd slice off of the first
-		// element and then append a new one)
-		start := work[len(work)-1]
-		work = work[:len(work)-1]
-		st := start.Store
+	for bm.hasWork() {
+		start, st := bm.nextWork()
 		log.Printf("Visiting statement %d of %d in %v", start.int, len(stmts), st.GetEffective("a"))
 
 		// Hey guys, we've already been here, discard that path.
-		for _, sn := range seen {
-			if sn.int == start.int && sn.Store.Equal(st) {
-				log.Printf("Rejecting statement %d in store %v", start.int, st.GetEffective("a"))
-				continue nextWork
-			}
+		if bm.isDuplicate(start) {
+			log.Printf("Rejecting statement %d in store %v", start.int, st.GetEffective("a"))
+			continue
 		}
-		seen = append(seen, start)
 
 		stmt := stmts[start.int]
 		exits := i.visitStmt(st, stmt)
 
-		log.Printf("Leaving statement with %d exits at %d outputs and %d work", len(exits), len(output), len(work))
+		log.Printf("Leaving statement with %d exits at %d outputs and %d work", len(exits), len(bm.exits), len(bm.work))
 
 		for _, exit := range exits {
 			st := exit.Store
 			switch branch := exit.branch.(type) {
 			case nil:
 				if len(stmts) > start.int+1 && !isASwitch {
-					work = append(work, Work{st, start.int + 1})
+					bm.addWork(Work{st, start.int + 1})
 				} else {
-					output = append(output, StmtExit{st, nil})
+					bm.addExit(StmtExit{st, nil})
 				}
 			case *ast.ReturnStmt:
 				// This exits the block
-				output = append(output, exit)
+				bm.addExit(exit)
 
 			case *ast.BranchStmt:
 				switch {
 				case isASwitch && branch.Tok == token.BREAK:
 					if branch.Label == nil || branch.Label.Name == "" /* | TODO current label */ {
-						output = append(output, StmtExit{exit.Store, nil})
+						bm.addExit(StmtExit{exit.Store, nil})
 					} else {
-						output = append(output, exit)
+						bm.addExit(exit)
 					}
 				case isASwitch && branch.Tok == token.FALLTHROUGH:
-					work = append(work, Work{st, start.int + 1})
+					bm.addWork(Work{st, start.int + 1})
 				case branch.Tok == token.GOTO:
 					if target, ok := labels[branch.Label.Name]; ok {
-						work = append(work, Work{st, target})
+						bm.addWork(Work{st, target})
 					} else {
-						output = append(output, exit)
+						bm.addExit(exit)
 					}
 				default:
-					output = append(output, exit)
+					bm.addExit(exit)
 				}
 			}
 		}
-		log.Printf("Left statement with %d exits at %d outputs and %d work", len(exits), len(output), len(work))
+		log.Printf("Left statement with %d exits at %d outputs and %d work", len(exits), len(bm.exits), len(bm.work))
 	}
 
-	return output
+	return bm.exits
 }
 
 func (i *Interpreter) visitBranchStmt(st Store, s *ast.BranchStmt) []StmtExit {
@@ -956,10 +977,10 @@ func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs 
 }
 
 func (i *Interpreter) visitRangeStmt(st Store, stmt *ast.RangeStmt) (rangeExits []StmtExit) {
-	var seen []Store
-	var work = []Store{}
-	var output = []StmtExit{{st, nil}}
+	var bm blockManager
 	var canRelease = true
+
+	bm.addExit(StmtExit{st, nil})
 
 	// Evaluate the container specified on the right hand side.
 	perm, deps, st := i.visitExprNoOwner(st, stmt.X)
@@ -990,34 +1011,22 @@ func (i *Interpreter) visitRangeStmt(st Store, stmt *ast.RangeStmt) (rangeExits 
 		rval = perm.ValuePermission
 	}
 
-	work = append(work, st)
-nextWork:
-	for iter := 0; len(work) != 0; iter++ {
-		// We treat work as a stack. Semantically, it feels like a queue would be a better
-		// fit, but it does not make any difference IRL, and by using a stack approach we
-		// do not end up with indefinitely growing arrays (because we'd slice off of the first
-		// element and then append a new one)
-		st = work[len(work)-1]
-		work = work[:len(work)-1]
+	bm.addWork(Work{st, 0})
+
+	for iter := 0; bm.hasWork(); iter++ {
+		start, st := bm.nextWork()
 
 		log.Printf("Iterating %s", st.GetEffective("a"))
-		/* Exit helper */
-		if iter == 42 {
-			i.Error(stmt, "Too many loops, aborting")
-		}
 
 		// There might be no more items, exit
 		if iter > 0 {
-			output = append(output, StmtExit{st, nil})
+			log.Printf("Appending output with a = %s", st.GetEffective("a"))
+			bm.addExit(StmtExit{st, nil})
 		}
 
-		for _, sn := range seen {
-			if sn.Equal(st) {
-				continue nextWork
-			}
+		if bm.isDuplicate(start) {
+			continue
 		}
-
-		seen = append(seen, st)
 
 		st = st.BeginBlock()
 		if stmt.Key != nil {
@@ -1044,13 +1053,13 @@ nextWork:
 		}
 
 		nextIterations, exits := i.endBlocksAndCollectLoopExits(i.visitStmt(st, stmt.Body), true)
-		output = append(output, exits...)
-		work = append(work, nextIterations...)
+		bm.addExit(exits...)
+		bm.addWork(nextIterations...)
 	}
 
-	log.Printf("Leaving range statement with %d exits", len(output))
+	log.Printf("Leaving range statement with %d exits", len(bm.exits))
 
-	return output
+	return bm.exits
 }
 
 // endBlocksAndCollectLoopExits splits a given set of block exits into exits out of the current loop (breaks, returns, etc)
@@ -1058,8 +1067,8 @@ nextWork:
 //
 // If endAllBlocks is true, all inputs will have EndBlock() called on them, otherwise, only the returned []StmtExit
 // will have EndBlock() called on them.
-func (i *Interpreter) endBlocksAndCollectLoopExits(exits []StmtExit, endAllBlocks bool) ([]Store, []StmtExit) {
-	var nextIterations []Store
+func (i *Interpreter) endBlocksAndCollectLoopExits(exits []StmtExit, endAllBlocks bool) ([]Work, []StmtExit) {
+	var nextIterations []Work
 	var realExits []StmtExit
 	if endAllBlocks {
 		for j := range exits {
@@ -1070,7 +1079,7 @@ func (i *Interpreter) endBlocksAndCollectLoopExits(exits []StmtExit, endAllBlock
 	for _, exit := range exits {
 		switch branch := exit.branch.(type) {
 		case nil:
-			nextIterations = append(nextIterations, exit.Store)
+			nextIterations = append(nextIterations, Work{exit.Store, 0})
 		case *ast.ReturnStmt:
 			realExits = append(realExits, exit)
 		case *ast.BranchStmt:
@@ -1083,7 +1092,7 @@ func (i *Interpreter) endBlocksAndCollectLoopExits(exits []StmtExit, endAllBlock
 				}
 			case token.CONTINUE:
 				if branch.Label == nil || branch.Label.Name == "" /* | TODO current label */ {
-					nextIterations = append(nextIterations, exit.Store)
+					nextIterations = append(nextIterations, Work{exit.Store, 0})
 				} else {
 					realExits = append(realExits, exit)
 				}
@@ -1146,9 +1155,7 @@ func (i *Interpreter) visitCommClause(st Store, stmt *ast.CommClause) []StmtExit
 }
 
 func (i *Interpreter) visitForStmt(st Store, stmt *ast.ForStmt) (rangeExits []StmtExit) {
-	var seen []Store
-	var work = []Store{}
-	var output = []StmtExit{}
+	var bm blockManager
 
 	st = st.BeginBlock()
 
@@ -1157,32 +1164,18 @@ func (i *Interpreter) visitForStmt(st Store, stmt *ast.ForStmt) (rangeExits []St
 		if entry.branch != nil {
 			i.Error(stmt.Init, "Initializer exits uncleanly")
 		}
-		work = append(work, entry.Store)
+		bm.addWork(Work{entry.Store, 0})
 	}
 
-nextWork:
-	for iter := 0; len(work) != 0; iter++ {
-		// We treat work as a stack. Semantically, it feels like a queue would be a better
-		// fit, but it does not make any difference IRL, and by using a stack approach we
-		// do not end up with indefinitely growing arrays (because we'd slice off of the first
-		// element and then append a new one)
-		st := work[len(work)-1]
-		work = work[:len(work)-1]
+	for bm.hasWork() {
+		start, st := bm.nextWork()
 
 		log.Printf("for: Told to iterate %v", st)
-		/* Exit helper */
-		if iter == 42 {
-			i.Error(stmt, "Too many loops, aborting")
-		}
 
-		for _, sn := range seen {
-			if sn.Equal(st) {
-				log.Printf("for: Skipping to iterate %v", st)
-				continue nextWork
-			}
+		if bm.isDuplicate(start) {
+			log.Printf("for: Skipping to iterate %v", st)
+			continue
 		}
-
-		seen = append(seen, st)
 
 		// Check condition
 		perm, deps, st := i.visitExprNoOwner(st, stmt.Cond)
@@ -1190,28 +1183,27 @@ nextWork:
 		st = i.Release(stmt.Cond, st, deps)
 
 		// There might be no more items, exit
-		output = append(output, StmtExit{st, nil})
+		bm.addExit(StmtExit{st, nil})
 
 		nextIterations, exits := i.endBlocksAndCollectLoopExits(i.visitStmt(st, stmt.Body), false)
 
-		log.Printf("for: Iteration has %d more works", len(nextIterations))
-		log.Printf("for: Iteration has %d more exits", len(exits))
+		log.Printf("for: Iteration has %d more works, %d more exits", len(nextIterations), len(exits))
 
 		for _, nextIter := range nextIterations {
-			for _, nextExit := range i.visitStmt(nextIter, stmt.Post) {
+			for _, nextExit := range i.visitStmt(nextIter.Store, stmt.Post) {
 				if nextExit.branch != nil {
 					i.Error(stmt.Init, "Post exits uncleanly")
 				}
-				work = append(work, nextExit.Store)
+				bm.addWork(Work{nextExit.Store, 0})
 			}
 		}
 
-		output = append(output, exits...)
+		bm.addExit(exits...)
 	}
 
-	log.Printf("Leaving range statement with %d exits", len(output))
+	log.Printf("Leaving range statement with %d exits", len(bm.exits))
 
-	return output
+	return bm.exits
 }
 
 func (i *Interpreter) visitGoStmt(st Store, stmt *ast.GoStmt) []StmtExit {
