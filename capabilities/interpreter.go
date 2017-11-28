@@ -736,13 +736,11 @@ func collectLabels(stmts []ast.Stmt) map[string]int {
 }
 
 func (i *Interpreter) visitStmtList(initStore Store, stmts []ast.Stmt, isASwitch bool) []StmtExit {
+	var bm blockManager
+
 	if len(stmts) == 0 {
 		return []StmtExit{{initStore, nil}}
-	}
-	var bm blockManager
-	var labels = collectLabels(stmts)
-
-	if isASwitch {
+	} else if isASwitch {
 		bm.addExit(StmtExit{initStore, nil})
 		for i := range stmts {
 			bm.addWork(work{initStore, i})
@@ -750,6 +748,7 @@ func (i *Interpreter) visitStmtList(initStore Store, stmts []ast.Stmt, isASwitch
 	} else {
 		bm.addWork(work{initStore, 0})
 	}
+	labels := collectLabels(stmts)
 
 	for bm.hasWork() {
 		item, _ := bm.nextWork()
@@ -966,14 +965,14 @@ func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs 
 	return st
 }
 
-func (i *Interpreter) visitRangeStmt(st Store, stmt *ast.RangeStmt) (rangeExits []StmtExit) {
+func (i *Interpreter) visitRangeStmt(initStore Store, stmt *ast.RangeStmt) (rangeExits []StmtExit) {
 	var bm blockManager
 	var canRelease = true
 
-	bm.addExit(StmtExit{st, nil})
+	bm.addExit(StmtExit{initStore, nil})
 
 	// Evaluate the container specified on the right hand side.
-	perm, deps, st := i.visitExprNoOwner(st, stmt.X)
+	perm, deps, initStore := i.visitExprNoOwner(initStore, stmt.X)
 	defer func() {
 		// TODO: canRelease = true
 		if canRelease {
@@ -984,7 +983,7 @@ func (i *Interpreter) visitRangeStmt(st Store, stmt *ast.RangeStmt) (rangeExits 
 		}
 	}()
 	i.Assert(stmt.X, perm, permission.Read)
-	log.Printf("Borrowed container, a is now %s", st.GetEffective("a"))
+	log.Printf("Borrowed container, a is now %s", initStore.GetEffective("a"))
 
 	var rkey permission.Permission
 	var rval permission.Permission
@@ -1001,7 +1000,7 @@ func (i *Interpreter) visitRangeStmt(st Store, stmt *ast.RangeStmt) (rangeExits 
 		rval = perm.ValuePermission
 	}
 
-	bm.addWork(work{st, 0})
+	bm.addWork(work{initStore, 0})
 
 	for bm.hasWork() {
 		_, st := bm.nextWork()
@@ -1031,7 +1030,9 @@ func (i *Interpreter) visitRangeStmt(st Store, stmt *ast.RangeStmt) (rangeExits 
 			}
 		}
 
-		nextIterations, exits := i.endBlocksAndCollectLoopExits(i.visitStmt(st, stmt.Body), true)
+		exits := i.visitStmt(st, stmt.Body)
+
+		nextIterations, exits := i.endBlocksAndCollectLoopExits(exits, true)
 		bm.addExit(exits...)
 		// Each next iteration is also possible work. This might generate duplicate exits, but we have
 		// to do it this way, as we might otherwise miss some exits
@@ -1132,13 +1133,13 @@ func (i *Interpreter) visitCommClause(st Store, stmt *ast.CommClause) []StmtExit
 	return exits
 }
 
-func (i *Interpreter) visitForStmt(st Store, stmt *ast.ForStmt) (rangeExits []StmtExit) {
+func (i *Interpreter) visitForStmt(initStore Store, stmt *ast.ForStmt) (rangeExits []StmtExit) {
 	var bm blockManager
 
-	st = st.BeginBlock()
+	initStore = initStore.BeginBlock()
 
 	// Evaluate the container specified on the right hand side.
-	for _, entry := range i.visitStmt(st, stmt.Init) {
+	for _, entry := range i.visitStmt(initStore, stmt.Init) {
 		if entry.branch != nil {
 			i.Error(stmt.Init, "Initializer exits uncleanly")
 		}
@@ -1147,21 +1148,18 @@ func (i *Interpreter) visitForStmt(st Store, stmt *ast.ForStmt) (rangeExits []St
 
 	for bm.hasWork() {
 		_, st := bm.nextWork()
-
 		log.Printf("for: Told to iterate %v", st)
-
 		// Check condition
 		perm, deps, st := i.visitExprNoOwner(st, stmt.Cond)
 		i.Assert(stmt.Cond, perm, permission.Read)
 		st = i.Release(stmt.Cond, st, deps)
-
 		// There might be no more items, exit
 		bm.addExit(StmtExit{st, nil})
 
-		nextIterations, exits := i.endBlocksAndCollectLoopExits(i.visitStmt(st, stmt.Body), false)
+		exits := i.visitStmt(st, stmt.Body)
 
+		nextIterations, exits := i.endBlocksAndCollectLoopExits(exits, false)
 		log.Printf("for: Iteration has %d more works, %d more exits", len(nextIterations), len(exits))
-
 		for _, nextIter := range nextIterations {
 			for _, nextExit := range i.visitStmt(nextIter.Store, stmt.Post) {
 				if nextExit.branch != nil {
@@ -1170,7 +1168,6 @@ func (i *Interpreter) visitForStmt(st Store, stmt *ast.ForStmt) (rangeExits []St
 				bm.addWork(work{nextExit.Store, 0})
 			}
 		}
-
 		bm.addExit(exits...)
 	}
 
