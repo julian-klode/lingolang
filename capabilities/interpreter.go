@@ -1031,8 +1031,8 @@ func (i *Interpreter) visitRangeStmt(initStore Store, stmt *ast.RangeStmt) (rang
 		}
 
 		exits := i.visitStmt(st, stmt.Body)
-
-		nextIterations, exits := i.endBlocksAndCollectLoopExits(exits, true)
+		i.endBlocks(exits)
+		nextIterations, exits := i.collectLoopExits(exits)
 		bm.addExit(exits...)
 		// Each next iteration is also possible work. This might generate duplicate exits, but we have
 		// to do it this way, as we might otherwise miss some exits
@@ -1048,19 +1048,11 @@ func (i *Interpreter) visitRangeStmt(initStore Store, stmt *ast.RangeStmt) (rang
 	return bm.exits
 }
 
-// endBlocksAndCollectLoopExits splits a given set of block exits into exits out of the current loop (breaks, returns, etc)
+// collectLoopExits splits a given set of block exits into exits out of the current loop (breaks, returns, etc)
 // and further iterations of the loop.
-//
-// If endAllBlocks is true, all inputs will have EndBlock() called on them, otherwise, only the returned []StmtExit
-// will have EndBlock() called on them.
-func (i *Interpreter) endBlocksAndCollectLoopExits(exits []StmtExit, endAllBlocks bool) ([]work, []StmtExit) {
+func (i *Interpreter) collectLoopExits(exits []StmtExit) ([]work, []StmtExit) {
 	var nextIterations []work
 	var realExits []StmtExit
-	if endAllBlocks {
-		for j := range exits {
-			exits[j].Store = exits[j].Store.EndBlock()
-		}
-	}
 
 	for _, exit := range exits {
 		switch branch := exit.branch.(type) {
@@ -1080,13 +1072,14 @@ func (i *Interpreter) endBlocksAndCollectLoopExits(exits []StmtExit, endAllBlock
 			}
 		}
 	}
-	if !endAllBlocks {
-		for j := range realExits {
-			realExits[j].Store = realExits[j].Store.EndBlock()
-		}
-	}
 
 	return nextIterations, realExits
+}
+
+func (i *Interpreter) endBlocks(exits []StmtExit) {
+	for j := range exits {
+		exits[j].Store = exits[j].Store.EndBlock()
+	}
 }
 
 func (i *Interpreter) visitSwitchStmt(st Store, stmt *ast.SwitchStmt) []StmtExit {
@@ -1158,7 +1151,7 @@ func (i *Interpreter) visitForStmt(initStore Store, stmt *ast.ForStmt) (rangeExi
 
 		exits := i.visitStmt(st, stmt.Body)
 
-		nextIterations, exits := i.endBlocksAndCollectLoopExits(exits, false)
+		nextIterations, exits := i.collectLoopExits(exits)
 		log.Printf("for: Iteration has %d more works, %d more exits", len(nextIterations), len(exits))
 		for _, nextIter := range nextIterations {
 			for _, nextExit := range i.visitStmt(nextIter.Store, stmt.Post) {
@@ -1168,6 +1161,7 @@ func (i *Interpreter) visitForStmt(initStore Store, stmt *ast.ForStmt) (rangeExi
 				bm.addWork(work{nextExit.Store, 0})
 			}
 		}
+		i.endBlocks(exits)
 		bm.addExit(exits...)
 	}
 
