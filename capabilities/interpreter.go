@@ -929,8 +929,8 @@ func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs 
 					st, err = st.Define(ident.Name, ann)
 				}
 			} else {
+				st, err = st.Define(ident.Name, rhs)
 			}
-			st, err = st.Define(ident.Name, rhs)
 		} else {
 			if permission.CopyableTo(rhs, st.GetMaximum(ident.Name)) {
 				st, err = st.SetEffective(ident.Name, st.GetMaximum(ident.Name))
