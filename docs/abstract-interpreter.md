@@ -485,6 +485,7 @@ An expression statement simply evaluates the expressions, releases owners and de
 
 #### Assignments and declarations
 
+
 TODO: Assign
 
 TODO: Decl
@@ -796,7 +797,7 @@ The ``<<pre>>`` part begins a new block, and then uses `defineOrAssign` to defin
 ```go
 st = st.BeginBlock()
 if stmt.Key != nil {
-    st = i.defineOrAssign(st, stmt, stmt.Key, rkey, stmt.Tok == token.DEFINE, stmt.Tok == token.DEFINE)
+    st, _, _ = i.defineOrAssign(st, stmt, stmt.Key, rkey, NoOwner, nil, stmt.Tok == token.DEFINE, stmt.Tok == token.DEFINE)
     if ident, ok := stmt.Key.(*ast.Ident); ok {
         log.Printf("Defined %s to %s", ident.Name, st.GetEffective(ident.Name))
         if ident.Name != "_" {
@@ -807,7 +808,7 @@ if stmt.Key != nil {
     }
 }
 if stmt.Value != nil {
-    st = i.defineOrAssign(st, stmt, stmt.Value, rval, stmt.Tok == token.DEFINE, stmt.Tok == token.DEFINE)
+    st, _, _ = i.defineOrAssign(st, stmt, stmt.Value, rval, NoOwner, nil, stmt.Tok == token.DEFINE, stmt.Tok == token.DEFINE)
     if ident, ok := stmt.Value.(*ast.Ident); ok {
         log.Printf("Defined %s to %s", ident.Name, st.GetEffective(ident.Name))
         if ident.Name != "_" {

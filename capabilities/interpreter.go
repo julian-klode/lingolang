@@ -906,21 +906,23 @@ func (i *Interpreter) defineOrAssignMany(st Store, stmt ast.Stmt, lhsExprs []ast
 	}
 
 	for j, lhs := range lhsExprs {
-		st = i.defineOrAssign(st, stmt, lhs, rhs[j], isDefine, allowUnowned)
+		st, _, _ = i.defineOrAssign(st, stmt, lhs, rhs[j], NoOwner, nil, isDefine, allowUnowned)
 	}
 
 	st = i.Release(stmt, st, deps)
 
 	return st
 }
-func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs permission.Permission, isDefine bool, allowUnowned bool) Store {
+func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs permission.Permission, owner Owner, deps []Borrowed, isDefine bool, allowUnowned bool) (Store, Owner, []Borrowed) {
 	var err error
 
 	// Define or set the effective permission of the left hand side to the right hand side. In the latter case,
 	// the effective permission will be restricted by the specified maximum (initial) permission.
 	if ident, ok := lhs.(*ast.Ident); ok {
 		if ident.Name == "_" {
-			return st
+			i.Release(stmt, st, []Borrowed{Borrowed(owner)})
+			i.Release(stmt, st, deps)
+			return st, NoOwner, nil
 		}
 		if isDefine {
 			log.Println("Defining", ident.Name)
@@ -955,14 +957,14 @@ func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs 
 	}
 
 	// Input deps are nil, so we can ignore them here.
-	st, _, _, err = i.moveOrCopy(lhs, st, rhs, perm, NoOwner, nil)
+	st, owner, deps, err = i.moveOrCopy(lhs, st, rhs, perm, owner, deps)
 	if err != nil {
 		i.Error(lhs, "Could not assign or define: %s", err)
 	}
 
 	log.Println("Assigned", lhs, "in", st)
 
-	return st
+	return st, owner, deps
 }
 
 func (i *Interpreter) visitRangeStmt(initStore Store, stmt *ast.RangeStmt) (rangeExits []StmtExit) {
@@ -1008,7 +1010,7 @@ func (i *Interpreter) visitRangeStmt(initStore Store, stmt *ast.RangeStmt) (rang
 
 		st = st.BeginBlock()
 		if stmt.Key != nil {
-			st = i.defineOrAssign(st, stmt, stmt.Key, rkey, stmt.Tok == token.DEFINE, stmt.Tok == token.DEFINE)
+			st, _, _ = i.defineOrAssign(st, stmt, stmt.Key, rkey, NoOwner, nil, stmt.Tok == token.DEFINE, stmt.Tok == token.DEFINE)
 			if ident, ok := stmt.Key.(*ast.Ident); ok {
 				log.Printf("Defined %s to %s", ident.Name, st.GetEffective(ident.Name))
 				if ident.Name != "_" {
@@ -1019,7 +1021,7 @@ func (i *Interpreter) visitRangeStmt(initStore Store, stmt *ast.RangeStmt) (rang
 			}
 		}
 		if stmt.Value != nil {
-			st = i.defineOrAssign(st, stmt, stmt.Value, rval, stmt.Tok == token.DEFINE, stmt.Tok == token.DEFINE)
+			st, _, _ = i.defineOrAssign(st, stmt, stmt.Value, rval, NoOwner, nil, stmt.Tok == token.DEFINE, stmt.Tok == token.DEFINE)
 			if ident, ok := stmt.Value.(*ast.Ident); ok {
 				log.Printf("Defined %s to %s", ident.Name, st.GetEffective(ident.Name))
 				if ident.Name != "_" {
