@@ -197,7 +197,7 @@ The base case for assigning is base permissions. For copying, the only requireme
         b  \subset a \text{ and } \text{ and not } lin(a) \text{ and not } lin(b)        & \text{if referencing}
     \end{cases} \\
     \text{where } & lin(a) :\Leftrightarrow r, R \in a \text{ or } w, W \in a
-\end{align*}
+\end{align*}\label{sec:assign}
 
 In the code, the function is implemented like in listing\ref{assignabilitybase}:
 ```{#assignabilitybase caption="Base case of assignability, in code form" float=t frame=tb}
@@ -312,7 +312,7 @@ Finally, we have some special cases: The wildcard and nil. The wildcard is not a
 \end{align*}
 
 ## Conversions to base permissions
-Converting a given permission to a base permission essentially replaces all base permissions in that permission with the specified one, except for some exception, which we'll see later. It's major use case is specifying an incomplete type, for example:
+Converting a given permission to a base permission essentially replaces all base permissions in that permission with the specified one, except for some exception, which we'll see later. It's major use case is specifying an incomplete type, for example:\label{sec:ctb}
 
 ```go
 var x /* @perm om */ *int
@@ -489,7 +489,7 @@ pointer case, but that one is trivial to proof (like channels). \qed
 
 
 ## Other conversions and merges
-The idea of conversion to base permissions from the previous paragraph can be extended to converting between structured types. When converting between two structured types, replace all base permissions in the source with the base permissions in the same position in the target, and when the source permission is structured and the target is base, it just switches to a to-base conversion.
+The idea of conversion to base permissions from the previous paragraph can be extended to converting between structured types. When converting between two structured types, replace all base permissions in the source with the base permissions in the same position in the target, and when the source permission is structured and the target is base, it just switches to a to-base conversion. \label{sec:convert}
 
 There are two more kinds of recursive merge operations: intersection and union.
 These are essentially just recursive relaxations of intersection and union on the base permissions, that is, they simply perform intersection and union on all base types

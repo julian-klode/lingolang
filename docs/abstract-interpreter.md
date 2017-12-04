@@ -4,7 +4,7 @@ Based on the operations described in the previous section, a static analyser can
 In the `github.com/julian-klode/lingolang` reference implementation, the permissions and operations are provided in thea package called `capabilities` for historic reasons. A better name might have been `interpreter`.
 
 ## The store
-The store is an essential part of the interpreter. It maps variable names $\in V$ to:
+The store is an essential part of the interpreter. It maps variable names $\in V$ to: \label{sec:store}
 
 1. An effective permission
 2. A maximum permission
@@ -46,6 +46,8 @@ The types `Borrowed` and `Owner` are pairs of a variable name and a permission. 
 The `Owner` vs `Borrowed` distinction is especially important with deferred function calls and the go statement. We will later see that the owner is the function (which may be a closure with a bound receiver), while any owners and dependencies of the arguments are forgotten.
 
 Since the code is a bit long too read, it makes sense to provide a short, and hopefully more readable abstraction of it. The function `VisitExpr` essentially becomes the relation $\leadsto : Expr \times Store \to Permission \times (Variable, Permission) \times \text{set of } (Variable, Permission) \times Store$.
+
+There also is a sister function, `VisitExprOwnerToDeps` which does not return a owner, but instead inserts the owner into the list of dependencies. This is helpful in places where the owner is not interesting (it's not used in the formal notation, but will be seen in some code excerpts later).
 
 In the following, we will look at the individual expressions and check how they evaluate. The rules are written similar to typing rules in "Types and Programming Languages" by Benjamin C. Pierce [@tapl].
 
@@ -484,11 +486,204 @@ An expression statement simply evaluates the expressions, releases owners and de
 \end{align*}
 
 #### Assignments and declarations
+There are essentially two forms of assignment and declarations:
 
+1. Assign statements: `a := b` and `a = b` (the former defines the variable if not defined in the current block)
+2. Declaration statement: `var a = b`, `var a` (the latter creates zero values)
 
-TODO: Assign
+Both of them share most of the implementation in the form of two functions: `defineOrAssign` which handles a single LHS and a single RHS, and `defineOrAssignMany` which takes care of defining or assigning multiple (or zero) RHS to one or more LHS values.
 
-TODO: Decl
+The function `defineOrAssign` is the core function responsible for evaluating definitions and assignment.
+The function starts by checking that the left hand side is an identifier and defining it as necessary (or, if the identifier is `_`, by returning). Afterwards it evaluates the left hand side (which is now defined), and then performs a move-or-copy from the right permission to the left.
+```go
+func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs permission.Permission, owner Owner, deps []Borrowed, isDefine bool, allowUnowned bool) (Store, Owner, []Borrowed) {
+	var err error
+
+    <<define or assign lhs>>
+
+	// Ensure we can do the assignment. If the left hand side is an identifier, this should always be
+	// true - it's either Defined to the same value, or set to something less than it in the previous block.
+
+	perm, _, _ := i.visitExprOwnerToDeps(st, lhs) // We just need to know permission, don't care about borrowing.
+	if !allowUnowned {
+		i.Assert(lhs, perm, permission.Owned) // Make sure it's owned, so we don't move unowned to it.
+	}
+
+	// Input deps are nil, so we can ignore them here.
+	st, owner, deps, err = i.moveOrCopy(lhs, st, rhs, perm, owner, deps)
+	if err != nil {
+		i.Error(lhs, "Could not assign or define: %s", err)
+	}
+
+	log.Println("Assigned", lhs, "in", st)
+
+	return st, owner, deps
+}
+```
+
+The code handling defining or assigning the permission of the lhs first handles the underscore case, and then handles the define or assign:
+```go
+<<define or assign lhs>>=
+// Define or set the effective permission of the left hand side to the right hand side. In the latter case,
+// the effective permission will be restricted by the specified maximum (initial) permission.
+if ident, ok := lhs.(*ast.Ident); ok {
+    <<handle _>>
+
+    if isDefine {
+        <<define value>>
+    } else {
+        <<set value>>
+    }
+
+    if err != nil {
+        i.Error(lhs, "Could not assign or define: %s", err)
+    }
+} else if isDefine {
+    i.Error(lhs, "Cannot define: Left hand side is not an identifier")
+}
+```
+
+Handling the underscore case is simple: An assignment to `_` would be equivalent to just executing the expression on the right hand side, that is, we can release owner and dependencies - it's not going to be moved anywhere.
+```go
+<<handle _>>=
+if ident.Name == "_" {
+    i.Release(stmt, st, []Borrowed{Borrowed(owner)})
+    i.Release(stmt, st, deps)
+    return st, NoOwner, nil
+}
+```
+
+If we are evaluating a define statement, an annotation may be present. In that case, the actual RHS permission is converted (recall  \fref{sec:ctb} and \fref{sec:convert}) to the annotated permission to create the LHS permission. Otherwise, the LHS permission is the RHS permission (possibly subject to limits if the variable is already defined and we are in fact reassigning).
+```go
+<<define value>>=
+log.Println("Defining", ident.Name)
+if ann, ok := i.AnnotatedPermissions[ident]; ok {
+    if ann, err = permission.ConvertTo(rhs, ann); err != nil {
+        st, err = st.Define(ident.Name, ann)
+    }
+} else {
+    st, err = st.Define(ident.Name, rhs)
+}
+```
+
+Otherwise, we just set the effective permission to either the maximum permission the variable can hold (if it can be copied to it) or to the RHS permission (limited by the maximum permission, see \fref{sec:store}). The maximum case allows us to add permissions when copying, which is a property copying was designed to have (see \fref{sec:assign}).
+```go
+<<set value>>=
+if permission.CopyableTo(rhs, st.GetMaximum(ident.Name)) {
+    st, err = st.SetEffective(ident.Name, st.GetMaximum(ident.Name))
+} else {
+    st, err = st.SetEffective(ident.Name, rhs)
+}
+```
+
+This allows us to do 1:1 definitions and assignments, that is, cases where we have one value and one variable. There are more cases though: Tuples representing multiple return values can be unpacked, and there might simply be no values at all when defining (which would create zero values for their respective type, like `null` for a pointer type).
+
+The function `defineOrAssignMany` takes care of that. It takes multiple LHS expressions and multiple RHS expressions, and then unpacks the RHS expressions into a list of permissions and a list of dependencies. It then fills up the RHS with zero values to handle the zero value case mentioned above, and finally calls `defineOrAssign` to do the actual definitions or assignments:
+```go
+func (i *Interpreter) defineOrAssignMany(st Store, stmt ast.Stmt, lhsExprs []ast.Expr, rhsExprs []ast.Expr, isDefine bool, allowUnowned bool) Store {
+	var deps []Borrowed
+	var rhs []permission.Permission
+	if len(rhsExprs) == 1 && len(lhsExprs) > 1 {
+		<<unpack tuple>>
+	} else {
+        <<unpack multiple>>
+	}
+
+    <<fill rhs up with zero values>>
+	if len(rhs) != len(lhsExprs) {
+		i.Error(stmt, "Expected same number of arguments on both sides of assignment (or one function call on the right): Got rhs=%d lhs=%d", len(rhs), len(lhsExprs))
+	}
+
+	for j, lhs := range lhsExprs {
+		st, _, _ = i.defineOrAssign(st, stmt, lhs, rhs[j], NoOwner, nil, isDefine, allowUnowned)
+	}
+
+	st = i.Release(stmt, st, deps)
+
+	return st
+}
+```
+
+Unpacking a tuple is simple: We evaluate the single RHS expression, and then take the tuple elements as the RHS dependencies. Since a tuple is the result of a function call (you might have noticed that is the only evaluation that can cause a tuple permission to be created) we don't really need to care about owners or dependencies, so we just collect them for releasing later.
+```go
+<<unpack tuple>>=
+// These really can't have owners.
+rhs0, rdeps, store := i.visitExprOwnerToDeps(st, rhsExprs[0])
+st = store
+tuple, ok := rhs0.(*permission.TuplePermission)
+if !ok {
+    i.Error(stmt, "Left side of assignment has more than one element but right hand only one, expected it to be a tuple")
+}
+deps = append(deps, rdeps...)
+rhs = tuple.Elements
+```
+
+When unpacking multiple RHS expressions, the idea is that all RHS values are asssigned to a temporary variable, and the temporary variables are assigned to the final ones later. The reason for that is that an operation like `a, b = b, a` swaps the variables, rather than making both be `b` afterwards.
+```go
+<<unpack multiple>>=
+for _, expr := range rhsExprs {
+    log.Printf("Visiting expr %#v in store %v", expr, st)
+    perm, ownerThis, depsThis, store := i.VisitExpr(st, expr)
+    log.Printf("Visited expr %#v in store %v", expr, st)
+    st = store
+    rhs = append(rhs, perm)
+
+    // Screw this. This is basically creating a temporary copy or (non-temporary, really) move of the values, so we
+    // can have stuff like a, b = b, a without it messing up.
+    store, ownerThis, depsThis, err := i.moveOrCopy(expr, st, perm, perm, ownerThis, depsThis)
+    st = store
+
+    if err != nil {
+        i.Error(expr, "Could not move value: %s", err)
+    }
+
+    deps = append(deps, Borrowed(ownerThis))
+    deps = append(deps, depsThis...)
+}
+```
+
+Finally, we fill up missing elements on the right with default permissions for their type - these will be zero values.
+```go
+<<fill rhs up with zero values>>=
+// Fill up the RHS with zero values if it has less elements than the LHS. Used for var x, y int; for example.
+for elem := len(rhs); elem < len(lhsExprs); elem++ {
+    var perm permission.Permission
+
+    perm = i.typeMapper.NewFromType(i.typesInfo.TypeOf(lhsExprs[elem]))
+    perm = permission.ConvertToBase(perm, perm.GetBasePermission()|permission.Owned) //FIXME
+
+    rhs = append(rhs, perm)
+
+}
+```
+
+Now, as for the actual statements:
+
+Assign and define (`=` and `:=`) are equivalent to `defineOrAssignMany`. It sets the `isDefine` paramater to true if the token of the statement was `:=`, otherwise it is false. Unowned values are not allowed.
+
+```go
+func (i *Interpreter) visitAssignStmt(st Store, stmt *ast.AssignStmt) []StmtExit {
+	return []StmtExit{{i.defineOrAssignMany(st, stmt, stmt.Lhs, stmt.Rhs, stmt.Tok == token.DEFINE, false), nil}}
+}
+```
+
+Declaration statements of the form `var x, y = a, b` or just `var x, y` are more complicated. The declaration has a list of specifications,and each specification has a list of names and values. We therefore need to call `defineOrAssignMany` once per specification (there could also be other specifications). Unowned values are not allowed, and `isDefine` is always true.
+```go
+func (i *Interpreter) visitDeclStmt(st Store, stmt *ast.DeclStmt) []StmtExit {
+    <<boring setup code>>
+
+	for _, spec := range decl.Specs {
+		switch spec := spec.(type) {
+        case *ast.ValueSpec:
+            names := <<convert spec.Names into a slice of expressions>>
+			st = i.defineOrAssignMany(st, stmt, names, spec.Values, true, false)
+		default:
+			continue
+		}
+	}
+	return []StmtExit{{st, nil}}
+}
+```
 
 #### Special function calls: Go / Deferred
 The go and defered statements are fairly simple. They consist of a call expression which is evaluated in go/defer
@@ -583,7 +778,7 @@ func (i *Interpreter) visitStmtList(initStore Store, stmts []ast.Stmt, isASwitch
 ```
 The `<<post>>` part usually splits the list of statement exits into exits of the block we are evaluating and further work, which gets added to the work stack (if not seen already). This means that it will evaluate the block for all possible inputs: For example, if we are evaluating a block with a conditional jump back to the beginning, it will follow the jump back and evaluate the block again for the state of the store before the jump. Since only unseen entries are added, the code will also terminate eventually.
 
-The `<setup>` part just exits with the initial store if it there are no statements to execute. If it is a switch/select statement, the entry point is added as an exit, and each statement (which corrrespond to case clauses) is added to the work state. If it is just a normal block, we enter statement 0 in the block. We also collect all labels, building a map of strings to indices in the statement list.
+The `<<setup>>` part just exits with the initial store if it there are no statements to execute. If it is a switch/select statement, the entry point is added as an exit, and each statement (which corrrespond to case clauses) is added to the work state. If it is just a normal block, we enter statement 0 in the block. We also collect all labels, building a map of strings to indices in the statement list.
 ```go
 if len(stmts) == 0 {
     return []StmtExit{{initStore, nil}}
