@@ -45,24 +45,21 @@ Go has a fairly simple type system: There is no subtyping (but there are convers
     type T OtherNamedType
     ```
 
-    A named type is a mostly distinct type from the underlying type - an
-    explicit conversion is required to use them, at least in most cases: In some cases,
-    like if the underlying type is a number, some operators like `+` do work on them.
+    Named types are mostly distinct from their underlying types, so you cannot
+    assign them to each other, but some operators like `+` do work on objects of
+    named types with an underlying numerical type (so you could add two `T` in the example above).
 
-Maps, slices, and channels are mostly reference types (or rather, structs containing pointers)
-but all other types are passed by value. Especially arrays are copied entirely when passed around,
-instead of just copying the pointer, like C does.
+Maps, slices, and channels are reference-like types - they essentially are structs containing pointers. Other types are passed by value (copied), including arrays (which have a fixed length and are copied).
 
 ##### Constants
 
-Go has untyped literals and constants.
+Go has "untyped" literals and constants.
 
 ```
     1    // untyped integer literal
     const foo = 1 // untyped integer constant
     const foo int = 1 // int constant
 ```
-
 
 Untyped values are classified into the following categories: `UntypedBool`, `UntypedInt`, `UntypedRune`, `UntypedFloat`, `UntypedComplex`, `UntypedString`, and `UntypedNil` (Go calls them _basic kinds_, other basic kinds are available for the concrete types like `uint8`). An untyped value can be assigned to a named type derived from a base type; for example:
 
@@ -74,6 +71,8 @@ const bar someType = untyped  // OK: untyped can be assigned to someType
 const typed int = 2           // int
 const bar2 someType = typed   // error: int cannot be assigned to someType
 ```
+
+`UntypedNil` is critical because it needs special handling later, for example, in \fref{sec:untyped-nil}, \fref{sec:ass-nil}, and \fref{sec:merge-nil}.
 
 #### Interfaces and 'objects'
 As mentioned before, interfaces are a set of methods.
@@ -133,7 +132,7 @@ func main() {
 ```
 
 #### Channels
-Goroutines are often combined with channels to provide an extended form of Communicating Sequential Processes [@hoare1978communicating]. A channel is a concurrent-safe queue, and can be buffering or unbuffered:
+Goroutines are often combined with channels to provide an extended form of Communicating Sequential Processes [@hoare1978communicating]. A channel is a concurrent-safe queue, and can be buffered or unbuffered:
 
 ```go
 var unbuffered = make(chan int)  // sending blocks until value has been read
@@ -247,6 +246,10 @@ someMap[someKey] = someValue
 Functional programming is a form of programming in which side effects do not exist.
 That is, there is no such things as mutable data structures, or even I/O operations; only pure
 transformations from one data structure to another.
+
+We will take a look at two approaches to dealing with mutability: Monads[@launchbury1995state], made popular by Haskell, and Linear Types, which are increasingly becoming more popular in mainstream programming with the Rust programming language.
+
+Linear Types are usually defined per language, and the different languages might have slightly different semantics for the same name or different names for the same semantics. We will consider two generalisations of linear types: 'Capabilities for Sharing' [@Boyland:2001:CSG:646158.680004] and fractional permissions [@Boyland:2003:CIF:1760267.1760273]. The former attemps to be a framework for describing type linearity very generically, whereas the latter is a more limited (or focused) approach on read-only vs writable values.
 
 ### Monads and Linear Types
 There is a way to express mutability or side effects in functional programming: Haskell and some other
