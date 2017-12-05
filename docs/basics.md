@@ -51,6 +51,13 @@ Go has a fairly simple type system: There is no subtyping (but there are convers
 
 Maps, slices, and channels are reference-like types - they essentially are structs containing pointers. Other types are passed by value (copied), including arrays (which have a fixed length and are copied).
 
+##### Conversions
+Conversions are the similar to casts in C and other languages. They are written like this:
+```go
+    TypeName(value)
+```
+\label{sec:conversions}
+
 ##### Constants
 
 Go has "untyped" literals and constants.
