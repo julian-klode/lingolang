@@ -158,8 +158,8 @@ For cases of assigning things, we can define a helper function, called `moveOrCo
 
 \begin{align*}
     moc(st, F, T, o, d) := \begin{cases}
-        (st[= d \cup \{o\}], NoOwner, \emptyset) & \text{ if } cop(F, T) \\
-        \bot & \text{ if not } mov(F, T) \\
+        (st[= d \cup \{o\}], NoOwner, \emptyset) & \text{ if } ass_{cop}(F, T) \\
+        \bot & \text{ if not } ass_{mov}(F, T) \\
         (st, o, d)  & \text{ if } o \not\in base(T) \\
         (st[= d \cup \{unlinear(o)\}], NoOwner, \emptyset) & \text{ if } lin(F) \text{ and not } lin(T) \\
         (st, NoOwner, \emptyset) & \text{ else } \\

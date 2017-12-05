@@ -170,7 +170,7 @@ evaluating an expression - then we could create a new permission where the borro
 The implementation is _shallow_: When looking at the requirements for operands, it only looks at the base permission of the operands. So if an expression requires an
 operand to be readable, we only check whether its base permission contains the $r$ bit. That is fine so far, as we ensure consistency at some point in the program
 by converting each permission to its own base permission, and thus a readable object can't have unreadable members. But it falls short if we actually want to allow
-it. Luckily, there is an option: Instead of checking if $r \in base(A)$ we can check if $mov(A, ctb(A, r))$, that is, we create a new structure where all base
+it. Luckily, there is an option: Instead of checking if $r \in base(A)$ we can check if $ass_{mov}(A, ctb(A, r))$, that is, we create a new structure where all base
 permissions are replaced with $\{r\}$ and then we can check if the value is movable to it, which recursively checks that each base permission is movable to $\{r\}$.
 
 The implementation is _ambiguous_: Permissions for types and values are stored in the same namespace. This is not a real problem, though, as Go ensures that we can't
