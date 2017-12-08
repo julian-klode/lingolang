@@ -185,15 +185,15 @@ var z = y    // have to move the pointer from y to z, otherwise both reach x
 ```
 (Though we are moving the permissions, not the values in `&x` - the value is still stored in the location of `x`)
 
-In the following, the function $ass_m: P \times P \to bool$ describes whether a value of the left permission can be assigned to a location of the right permission. $m$ is the mode, it can be either
+In the following, the function $ass_\mu: P \times P \to bool$ describes whether a value of the left permission can be assigned to a location of the right permission. $\mu$ is the mode, it can be either
 $cop$ for copy, $ref$ for reference, or $mov$ for move.
 
 The base case for assigning is base permissions. For copying, the only requirement is that the source is readable (or it and target are empty). A move additionally requires that no more permissions are added - this is needed: If I move a pointer to a read-only object, I can't move it to a pointer to a writeable object, for example. When referencing, the same no-additional-permissions requirement persists, but both sides may not be linear - a linear value can only have one reference, so allowing to create another would be wrong.
 \begin{align*}
-    ass_m(a, b) &:\Leftrightarrow \begin{cases}
-        r \in a \text{ or } a = b =  \emptyset                                           & \text{if } m = cop \\
-        b  \subset a \text{ and } (r \in A \text{ or } a = b = \emptyset)                & \text{if } m = mov \\
-        b  \subset a \text{ and } \text{ and not } lin(a) \text{ and not } lin(b)        & \text{if } m = ref
+    ass_\mu(a, b) &:\Leftrightarrow \begin{cases}
+        r \in a \text{ or } a = b =  \emptyset                                           & \text{if } \mu = cop \\
+        b  \subset a \text{ and } (r \in A \text{ or } a = b = \emptyset)                & \text{if } \mu = mov \\
+        b  \subset a \text{ and } \text{ and not } lin(a) \text{ and not } lin(b)        & \text{if } \mu = ref
     \end{cases} \\
     \text{where } & lin(a) :\Leftrightarrow r, R \in a \text{ or } w, W \in a
 \end{align*}\label{sec:assign}
@@ -223,43 +223,43 @@ func (perm BasePermission) isAssignableTo(p2 Permission, state assignableState) 
 
 Next up are permissions with value semantics: arrays, structs, and tuples (tuples are only used internally to represent multiple function results). They are assignable if all their children are assignable.
 \begin{align*}
-    ass_m(a\ [\_]A, b\ [\_]B) &:\Leftrightarrow ass_m(a, b) \text{ and } ass_m(A, B)     \\
+    ass_\mu(a\ [\_]A, b\ [\_]B) &:\Leftrightarrow ass_\mu(a, b) \text{ and } ass_\mu(A, B)     \\
     \begin{aligned}
-        ass_m(&a \textbf{ struct } \{ A_0; \ldots; A_n \}, \\
+        ass_\mu(&a \textbf{ struct } \{ A_0; \ldots; A_n \}, \\
             &b \textbf{ struct } \{ B_0; \ldots; B_m \})
     \end{aligned} &:\Leftrightarrow
-        ass_m(a, b) \text{ and } ass_m(A_i, B_i)    \quad \forall 0 \le i \le n \\
+        ass_\mu(a, b) \text{ and } ass_\mu(A_i, B_i)    \quad \forall 0 \le i \le n \\
     \begin{aligned}
-        ass_m(a \ ( A_0, \ldots, A_n),
+        ass_\mu(a \ ( A_0, \ldots, A_n),
             b \ ( B_0, \ldots, B_m))
     \end{aligned} &:\Leftrightarrow
-        ass_m(a, b) \text{ and } ass_m(A_i, B_i)    \quad \forall 0 \le i \le n
+        ass_\mu(a, b) \text{ and } ass_\mu(A_i, B_i)    \quad \forall 0 \le i \le n
 \end{align*}
 
 Channels, slices, and maps are reference types. They behave like value types, except that copying is replaced by referencing.
 \begin{align*}
-    ass_m(a \textbf{ chan } A, b \textbf{ chan } B) &:\Leftrightarrow \begin{cases}
-        ass_{ref}(a, b) \text{ and } ass_{ref}(A, B)    & m = cop \\
-        ass_m(a, b) \text{ and } ass_m(A, B)    & \text{else}
+    ass_\mu(a \textbf{ chan } A, b \textbf{ chan } B) &:\Leftrightarrow \begin{cases}
+        ass_{ref}(a, b) \text{ and } ass_{ref}(A, B)    & \mu = cop \\
+        ass_\mu(a, b) \text{ and } ass_\mu(A, B)    & \text{else}
     \end{cases} \\
-    ass_m(a\ []A, b\ []B) &:\Leftrightarrow \begin{cases}
-        ass_{ref}(a, b) \text{ and } ass_{ref}(A, B)    & m = cop \\
-        ass_m(a, b) \text{ and } ass_m(A, B)    & \text{else}
+    ass_\mu(a\ []A, b\ []B) &:\Leftrightarrow \begin{cases}
+        ass_{ref}(a, b) \text{ and } ass_{ref}(A, B)    & \mu = cop \\
+        ass_\mu(a, b) \text{ and } ass_\mu(A, B)    & \text{else}
     \end{cases} \\
-    ass_m(a \textbf{ map }[A_0] A_1, b \textbf{ map }[B_0] B_1) &:\Leftrightarrow \begin{cases}
-        ass_{ref}(a, b) \text{ and } ass_{ref}(A_0, B_0) \text{ and } ass_{ref}(A_1, B_1)    & m = cop \\
-        ass_m(a, b) \text{ and } ass_m(A_0, B_0) \text{ and } ass_m(A_1, B_1)    & \text{else} \\
+    ass_\mu(a \textbf{ map }[A_0] A_1, b \textbf{ map }[B_0] B_1) &:\Leftrightarrow \begin{cases}
+        ass_{ref}(a, b) \text{ and } ass_{ref}(A_0, B_0) \text{ and } ass_{ref}(A_1, B_1)    & \mu = cop \\
+        ass_\mu(a, b) \text{ and } ass_\mu(A_0, B_0) \text{ and } ass_\mu(A_1, B_1)    & \text{else} \\
     \end{cases}
 \end{align*}
 
 Interfaces work the same, but methods are looked up by name:
 \begin{align*}
     \begin{aligned}
-        ass_m(&a \textbf{ interface } \{ A_0; \ldots; A_n \}, \\
+        ass_\mu(&a \textbf{ interface } \{ A_0; \ldots; A_n \}, \\
             &b \textbf{ interface } \{ B_0; \ldots; B_m \})
     \end{aligned} &:\Leftrightarrow  \begin{cases}
-        ass_{ref}(a, b) \text{ and } ass_{ref}(A_{idx(B_i, A)}, B_i)    & m = cop\\
-        ass_m(a, b) \text{ and } ass_m(A_{idx(B_i, A)}, B_i)    & \text{else}\\
+        ass_{ref}(a, b) \text{ and } ass_{ref}(A_{idx(B_i, A)}, B_i)    & \mu = cop\\
+        ass_\mu(a, b) \text{ and } ass_\mu(A_{idx(B_i, A)}, B_i)    & \text{else}\\
         \end{cases} \\
         & \qquad \ \text{ for all } 0 \le i \le m
 \end{align*}
@@ -274,16 +274,16 @@ can't pass a read-only object to a mutable object. For the closure, ownership is
 unowned function, but not vice versa:
 \begin{align*}
     \begin{aligned}
-        ass_m(&a\ (R) \textbf{ func } ( P_0 \ldots, P_n ) (R_0, \ldots, R_m), \\
+        ass_\mu(&a\ (R) \textbf{ func } ( P_0 \ldots, P_n ) (R_0, \ldots, R_m), \\
             &b\ (R') \textbf{ func } ( P'_0 \ldots, P'_n ) (R'_0, \ldots, R'_m))
     \end{aligned} &:\Leftrightarrow  \begin{cases}
         ass_{ref}(a \cap \{o\}, b \cap \{o\}) \\
                      \quad\text{and } ass_{ref}(b \setminus \{o\}, a \setminus \{o\})  \\
                      \quad\text{and } ass_{mov}(R', R) \\
                      \quad\text{and } ass_{mov}(P'_i, P_i) \\
-                     \quad\text{and } ass_{mov}(R_j, R'_j)   & m = cop\\
-        ass_m(a \cap \{o\}, b \cap \{o\}) \\
-                     \quad\text{and } ass_m(b \setminus \{o\}, a \setminus \{o\})  \\
+                     \quad\text{and } ass_{mov}(R_j, R'_j)   & \mu = cop\\
+        ass_\mu(a \cap \{o\}, b \cap \{o\}) \\
+                     \quad\text{and } ass_\mu(b \setminus \{o\}, a \setminus \{o\})  \\
                      \quad\text{and } ass_{mov}(R', R) \\
                      \quad\text{and } ass_{mov}(P'_i, P_i) \\
                      \quad\text{and } ass_{mov}(R_j, R'_j)   & \text{else}\\
@@ -297,9 +297,9 @@ source and target parameter permissions are simply $n$), for example.
 
 Pointers are another special case: When a pointer is copied, the pointer itself is copied, but the target is referenced (as we now have two pointers to the same target):
 \begin{align*}
-    ass_m(a * A, b * B) &:\Leftrightarrow \begin{cases}
-        ass_m(a, b) \text{ and } ass_{ref}(A, B)    & m = cop \\
-        ass_m(a, b) \text{ and } ass_m(A, B)    & \text{else}
+    ass_\mu(a * A, b * B) &:\Leftrightarrow \begin{cases}
+        ass_\mu(a, b) \text{ and } ass_{ref}(A, B)    & \mu = cop \\
+        ass_\mu(a, b) \text{ and } ass_\mu(A, B)    & \text{else}
     \end{cases}
 \end{align*}
 There is one minor deficiency with this approach: A pointer `a` with permission `ol * om` cannot be moved into a pointer `b` with permission `om * om`, due to the rule about not adding any permissions. But that's not
@@ -307,12 +307,12 @@ always correct, which brings us back to the moving values vs moving references: 
 
 Finally, we have some special cases: The wildcard and nil. The wildcard is not assignable, it is only used when writing permissions to mean "default". The `nil` permission is assignable to itself, to pointers, and permissions for reference and reference-like types.
 \begin{align*}
-        ass_m(\textbf{\_}, B)  &:\Leftrightarrow \text{ false } \\
-        ass_m(\textbf{nil}, a * B)  &:\Leftrightarrow \text{ true } & ass_m(\textbf{nil}, a \textbf{ chan } B)  &:\Leftrightarrow \text{ true } \\
-        ass_m(\textbf{nil}, a \textbf{ map } [B]C)  &:\Leftrightarrow \text{ true } &
-        ass_m(\textbf{nil}, a []C)  &:\Leftrightarrow \text{ true } \\
-        ass_m(\textbf{nil}, a \textbf{ interface } \{ \ldots \})  &:\Leftrightarrow \text{ true } &
-        ass_m(\textbf{nil}, \textbf{nil})  &:\Leftrightarrow \text{ true }
+        ass_\mu(\textbf{\_}, B)  &:\Leftrightarrow \text{ false } \\
+        ass_\mu(\textbf{nil}, a * B)  &:\Leftrightarrow \text{ true } & ass_\mu(\textbf{nil}, a \textbf{ chan } B)  &:\Leftrightarrow \text{ true } \\
+        ass_\mu(\textbf{nil}, a \textbf{ map } [B]C)  &:\Leftrightarrow \text{ true } &
+        ass_\mu(\textbf{nil}, a []C)  &:\Leftrightarrow \text{ true } \\
+        ass_\mu(\textbf{nil}, a \textbf{ interface } \{ \ldots \})  &:\Leftrightarrow \text{ true } &
+        ass_\mu(\textbf{nil}, \textbf{nil})  &:\Leftrightarrow \text{ true }
 \end{align*}\label{sec:ass-nil}
 
 ## Conversions to base permissions
@@ -385,7 +385,7 @@ var z /* om * om */ = y.(*int)     // um, target is mutable now?
 ```
 Converting to an interface is a lossy operation: We can only maintain the outer permission. But we cannot allow the case above to happen: We just converted a pointer to read-only data to a pointer to writeable data. Not good. One way to solve this is to ensure that a permission can be assigned to it is strict permission, gathered by strictly converting the type-default permission to the current permissions base permission:
 $$
-y = x \Leftrightarrow  ass_m(perm(x), ctb_{strict}(perm(typeof(x)), base(perm(x)) \text { and } ass_m(base(x), base(y))
+y = x \Leftrightarrow  ass_\mu(perm(x), ctb_{strict}(perm(typeof(x)), base(perm(x)) \text { and } ass_\mu(base(x), base(y))
 $$
 \begin{samepage}
 The rules for converting a pointer permission to a base permission are therefore a bit complicated:
