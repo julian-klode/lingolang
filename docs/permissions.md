@@ -514,35 +514,35 @@ myfun = intersect(myfun in first branch, my fun in second branch)
 
 In this example, after the if/else block has been evaluated, the permissions of `myfun` are an intersection of the permission it would have in both branches.
 
-The function performing merges and conversions is $merge: P \times P \to P$. It has an implicit mode, which can be either one of the merge types union or intersection; or
+The function performing merges and conversions is $merge_\mu: P \times P \to P$. $\mu$ is the mode, which can be either one of the merge types union or intersection; or
 can be conversion or strict conversion.
 
 The wildcard exists just as a placeholder for annotation purposes, so merging it with anything should yield the other value. For nil permissions, merging them with a nilable
 permission (a chan, func, interface, map, nil, pointer, or slice permission) yields the other permission:
 \begin{align*}
-    merge(\_, B)    &:= \_ &&& merge(A, \_)     &:= \_ \\
-    merge(N, nil)   &:= N   &&& merge(nil, N)   &:= N  & \text{ for all nilable } N \in {\cal P} \text{ and } N = nil
+    merge_\mu(\_, B)    &:= \_ &&& merge_\mu(A, \_)     &:= \_ \\
+    merge_\mu(N, nil)   &:= N   &&& merge_\mu(nil, N)   &:= N  & \text{ for all nilable } N \in {\cal P} \text{ and } N = nil
 \end{align*}\label{sec:merge-nil}
 Regarding the soundness of the merging nils with nilable permissions:
 
 * For union, the question is: Can $union(N, nil)$ be used in place of both $N$ and $nil$? Technically the answer is no, because $N$ cannot be used where $nil$ is expected. But nil permissions are only ever
   used for $nil$ literals (they cannot even be specified, there is no syntax for them), so we never reach that situation.
-* For intersection, the question is: Can values of $N$ or $nil$ be assigned to $intersect(N, nil)$. Yes, they can be, $nil$ is assignable to every pointer, and $p$ is assignable to itself.
+* For intersection, the question is: Can values of $N$ or $nil$ be assigned to $merge_{intersect}(N, nil)$. Yes, they can be, $nil$ is assignable to every pointer, and $p$ is assignable to itself.
 
 Another special case is if the left side is not a base permission, but the right side is, and we are converting or strictly converting, it falls back to $ctb()$:
 \begin{align*}
-    merge(A, b)     &:= \begin{cases}
-                            ctb(A, b)   & \text{if conversion and } A \not\subset R \\
-                            ctb_{strict}(A, b)   & \text{if strict conversion and } A \not\subset R
+    merge_\mu(A, b)     &:= \begin{cases}
+                            ctb(A, b)   & \text{if } \mu = \text{ conversion and } A \not\subset {\cal R} \\
+                            ctb_{strict}(A, b)   & \text{if } \mu = \text{ strict conversion and } A \not\subset {\cal R}
                         \end{cases}
 \end{align*}
 
 Otherwise, the base case for a merge is merging primitive values, and the rules for that are quite simple:
 \begin{align*}
-    merge(a, b)     &:= \begin{cases}
-                            b & \text{if conversion or strict conv} \\
-                            a \cap b & \text{if intersection}       \\
-                            a \cup b & \text{if union}
+    merge_\mu(a, b)     &:= \begin{cases}
+                            b & \text{if } \mu = \text{ conversion or } \mu = \text{ strict conversion} \\
+                            a \cap b & \text{if } \mu = \text{ intersection}       \\
+                            a \cup b & \text{if } \mu = \text{ union}
                         \end{cases}
 \end{align*}
 
@@ -565,20 +565,20 @@ func (state *mergeState) mergeBase(p1, p2 BasePermission) BasePermission {
 
 Pointers, channels, arrays, slices, maps, tuples, structs, and interfaces are trivial (structs and interfaces must have same number of members / methods):
 \begin{align*}
-    merge(a * A, b * B)     &:= merge(a, b) * merge(A, B) \\
-    merge(a \textbf{ chan } A, b \textbf{ chan } B)  &:= merge(a, b) \textbf{ chan } merge(b, B) \\
-    merge(a [\_] A, b [\_] B)  &:= merge(a, b) [\_] merge(b, B) \\
-    merge(a [] A, b [] B)  &:= merge(a, b) [] merge(b, B) \\
-    merge(a \textbf{ map}[A_0]\ A_1, b \textbf{ map}[B_0]\ B_1)  &:= merge(a, b) \textbf{ map}[merge(A_0, B_0)]\ merge(A_1, B_1) \\
-    merge(a ( A_0, \ldots, A_n ), b (B_0, \ldots, B_n ) ) &:= merge(a, b) (merge(A_0, B_0), \ldots, merge(A_n, B_n) ) \\
-    merge(a \textbf{ struct } \{A_0, \ldots, A_n \}, \\
+    merge_\mu(a * A, b * B)     &:= merge_\mu(a, b) * merge_\mu(A, B) \\
+    merge_\mu(a \textbf{ chan } A, b \textbf{ chan } B)  &:= merge_\mu(a, b) \textbf{ chan } merge_\mu(b, B) \\
+    merge_\mu(a [\_] A, b [\_] B)  &:= merge_\mu(a, b) [\_] merge_\mu(b, B) \\
+    merge_\mu(a [] A, b [] B)  &:= merge_\mu(a, b) [] merge_\mu(b, B) \\
+    merge_\mu(a \textbf{ map}[A_0]\ A_1, b \textbf{ map}[B_0]\ B_1)  &:= merge_\mu(a, b) \textbf{ map}[merge_\mu(A_0, B_0)]\ merge_\mu(A_1, B_1) \\
+    merge_\mu(a ( A_0, \ldots, A_n ), b (B_0, \ldots, B_n ) ) &:= merge_\mu(a, b) (merge_\mu(A_0, B_0), \ldots, merge_\mu(A_n, B_n) ) \\
+    merge_\mu(a \textbf{ struct } \{A_0, \ldots, A_n \}, \\
           \qquad b \textbf{ struct } \{B_0, \ldots, B_n \} )
-        &:= merge(a, b) \textbf{ struct } \{merge(A_0, B_0), \ldots,  \\
-                                           & \qquad merge(A_n, B_n) \} \\
-    merge(a \textbf{ interface } \{A_0, \ldots, A_n \}, \\
+        &:= merge_\mu(a, b) \textbf{ struct } \{merge_\mu(A_0, B_0), \ldots,  \\
+                                           & \qquad merge_\mu(A_n, B_n) \} \\
+    merge_\mu(a \textbf{ interface } \{A_0, \ldots, A_n \}, \\
           \qquad b \textbf{ interface } \{B_0, \ldots, B_n \} )
-        &:= merge(a, b) \textbf{ interface } \{merge(A_0, B_0), \ldots,  \\
-                                           & \qquad merge(A_n, B_n) \}
+        &:= merge_\mu(a, b) \textbf{ interface } \{merge_\mu(A_0, B_0), \ldots,  \\
+                                           & \qquad merge_\mu(A_n, B_n) \}
 \end{align*}
 
 Functions are more difficult: An intersection of a function requires union for closure, receivers, and parameters, because just like with subtyping (in languages that have it), parameters and receivers are contravariant:
@@ -586,20 +586,20 @@ If one function expects `orw` and another expects `or` a place that needs either
 
 For that, let
 $$
-mergeContra(A, B) := \begin{cases}
-    intersect(A, B) & \text{if union} \\
-    union(A, B) & \text{if intersection} \\
-    merge(A, B) & \text{else}
+mergeContra_\mu(A, B) := \begin{cases}
+    merge_{intersect}(A, B) & \text{if } \mu = \text{ union} \\
+    merge_{union}(A, B) & \text{if } \mu = \text{ intersection} \\
+    merge_\mu(A, B) & \text{else}
 \end{cases}
 $$
 be a helper function that merges contravariant things after swapping union and intersection modes.
 
 Then merging functions is:
 \begin{align*}
-    merge(&a (R) \textbf{ func } (P_0, \ldots, P_n) (R_0, \ldots, R_n),  b (R') \textbf{ func } (P'_0, \ldots, P'_n) (R'_0, \ldots, R'_n)) \\
-       := &mergeContra(a, b) (mergeContra(R, R')) \textbf{ func } \\
-          &\qquad (mergeContra(P_0, P'_0), \ldots, mergeContra(P_n, P'_n)) \\
-          &\qquad (merge(R_0, R'_0), \ldots, merge(R_n, R'_n))
+    merge_\mu(&a (R) \textbf{ func } (P_0, \ldots, P_n) (R_0, \ldots, R_n),  b (R') \textbf{ func } (P'_0, \ldots, P'_n) (R'_0, \ldots, R'_n)) \\
+       := &mergeContra_\mu(a, b) (mergeContra_\mu(R, R')) \textbf{ func } \\
+          &\qquad (mergeContra_\mu(P_0, P'_0), \ldots, mergeContra_\mu(P_n, P'_n)) \\
+          &\qquad (merge_\mu(R_0, R'_0), \ldots, merge_\mu(R_n, R'_n))
 \end{align*}
 
 ## Creating a new permission from a type
