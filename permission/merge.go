@@ -60,7 +60,7 @@ func (state *mergeState) contravariant() *mergeState {
 func (state *mergeState) mergeBase(p1, p2 BasePermission) BasePermission {
 	switch state.action {
 	case mergeConversion, mergeStrictConversion:
-		return p2
+		return p1.convertToBaseBase(p2)
 	case mergeIntersection:
 		return p1 & p2
 	case mergeUnion:

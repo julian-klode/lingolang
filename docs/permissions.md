@@ -514,8 +514,21 @@ myfun = intersect(myfun in first branch, my fun in second branch)
 
 In this example, after the if/else block has been evaluated, the permissions of `myfun` are an intersection of the permission it would have in both branches.
 
-The function performing merges and conversions is $merge_\mu: P \times P \to P$. $\mu$ is the mode, which can be either one of the merge types union or intersection; or
-can be conversion or strict conversion.
+The function performing merges and conversions is $merge_\mu: P \times P \to P$. $\mu$ is the mode, which can be either union ($\cup$),
+intersection ($\cap$), conversion ($ctb$), or strict conversion ($ctb_{strict}$).
+
+In essence, merge just extends an underlying function $\mu: 2^{\cal R} \times 2^{\cal R} \to {\cal P}$ or $\mu: P \times 2^{\cal R} \to {\cal P}$
+to a function ${\cal P} \times {\cal P} \to {\cal P}$. In the latter case (which applies to $ctb$ and $ctb_{strict}$), we directly use $\mu(A,b)$
+for all structured permissions $A$ and base permissions $b$, so the function can do special handling for the structured permission in the first
+argument.
+\begin{align*}
+    merge_\mu(A, b)     &:=  \mu(A,b) =\begin{cases}
+                            ctb(A, b)   & \text{if } \mu = ctb \\
+                            ctb_{strict}(A, b)   & \text{if } \mu = ctb_{strict}
+                        \end{cases}  \\
+                    &\text{for all } \mu: P \times 2^{\cal R} \to {\cal P} \text{ and } A  \in {\cal P} \setminus 2^{\cal R}
+\end{align*}
+
 
 The wildcard exists just as a placeholder for annotation purposes, so merging it with anything should yield the other value. For nil permissions, merging them with a nilable
 permission (a chan, func, interface, map, nil, pointer, or slice permission) yields the other permission:
@@ -525,25 +538,17 @@ permission (a chan, func, interface, map, nil, pointer, or slice permission) yie
 \end{align*}\label{sec:merge-nil}
 Regarding the soundness of the merging nils with nilable permissions:
 
-* For union, the question is: Can $merge_{union}(N, nil)$ be used in place of both $N$ and $nil$? Technically the answer is no, because $N$ cannot be used where $nil$ is expected. But nil permissions are only ever
+* For union, the question is: Can $merge_{\cup}(N, nil)$ be used in place of both $N$ and $nil$? Technically the answer is no, because $N$ cannot be used where $nil$ is expected. But nil permissions are only ever
   used for $nil$ literals (they cannot even be specified, there is no syntax for them), so we never reach that situation.
-* For intersection, the question is: Can values of $N$ or $nil$ be assigned to $merge_{intersection}(N, nil)$. Yes, they can be, $nil$ is assignable to every pointer, and $p$ is assignable to itself.
-
-Another special case is if the left side is not a base permission, but the right side is, and we are converting or strictly converting, it falls back to $ctb()$:
-\begin{align*}
-    merge_\mu(A, b)     &:= \begin{cases}
-                            ctb(A, b)   & \text{if } \mu = \text{conversion} \\
-                            ctb_{strict}(A, b)   & \text{if } \mu = \text{strict conversion}
-                        \end{cases} \\
-                    &\text{(for all } A  \in {\cal P} \setminus 2^{\cal R}\text{)}
-\end{align*}
+* For intersection, the question is: Can values of $N$ or $nil$ be assigned to $merge_{\cap}(N, nil)$. Yes, they can be, $nil$ is assignable to every pointer, and $p$ is assignable to itself.
 
 Otherwise, the base case for a merge is merging primitive values, and the rules for that are quite simple:
 \begin{align*}
-    merge_\mu(a, b)     &:= \begin{cases}
-                            b & \text{if } \mu = \text{conversion or } \mu = \text{ strict conversion} \\
-                            a \cap b & \text{if } \mu = \text{intersection}       \\
-                            a \cup b & \text{if } \mu = \text{union}
+    merge_\mu(a, b)     &:= \mu(a,b) = \begin{cases}
+                            ctb(a,b) & \text{if } \mu = ctb \text{ or } \\
+                            ctb_{strict}(a,b) & \text{if } \mu = ctb_{strict} \\
+                            a \cap b & \text{if } \mu = \cap       \\
+                            a \cup b & \text{if } \mu = \cup
                         \end{cases}
 \end{align*}
 
@@ -554,7 +559,7 @@ use case, to which we will get back later, at the end of the chapter. The fu
 func (state *mergeState) mergeBase(p1, p2 BasePermission) BasePermission {
 	switch state.action {
 	case mergeConversion, mergeStrictConversion:
-		return p2
+		return p1.convertToBaseBase(p2) // call ctb base case for type reasons
 	case mergeIntersection:
 		return p1 & p2
 	case mergeUnion:
@@ -588,8 +593,8 @@ If one function expects `orw` and another expects `or` a place that needs either
 For that, let
 $$
 mergeContra_\mu(A, B) := \begin{cases}
-    merge_{intersection}(A, B) & \text{if } \mu = \text{union} \\
-    merge_{union}(A, B) & \text{if } \mu = \text{intersection} \\
+    merge_{\cap}(A, B) & \text{if } \mu = \cup \\
+    merge_{\cup}(A, B) & \text{if } \mu = \cap \\
     merge_\mu(A, B) & \text{else}
 \end{cases}
 $$
