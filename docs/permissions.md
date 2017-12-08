@@ -532,9 +532,10 @@ Regarding the soundness of the merging nils with nilable permissions:
 Another special case is if the left side is not a base permission, but the right side is, and we are converting or strictly converting, it falls back to $ctb()$:
 \begin{align*}
     merge_\mu(A, b)     &:= \begin{cases}
-                            ctb(A, b)   & \text{if } \mu = \text{ conversion and } A \not\subset {\cal R} \\
-                            ctb_{strict}(A, b)   & \text{if } \mu = \text{ strict conversion and } A \not\subset {\cal R}
-                        \end{cases}
+                            ctb(A, b)   & \text{if } \mu = \text{ conversion} \\
+                            ctb_{strict}(A, b)   & \text{if } \mu = \text{ strict conversion}
+                        \end{cases} \\
+                    &\text{(for all } A  \in {\cal P} \setminus 2^{\cal R}\text{)}
 \end{align*}
 
 Otherwise, the base case for a merge is merging primitive values, and the rules for that are quite simple:
