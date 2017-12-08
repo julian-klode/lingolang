@@ -17,8 +17,8 @@ The store has several operations:
 1. `GetEffective`, written $S[v]$, returns the effective permission of $v$ in $S$.
 1. `GetMaximum`, written $S[\overline{v}]$, returns the maximum permission of $v$ in $S$.
 1. `Define`, written $S[v := p]$, is a new store where a new $v$ is defined if none is in the current block, otherwise, it's the same as $S[v = p]$.
-1. `SetEffective`, written $S[v = p]$, is a new store where $v$'s effective permission is set to $intersect(p, S[\overline{v}])$
-1. `SetMaximum`, written $S[v \overset{\wedge}{=} p]$, is a new store where $v$'s maximum permission is set to $p$. It also performs $S[v = intersect(p, S[\overline{v}])]$ to ensure that the effective permission is weaker than the maximum permission.
+1. `SetEffective`, written $S[v = p]$, is a new store where $v$'s effective permission is set to $merge_{intersection}(p, S[\overline{v}])$
+1. `SetMaximum`, written $S[v \overset{\wedge}{=} p]$, is a new store where $v$'s maximum permission is set to $p$. It also performs $S[v = merge_{intersection}(p, S[\overline{v}])]$ to ensure that the effective permission is weaker than the maximum permission.
 1. `Release`, written $S[=D]$, where $D$ is a set of tuples $V \times {\cal P}$ is the same as setting the effective permissions of all $(v, p) \in D$ in S. We call that _releasing_ D.
 1. `BeginBlock`, written $S[+]$, is a store where a new block has begun
 1. `EndBlock`, written $S[-]$, is S with the most recent block removed

@@ -525,9 +525,9 @@ permission (a chan, func, interface, map, nil, pointer, or slice permission) yie
 \end{align*}\label{sec:merge-nil}
 Regarding the soundness of the merging nils with nilable permissions:
 
-* For union, the question is: Can $union(N, nil)$ be used in place of both $N$ and $nil$? Technically the answer is no, because $N$ cannot be used where $nil$ is expected. But nil permissions are only ever
+* For union, the question is: Can $merge_{union}(N, nil)$ be used in place of both $N$ and $nil$? Technically the answer is no, because $N$ cannot be used where $nil$ is expected. But nil permissions are only ever
   used for $nil$ literals (they cannot even be specified, there is no syntax for them), so we never reach that situation.
-* For intersection, the question is: Can values of $N$ or $nil$ be assigned to $merge_{intersect}(N, nil)$. Yes, they can be, $nil$ is assignable to every pointer, and $p$ is assignable to itself.
+* For intersection, the question is: Can values of $N$ or $nil$ be assigned to $merge_{intersection}(N, nil)$. Yes, they can be, $nil$ is assignable to every pointer, and $p$ is assignable to itself.
 
 Another special case is if the left side is not a base permission, but the right side is, and we are converting or strictly converting, it falls back to $ctb()$:
 \begin{align*}
@@ -541,7 +541,7 @@ Another special case is if the left side is not a base permission, but the right
 Otherwise, the base case for a merge is merging primitive values, and the rules for that are quite simple:
 \begin{align*}
     merge_\mu(a, b)     &:= \begin{cases}
-                            b & \text{if } \mu = \text{conversion or } \mu = \text{strict conversion} \\
+                            b & \text{if } \mu = \text{conversion or } \mu = \text{ strict conversion} \\
                             a \cap b & \text{if } \mu = \text{intersection}       \\
                             a \cup b & \text{if } \mu = \text{union}
                         \end{cases}
@@ -588,7 +588,7 @@ If one function expects `orw` and another expects `or` a place that needs either
 For that, let
 $$
 mergeContra_\mu(A, B) := \begin{cases}
-    merge_{intersect}(A, B) & \text{if } \mu = \text{union} \\
+    merge_{intersection}(A, B) & \text{if } \mu = \text{union} \\
     merge_{union}(A, B) & \text{if } \mu = \text{intersection} \\
     merge_\mu(A, B) & \text{else}
 \end{cases}
