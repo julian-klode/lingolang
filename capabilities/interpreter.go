@@ -916,7 +916,7 @@ func (i *Interpreter) defineOrAssignMany(st Store, stmt ast.Stmt, lhsExprs []ast
 func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs permission.Permission, owner Owner, deps []Borrowed, isDefine bool, allowUnowned bool) (Store, Owner, []Borrowed) {
 	var err error
 
-	// Define or set the effective permission of the left hand side to the right hand side. In the latter case,
+	// Define or set the effective permission of the left-hand side to the right-hand side. In the latter case,
 	// the effective permission will be restricted by the specified maximum (initial) permission.
 	if ident, ok := lhs.(*ast.Ident); ok {
 		if ident.Name == "_" {
@@ -945,10 +945,10 @@ func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs 
 			i.Error(lhs, "Could not assign or define: %s", err)
 		}
 	} else if isDefine {
-		i.Error(lhs, "Cannot define: Left hand side is not an identifier")
+		i.Error(lhs, "Cannot define: Left-hand side is not an identifier")
 	}
 
-	// Ensure we can do the assignment. If the left hand side is an identifier, this should always be
+	// Ensure we can do the assignment. If the left-hand side is an identifier, this should always be
 	// true - it's either Defined to the same value, or set to something less than it in the previous block.
 
 	perm, _, _ := i.visitExprOwnerToDeps(st, lhs) // We just need to know permission, don't care about borrowing.
@@ -973,7 +973,7 @@ func (i *Interpreter) visitRangeStmt(initStore Store, stmt *ast.RangeStmt) (rang
 
 	bm.addExit(StmtExit{initStore, nil})
 
-	// Evaluate the container specified on the right hand side.
+	// Evaluate the container specified on the right-hand side.
 	perm, deps, initStore := i.visitExprOwnerToDeps(initStore, stmt.X)
 	defer func() {
 		// TODO: canRelease = true
@@ -1133,7 +1133,7 @@ func (i *Interpreter) visitForStmt(initStore Store, stmt *ast.ForStmt) (rangeExi
 
 	initStore = initStore.BeginBlock()
 
-	// Evaluate the container specified on the right hand side.
+	// Evaluate the container specified on the right-hand side.
 	for _, entry := range i.visitStmt(initStore, stmt.Init) {
 		if entry.branch != nil {
 			i.Error(stmt.Init, "Initializer exits uncleanly")

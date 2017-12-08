@@ -150,7 +150,7 @@ and dependency if any (it's just an offset into an array), and then return the p
 \end{align*}
 
 
-If the left hand side is a map, the right hand side might be more complicated. Since this expression may appear on the left hand side of an assignment, that is,
+If the left-hand side is a map, the right-hand side might be more complicated. Since this expression may appear on the left-hand side of an assignment, that is,
 when writing a value into the map, and the key might be arbitrarily complicated, we need to treat this as if we are assigning the key to somewhere.
 
 
@@ -494,14 +494,14 @@ There are essentially two forms of assignment and declarations:
 Both of them share most of the implementation in the form of two functions: `defineOrAssign` which handles a single LHS and a single RHS, and `defineOrAssignMany` which takes care of defining or assigning multiple (or zero) RHS to one or more LHS values.
 
 The function `defineOrAssign` is the core function responsible for evaluating definitions and assignment.
-The function starts by checking that the left hand side is an identifier and defining it as necessary (or, if the identifier is `_`, by returning). Afterwards it evaluates the left hand side (which is now defined), and then performs a move-or-copy from the right permission to the left.
+The function starts by checking that the left-hand side is an identifier and defining it as necessary (or, if the identifier is `_`, by returning). Afterwards it evaluates the left-hand side (which is now defined), and then performs a move-or-copy from the right permission to the left.
 ```go
 func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs permission.Permission, owner Owner, deps []Borrowed, isDefine bool, allowUnowned bool) (Store, Owner, []Borrowed) {
 	var err error
 
     <<define or assign lhs>>
 
-	// Ensure we can do the assignment. If the left hand side is an identifier, this should always be
+	// Ensure we can do the assignment. If the left-hand side is an identifier, this should always be
 	// true - it's either Defined to the same value, or set to something less than it in the previous block.
 
 	perm, _, _ := i.visitExprOwnerToDeps(st, lhs) // We just need to know permission, don't care about borrowing.
@@ -524,7 +524,7 @@ func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs 
 The code handling defining or assigning the permission of the lhs first handles the underscore case, and then handles the define or assign:
 ```go
 <<define or assign lhs>>=
-// Define or set the effective permission of the left hand side to the right hand side. In the latter case,
+// Define or set the effective permission of the left-hand side to the right-hand side. In the latter case,
 // the effective permission will be restricted by the specified maximum (initial) permission.
 if ident, ok := lhs.(*ast.Ident); ok {
     <<handle _>>
@@ -539,11 +539,11 @@ if ident, ok := lhs.(*ast.Ident); ok {
         i.Error(lhs, "Could not assign or define: %s", err)
     }
 } else if isDefine {
-    i.Error(lhs, "Cannot define: Left hand side is not an identifier")
+    i.Error(lhs, "Cannot define: Left-hand side is not an identifier")
 }
 ```
 
-Handling the underscore case is simple: An assignment to `_` would be equivalent to just executing the expression on the right hand side, that is, we can release owner and dependencies - it's not going to be moved anywhere.
+Handling the underscore case is simple: An assignment to `_` would be equivalent to just executing the expression on the right-hand side, that is, we can release owner and dependencies - it's not going to be moved anywhere.
 ```go
 <<handle _>>=
 if ident.Name == "_" {
@@ -863,7 +863,7 @@ For the `for` statement, the `<<setup>>` consists of beginning a new block, and 
 ```go
 	initStore = initStore.BeginBlock()
 
-	// Evaluate the container specified on the right hand side.
+	// Evaluate the container specified on the right-hand side.
 	for _, entry := range i.visitStmt(initStore, stmt.Init) {
 		if entry.branch != nil {
 			i.Error(stmt.Init, "Initializer exits uncleanly")
@@ -949,11 +949,11 @@ The cases are:
 #### The `range` loop
 The `range` statement is extremely similar to the `for` statement. It shares the `collectLoopExits` function, but there are a few differences related to it assigning values from a container. Notably, the block begins new for each iteration, and is released for all exits in the statement.
 
-The `<<setup>>` part adds an exit for not entering the range (which will not evaluate the right hand side at all, which might be wrong). It then evaluates the right hand side, and defers the release of its dependencies until the end of the block. Finally, the permissions for key and values are extraced from the RHS, and the initial work is added.
+The `<<setup>>` part adds an exit for not entering the range (which will not evaluate the right-hand side at all, which might be wrong). It then evaluates the right-hand side, and defers the release of its dependencies until the end of the block. Finally, the permissions for key and values are extraced from the RHS, and the initial work is added.
 ```go
 bm.addExit(StmtExit{initStore, nil})
 
-// Evaluate the container specified on the right hand side.
+// Evaluate the container specified on the right-hand side.
 perm, deps, initStore := i.visitExprOwnerToDeps(initStore, stmt.X)
 defer func() {
     if canRelease {
