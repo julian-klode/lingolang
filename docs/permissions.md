@@ -517,8 +517,8 @@ In this example, after the if/else block has been evaluated, the permissions of 
 The function performing merges and conversions is $merge_\mu: P \times P \to P$. $\mu$ is the mode, which can be either union ($\cup$),
 intersection ($\cap$), conversion ($ctb$), or strict conversion ($ctb_{strict}$).
 
-In essence, merge just extends an underlying function $\mu: 2^{\cal R} \times 2^{\cal R} \to {\cal P}$ or $\mu: P \times 2^{\cal R} \to {\cal P}$
-to a function ${\cal P} \times {\cal P} \to {\cal P}$. In the latter case (which applies to $ctb$ and $ctb_{strict}$), we directly use $\mu(A,b)$
+In essence, $merge_\mu$ just extends an underlying function $\mu: 2^{\cal R} \times 2^{\cal R} \to {\cal P}$ ($\cap$ and $\cup$) or $\mu: P \times 2^{\cal R} \to {\cal P}$
+($ctb$ and $ctb_{strict}$) to a function ${\cal P} \times {\cal P} \to {\cal P}$. In the latter case, we directly use $\mu(A,b)$
 for all structured permissions $A$ and base permissions $b$, so the function can do special handling for the structured permission in the first
 argument.
 \begin{align*}
