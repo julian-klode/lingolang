@@ -532,8 +532,8 @@ Regarding the soundness of the merging nils with nilable permissions:
 Another special case is if the left side is not a base permission, but the right side is, and we are converting or strictly converting, it falls back to $ctb()$:
 \begin{align*}
     merge_\mu(A, b)     &:= \begin{cases}
-                            ctb(A, b)   & \text{if } \mu = \text{ conversion} \\
-                            ctb_{strict}(A, b)   & \text{if } \mu = \text{ strict conversion}
+                            ctb(A, b)   & \text{if } \mu = \text{conversion} \\
+                            ctb_{strict}(A, b)   & \text{if } \mu = \text{strict conversion}
                         \end{cases} \\
                     &\text{(for all } A  \in {\cal P} \setminus 2^{\cal R}\text{)}
 \end{align*}
@@ -541,9 +541,9 @@ Another special case is if the left side is not a base permission, but the right
 Otherwise, the base case for a merge is merging primitive values, and the rules for that are quite simple:
 \begin{align*}
     merge_\mu(a, b)     &:= \begin{cases}
-                            b & \text{if } \mu = \text{ conversion or } \mu = \text{ strict conversion} \\
-                            a \cap b & \text{if } \mu = \text{ intersection}       \\
-                            a \cup b & \text{if } \mu = \text{ union}
+                            b & \text{if } \mu = \text{conversion or } \mu = \text{strict conversion} \\
+                            a \cap b & \text{if } \mu = \text{intersection}       \\
+                            a \cup b & \text{if } \mu = \text{union}
                         \end{cases}
 \end{align*}
 
@@ -588,8 +588,8 @@ If one function expects `orw` and another expects `or` a place that needs either
 For that, let
 $$
 mergeContra_\mu(A, B) := \begin{cases}
-    merge_{intersect}(A, B) & \text{if } \mu = \text{ union} \\
-    merge_{union}(A, B) & \text{if } \mu = \text{ intersection} \\
+    merge_{intersect}(A, B) & \text{if } \mu = \text{union} \\
+    merge_{union}(A, B) & \text{if } \mu = \text{intersection} \\
     merge_\mu(A, B) & \text{else}
 \end{cases}
 $$
