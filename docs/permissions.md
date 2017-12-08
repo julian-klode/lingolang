@@ -75,7 +75,7 @@ $$ {\cal P} = 2^{\cal R} \cup \{p \textbf{ struct } \{P_0, ..., P_n \} | p \subs
 Compare the syntax chart in listing \ref{syntax} for which permissions are possible.
 
 Base permissions like $b \in 2^{\cal R}$ are usually denoted by lower case, other permissions (or generically, all permissions) are
-denoted by uppercase characters like $P in {\cal R}$.
+denoted by uppercase characters like $P \in {\cal R}$.
 
 ### Excursus: Parsing the syntax
 In the implementation, base permissions are stored as bitfields and structured permissions are structs matching the abstract syntax. Permission annotations are stored in comments attached to functions, and declarations of variables. A comment line introducing a permission annotation starts with `@perm`, for example:
