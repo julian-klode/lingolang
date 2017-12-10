@@ -1,4 +1,23 @@
 # Evaluation
+Having discussed the design and implementation, the time has come to evaluate the project according to our criteria from \fref{sec:criteria}, that is:
+
+Completeness
+: All syntactic constructs are tested
+
+Correctness
+: Only valid programs are allowed
+
+Preciseness
+: We do not reject useful programs because our rules are too broad.
+
+Usability
+: If there is a problem, is it understandable
+
+Compatibility
+: A Lingo program is a valid Go program without any semantic differences
+
+Coverage
+: The implementation should be well-tested with unit tests
 
 ## Completeness
 The implementation is unfortunately not complete.

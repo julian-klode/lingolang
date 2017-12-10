@@ -40,7 +40,7 @@ in order to prevent problems like above.
 
 \clearpage
 
-In order to evaluate the result, we can define some criteria:
+In order to evaluate the result, we can define some criteria:\label{sec:criteria}
 
 Completeness
 
