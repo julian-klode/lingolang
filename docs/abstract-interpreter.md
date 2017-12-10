@@ -7,6 +7,28 @@ of the chapter will be in the form of a operational semantics, though some more 
 
 In the `github.com/julian-klode/lingolang` reference implementation, the permissions and operations are provided in thea package called `capabilities` for historic reasons. A better name might have been `interpreter`.
 
+## Overview
+The abstract interpreter acts on a store which maps variables to permissions. Evaluating an expressions in a store yields a permission for the object returned by the expression,
+a new store, and an _owner_ and _dependencies_ - these two deserve some explanation:
+
+An _owner_ here means the variable from which the object the evaluation evaluates to has been reached, and it's effective permission at the time it was reached. When an identifier is evaluated,
+the variable and its effective permission become the owner, and the original variable is rendered unusable (by converting it to `n`).
+The owner will be important in some places later on. For example, when a part of an object is made immutable, we also want to make the whole object - the owner - immutable (or more specifically, we would
+like to note that the part is now immutable, but we need the owner anyway).
+Not every expression has an owner: For example, an addition never has an owner: The returned value is freshly created, it is not part of another value.
+
+A _dependency_ is similar to an owner. It's the other variables that have been used in the expression, alongside their effective permissions. It could also contain owners: For example, in `a[b]`,
+the owners and dependencies of `b` would be some of the dependencies of the complete expression (the others are the dependencies of `a`).
+
+Owners and dependencies can be released back to the store when they are no longer needed. For example, when `a + b` is evaluated, the owners and dependencies for `a` and `b` can be released
+after `a + b` has been evaluated. Sometimes, a value is moved, then its owner and dependencies are not released - they become consumed by the operation, so to speak.
+
+The abstract interpreter for statements evaluates the statement in a store and a current function, the latter is needed for some lookups, like return values. Multiple branches are handled by
+multiple return values, that is, instead of returning a single store, a collection of stores is returned. Statements also have early exits like `return` statements. We handle these by including
+the statement that abnormally terminated a statement alongside the store. For example, a `return` statement would have one _exit_: a pair of its store and itself. A block statement with a `return`
+statement would have the exit of the `return` statement, and maybe others.
+
+
 ## The store
 The store is an essential part of the interpreter. It maps variable names $\in V$ to: \label{sec:store}
 
@@ -45,7 +67,7 @@ such a block marker is identified by checking if the name field is empty. When e
 ## Expressions
 The interpreter's function $\leadsto : Expr \times Store \to Permission \times (Variable, Permission) \times \text{set of } (Variable, Permission) \times Store$ (also called `VisitExpr` in the code) visits an expression in a store, yielding a new permission, an owner, a set of variables borrowed by the expression, and a new store. It takes care of abstractly interpreting the expression and checking the permissions.
 
-The types `Borrowed` and `Owner` are pairs of a variable name and a permission. The owner of an expression is the variable of which the object the expression evaluates to is a part of; for example, the owner of `&array[1]` is `array`. Dependencies represented by `Borrowed` are other values that have been borrowed. For example, in the composite literal `T {a, b}`, the variables `a` and `b` could be dependencies. There is a special `NoOwner` value of type `Owner` that represents that no owner exists for a particular expression.
+The types `Borrowed` and `Owner` are pairs of a variable name and a permission, as mentioned before. There is a special `NoOwner` value of type `Owner` that represents that no owner exists for a particular expression.
 
 The `Owner` vs `Borrowed` distinction is especially important with deferred function calls and the go statement. We will later see that the owner is the function (which may be a closure with a bound receiver), while any owners and dependencies of the arguments are forgotten.
 
