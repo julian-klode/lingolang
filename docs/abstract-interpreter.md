@@ -26,7 +26,7 @@ after `a + b` has been evaluated. Sometimes, a value is moved, then its owner an
 The abstract interpreter for statements evaluates the statement in a store and a current function, the latter is needed for some lookups, like return values. Multiple branches are handled by
 multiple return values, that is, instead of returning a single store, a collection of stores is returned. Statements also have early exits like `return` statements. We handle these by including
 the statement that abnormally terminated a statement alongside the store. For example, a `return` statement would have one _exit_: a pair of its store and itself. A block statement with a `return`
-statement would have the exit of the `return` statement, and maybe others.
+statement would have the exit of the `return` statement, and maybe others.\label{sec:exit-0}
 
 
 ## The store
@@ -494,7 +494,7 @@ In an abstract interpreter, option 1 does not work - there may be multiple exits
 The second option is applicable, with the change that instead of returning one value we return multiple ones. Each statement visitor returns pairs of
 
 1. a new store, with the changes the statement made
-2. an indicator of how the block was left (in this implementation, it is either nil or a pointer to the `ReturnStmt` or `BranchStmt` (`goto`, `break`, `continue`, `falltrough`))
+2. an indicator of how the block was left (in this implementation, it is either nil or a pointer to the `ReturnStmt` or `BranchStmt` (`goto`, `break`, `continue`, `falltrough`)) \label{sec:exit-1}
 
 Most statements return just one such pair, but if control flow is involved, there might be multiple, representing the individual paths.
 

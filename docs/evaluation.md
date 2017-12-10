@@ -241,7 +241,109 @@ The interpreter contains the store and abstract interpreter described in the sec
 
 #### Testing the store
 The store really was some special thing to test. No table driven tests were used here, but rather some testing functions were written. The reason is simple: While
-the other stuff to be tested were single functions with lots of cases; the store is a lot of small functions with few cases per function.
+the other stuff to be tested were single functions with lots of cases; the store is a lot of small functions with few cases per function. For example:
+
+```go
+func TestStore_Define(t *testing.T) {
+	store := NewStore()
+	store, _ = store.Define("a", permission.Mutable)
+	if len(store) != 1 {
+		t.Fatalf("Length is %d should be %d", len(store), 1)
+	}
+	if store.GetEffective("a") != permission.Mutable {
+		t.Errorf("Should be mutable, is %v", store.GetEffective("a"))
+	}
+	store, _ = store.Define("a", permission.Read)
+	if len(store) != 1 {
+		t.Errorf("Length is %d should be %d", len(store), 1)
+	}
+	if store.GetEffective("a") != permission.Read {
+		t.Errorf("Should be read-only, is %v", store.GetEffective("a"))
+	}
+}
+```
+
+\clearpage
 
 #### Abstract expression interpretation
+The expression tests are table-driven again. As we can seen, we check a given expression (or a scenario, which contains a setup code part and an expression part),
+with a name, and a permission for `a`, a permission for `b`, the result permission, the result owner, the result dependencies, and the after state of the `a` and
+`b` permissions in the store.
+
+```go
+	testCases := []struct {
+		expr         interface{}		// expression/scenario to test
+		name         string				// name for test case
+		lhs          interface{}		// permission for 'a' in store
+		rhs          interface{}		// permission for 'b' store
+		result       interface{}		// permission returned
+		owner        string				// owner returned
+		dependencies []string			// dependencies returned
+		lhsAfter     interface{}		// permission of a in store after test
+		rhsAfter     interface{}		// permission of b in store after test
+	}{
+		....
+		{"a[b:2:3]", "sliceMin", "om []ov", "om", "om []ov", "a", []string{}, "n []n", "om"},
+		{"a[1:2:b]", "sliceMax", "om []ov", "om", "om []ov", "a", []string{}, "n []n", "om"},
+		{"a[1:2:b]", "sliceInvalid", "om map[ov]ov", "om", errorResult("not sliceable"), "a", []string{}, "n []n", "om"},
+		// TODO
+		//{scenario{"", "func() {}"}, "funcLit", "om", "om", "", "", nil, nil, nil},
+		{"a.(b)", "type cast", "om", "om", errorResult("not yet implemented"), "", nil, nil, nil},
+
+		// Selectors (1): Method values
+		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterface", "ov interface{ ov (ov) func () }", "_", "ov func ()", "", []string{}, "ov interface{ ov (ov) func () }", "_"},
+		{scenario{"var a interface{ b()}", "a.b"}, "selectMethodValueInterfaceUnowned", "ov interface{ ov (v) func () }", "_", "v func ()", "", []string{}, "ov interface{ ov (v) func () }", "_"},
+		....
+	}
+```
+
+Every implemented expression is tested.
+
+\clearpage
+
 #### Abstract statement interpretation
+Statement interpretation testing is table-driven as well. Each test case consists of the name, an description of an input store, some code to execute (in the form of a function), a slice of exit descriptions (a store description and a position of the branch statement that is returned - as described in \fref{sec:exit-1}), and an error string that is checked against a returned error (empty string means no error expected).
+
+```go
+	type testCase struct {
+		name   string
+		input  []storeItemDesc	// structs variable name -> permission
+		code   string
+		output []exitDesc		// struct with []storeItemDesc and int for position
+		error  string
+	}
+```
+
+One test case is the empty block - It simply falls through, hence the result has no exit statement (indicated by position being -1):
+```go
+		{"emptyBlock",
+			[]storeItemDesc{
+				{"main", "om func (om * om) om * om"},
+			},
+			"func main() {  }",
+			[]exitDesc{
+				{nil, -1},
+			},
+			"",
+		},
+```
+
+A more complicated statement is `if`. In the following example we have two exits, one is the return inside the if, the
+other is the return after it:
+```go
+		{"if",
+			[]storeItemDesc{
+				{"a", "om * om"},
+				{"nil", "om * om"},
+				{"main", "om func (om * om) om * om"},
+			},
+			"func main(a *int) *int { if a != nil { return a }; return nil }",
+			[]exitDesc{
+				{[]storeItemDesc{{"a", "n * r"}}, 54},
+				{[]storeItemDesc{{"a", "om * om"}}, 66},
+			},
+			"",
+		},
+```
+
+Every implemented statement is tested.
