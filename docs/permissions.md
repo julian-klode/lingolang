@@ -602,9 +602,9 @@ func (state *mergeState) mergeBase(p1, p2 BasePermission) BasePermission {
 Pointers, channels, arrays, slices, maps, tuples, structs, and interfaces are trivial (structs and interfaces must have same number of members / methods):
 \begin{align*}
     merge_\mu(a * A, b * B)     &:= merge_\mu(a, b) * merge_\mu(A, B) \\
-    merge_\mu(a \textbf{ chan } A, b \textbf{ chan } B)  &:= merge_\mu(a, b) \textbf{ chan } merge_\mu(b, B) \\
-    merge_\mu(a [\_] A, b [\_] B)  &:= merge_\mu(a, b) [\_] merge_\mu(b, B) \\
-    merge_\mu(a [] A, b [] B)  &:= merge_\mu(a, b) [] merge_\mu(b, B) \\
+    merge_\mu(a \textbf{ chan } A, b \textbf{ chan } B)  &:= merge_\mu(a, b) \textbf{ chan } merge_\mu(A, B) \\
+    merge_\mu(a [\_] A, b [\_] B)  &:= merge_\mu(a, b) [\_] merge_\mu(A, B) \\
+    merge_\mu(a [] A, b [] B)  &:= merge_\mu(a, b) [] merge_\mu(A, B) \\
     merge_\mu(a \textbf{ map}[A_0]\ A_1, b \textbf{ map}[B_0]\ B_1)  &:= merge_\mu(a, b) \textbf{ map}[merge_\mu(A_0, B_0)]\ merge_\mu(A_1, B_1) \\
     merge_\mu(a ( A_0, \ldots, A_n ), b (B_0, \ldots, B_n ) ) &:= merge_\mu(a, b) (merge_\mu(A_0, B_0), \ldots, merge_\mu(A_n, B_n) ) \\
     merge_\mu(a \textbf{ struct } \{A_0, \ldots, A_n \}, \\
@@ -639,6 +639,17 @@ Then merging functions is:
           &\qquad (merge_\mu(R_0, R'_0), \ldots, merge_\mu(R_n, R'_n))
 \end{align*}
 
+#### Theorem: $merge_\mu$ is commutative for commutative $\mu$.
+
+An interesting property of $merge_\mu$ is that it is commutative if $\mu$ is commutative. This follows directly from the structural definitions given
+above - they just recursively call $\merge_\mu$ until they reach a base case for which $\mu$ can be called. Therefor no complete proof will be shown.
+But let's pick an example:
+\begin{align*}
+    merge_\mu(a \textbf{ chan } A, b \textbf{ chan } B)  &=  merge_\mu(a, b) \textbf{ chan } merge_\mu(A, B)  \\
+                                                         &= merge_\mu(b, a) \textbf{ chan } merge_\mu(B, A) \\
+                                                         &= merge_\mu(b \textbf{ chan } B, a \textbf{ chan } A)
+\end{align*}
+
 ## Creating a new permission from a type
 \label{sec:new-from-type}
 Since permissions have a similar shape as types and Go provides a well-designed types package, we can easily navigate type structures and create structured permissions for them with some defaults. Currently, it just places maximum `m`
@@ -652,8 +663,9 @@ for example, `type T []T` is a type that is a slice of itself. The functions dis
 mechanism. Essentially, all functions seen so far recurse via a wrapper function that first checks the cache for the given arguments and returns the cached value if it exists,
 and only calls the real function if the arguments were not seen yet.
 
-For predicate functions, that is, the assignability functions, this wrapper function does all the work, including registering the arguments in the cache:
-```go
+For predicate functions, that is, the assignability functions, this wrapper function does all the work, including registering the arguments in the cache, as listing \ref{assignableToWrapper}
+shows for the implementation of the $ass$ family.
+```{#assignableToWrapper caption="Cycle helper for assignability function" float=ht frame=tb}
 func assignableTo(A, B Permission, state assignableState) bool {
 	key := assignableStateKey{A, B, state.mode}
 	isMovable, ok := state.values[key]
@@ -668,8 +680,8 @@ func assignableTo(A, B Permission, state assignableState) bool {
 }
 ```
 
-For producer functions, that is, functions producing permissions, it is similar. For example, for `convertToBase`:
-```go
+For producer functions, that is, functions producing permissions, it is similar. For example, listing \ref{convertToBaseWrapper} shows the wrapper function for `convertToBase`.
+```{#convertToBaseWrapper caption="Cycle helper for convert-to-base function" float=ht frame=tb}
 func convertToBase(perm Permission, goal BasePermission, state *convertToBaseState) Permission {
 	key := mergeStateKey{perm, goal, state.action}
 	result, ok := state.state[key]
@@ -680,9 +692,8 @@ func convertToBase(perm Permission, goal BasePermission, state *convertToBaseSta
 }
 ```
 The actual registering of the expected output in the cache does not happen here, though. We need to do this in the concrete
-methods, as we need to construct a new permission first. Hence, all `merge` and `convertToBase` methods start with something like this:
-```go
-
+methods, as we need to construct a new permission first. Hence, all `merge` and `convertToBase` methods start with something like in listing \ref{registerState}.
+```{#registerState caption="Registering return values for cycles in convertToBase" float=ht frame=tb}
 func (p *SlicePermission) convertToBase(p2 BasePermission, state *convertToBaseState) Permission {
 	next := &SlicePermission{}
 	state.register(next, p, p2)
