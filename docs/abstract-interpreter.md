@@ -1,6 +1,10 @@
 # Static analysis of Go programs
 Based on the operations described in the previous section, a static analyser can be written that ensures that the rules of linearity are respected. This static analysis can be done in the form of an abstract interpreter; that is, an interpreter that does not operate on concrete values, but abstract values and tries to interpret all possible paths through a program.
 
+We will introduce a store mapping variables to permissions with some operations, an expression evaluator $\leadsto$, and a statement evaluator $\rightarrow$. There will also be several
+important helper functions like $moc$ which moves or copies a value, depending on which action is applicable, and `defineOrAssign` which takes care of defining and assigning values. Most
+of the chapter will be in the form of a operational semantics, though some more complex cases will be discussed in code form for better readability.
+
 In the `github.com/julian-klode/lingolang` reference implementation, the permissions and operations are provided in thea package called `capabilities` for historic reasons. A better name might have been `interpreter`.
 
 ## The store

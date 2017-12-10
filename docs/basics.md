@@ -1,5 +1,7 @@
 # Basics
-This chapter gives a quick overview of the Go programming language before discussing approaches to solving the problem of aliases of mutable objects.
+This chapter gives a quick overview of the Go programming language in order to make the later abstract interpretation of it reasonably understandable,
+before discussing approaches to solving the problem of aliases of mutable objects, and especially linear types and permissions, which the remainder of
+the thesis is based on.
 
 ## The Go programming language
 \vskip-2cm \hfill\includegraphics[height=1.5cm]{gopherbw}
