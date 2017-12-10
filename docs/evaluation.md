@@ -94,7 +94,7 @@ The code coverage chart shows that it started out slightly below 100% line cover
 Unfortunately, the Go tools only provide line coverage, and not branch or path coverage. This is somewhat problematic: For example, if we have an `if` statement without an `else` part, we can test if the if has been taken, but we usually cannot check whether it's not been taken: The if statement would eventually fall out of its block and back into the parent block, and thus all lines are executed.
 
 ### Testing the permissions package
-The permissions package contains the parser and the rules for permissions described in the section _[Permissions for Go](#permissions-for-go)_.
+The permissions package contains the parser and the rules for permissions described in the section _[Permissions for Go](#permissions-for-go)_. Coverage is 100%.
 
 #### The parser
 The first functional component to be introduced were the scanner and the parser, along with its test suite. Actually, only the parser has a test suite initially: It already tested most of the scanner, except some error formatting code and the function to render a token type as a string for an invalid token type value - but these were also fixed later, leading to 100% coverage for both of them.
@@ -237,7 +237,8 @@ One thing is special about tests for intersection and union: Since both are comm
 ensuring that $A \cap B = B \cap A$ without twice the number of tests.
 
 ### Testing the interpreter package
-The interpreter contains the store and abstract interpreter described in the section entitled _[Static analysis of Go programs](#static-analysis-of-go-programs)_.
+The interpreter contains the store and abstract interpreter described in the section entitled _[Static analysis of Go programs](#static-analysis-of-go-programs)_,
+coverage is about 95%.
 
 #### Testing the store
 The store really was some special thing to test. No table driven tests were used here, but rather some testing functions were written. The reason is simple: While
@@ -297,7 +298,7 @@ with a name, and a permission for `a`, a permission for `b`, the result permissi
 	}
 ```
 
-Every implemented expression is tested.
+Every implemented expression is tested, but the coverage is not fully 100%.
 
 \clearpage
 
@@ -346,4 +347,4 @@ other is the return after it:
 		},
 ```
 
-Every implemented statement is tested.
+Every implemented statement is tested, again not for all possible cases.
