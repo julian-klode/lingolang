@@ -17,7 +17,7 @@ The owner will be important in some places later on. For example, when a part of
 like to note that the part is now immutable, but we need the owner anyway).
 Not every expression has an owner: For example, an addition never has an owner: The returned value is freshly created, it is not part of another value.
 
-A _dependency_ is similar to an owner. It's the other variables that have been used in the expression, alongside their effective permissions. A list of dependencies could also contain owners: For example, in `a[b]`,
+A _dependency_ is similar to an owner. It's another variable that has been used in the expression, alongside its effective permission. A list of dependencies could also contain owners: For example, in `a[b]`,
 the owners and dependencies of `b` would be some of the dependencies of the complete expression (the others are the dependencies of `a`).
 
 Owners and dependencies can be released back to the store when they are no longer needed. For example, when `a + b` is evaluated, the owners and dependencies for `a` and `b` can be released
