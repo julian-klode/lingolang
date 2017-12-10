@@ -72,7 +72,8 @@ There also are some shortcuts for some common combinations:
 * `n`, for _none_, is equivalent to, well, none bits set
 * `a`, for _any_, is equivalent to all non-exclusive bits set, that is `orwRW`.
 
-The full syntax for these permissions is given in listing \ref{syntax}. The base permission does not need to be specified for structured types, if absent, it is considered to be `om`.
+The syntax for these permissions (except for nil, and tuple permissions - these make no sense to actually write) is given in listing \ref{syntax}.
+The base permission does not need to be specified for structured types, if absent, it is considered to be `om`.
 
 In the rest of the chapter, we will discuss permissions using a set based notation: The set of rights, or permissions bits is ${\cal R} = \{o, r, w, R, W\}$. A base permission
 is a subset  $\subset \cal R$ of it, that is an element in $2^{\cal R}$. The set $\cal P$ is the infinite set of all permissions:
