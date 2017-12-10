@@ -706,7 +706,7 @@ We have introduced:
 
 We also defined operations for
 
-* checking whether assignments of values with these permissions are legal: $assign_{cop}$, $assign_{ref}$ and $assign_{mov}$, for copying, referencing, and moving.
+* checking whether assignments of values with these permissions are legal: $ass_{cop}$, $ass_{ref}$ and $ass_{mov}$, for copying, referencing, and moving.
 * ensuring consistency and completing incomplete annotations: $ctb$ and $ctb_{strict}$, as well as $merge_{ctb}$ and $merge_{ctb_{strict}}$.
 * merging permissions from values in different program branches: $merge_\cap$ and $merge_\cup$
 * creating permissions from types
