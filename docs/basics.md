@@ -332,6 +332,9 @@ Asserting the exclusive permissions of an unowned capability strips away incompa
 - so for example, if there are two capabilities $A$ and $B$ for the location $x$, both with $R\overline{W}$, asserting the permissions one one will strip away the permission from the other.
 If not asserted, exclusive permissions mean nothing: There could be multiple capabilities with exclusive reads for the same object in the program.
 
+The $O$ flag determines ownership. If an capability has the $O$ bit it is owned, otherwise it is commonly described as borrowed. In a lot of languages, borrowed objects
+cannot be stored, but are just temporary aliases to the initial object.
+
 They provide small-step semantics of a tiny language which operates on a _store_ which maps addresses and (object, field) pairs to capabilities. One thing follows from that approach:
 
 Given four objects `a`, `b`, `x`, `y`, with `a`, `b` each having a field `x` referencing `x`, and `x` having a field referencing `y`, the capability for `a.x.y` and `b.x.y` have to be the same:
