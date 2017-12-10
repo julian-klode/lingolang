@@ -5,7 +5,7 @@ We will introduce a store mapping variables to permissions with some operations,
 important helper functions like $moc$ which moves or copies a value, depending on which action is applicable, and `defineOrAssign` which takes care of defining and assigning values. Most
 of the chapter will be in the form of a operational semantics, though some more complex cases will be discussed in code form for better readability.
 
-In the `github.com/julian-klode/lingolang` reference implementation, the permissions and operations are provided in thea package called `capabilities` for historic reasons. A better name might have been `interpreter`.
+In the `github.com/julian-klode/lingolang` reference implementation, the permissions and operations are provided in the package called `capabilities` for historic reasons. A better name might have been `interpreter`.
 
 ## Overview
 The abstract interpreter acts on a store which maps variables to permissions. Evaluating an expressions in a store yields a permission for the object returned by the expression,
