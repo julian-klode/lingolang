@@ -117,8 +117,7 @@ func (i *Interpreter) visitIdent(st Store, e *ast.Ident) (permission.Permission,
 	return perm, owner, nil, st
 }
 ```
-
-TODO: Currently, the moving also happens for non-linear values. This seems rather pointless, and might complicate things a bit.
+\label{sec:visitIdent}
 
 
 #### Star Expression: `*E`
@@ -270,11 +269,10 @@ to copy or move the key into the map, and the permission for values of the map i
     } && \text{(P-MIdx)}
 \end{align*}
 As can be seen, if any owner and dependencies are remaining for $B$ after $moc$, these are forgotten too. This only affects
-maps with unowned keys, as $moc$ otherwise always returns no owner and an empty dependency set.
-TODO: Big issue?
+maps with unowned keys, as $moc$ otherwise always returns no owner and an empty dependency set.\label{sec:index-map}
 
 One thing missing is indexing strings, which yields characters. Strings are represented as base permissions currently, but
-probably deserve their own permission type.
+probably deserve their own permission type.\label{sec:index-string}
 
 #### Unary expressions
 We have already seen one unary expression, the star expression. For unknown reasons, it is its own category of syntax node
@@ -293,7 +291,7 @@ There is a problem with that approach and how assignment is handled: Given a var
 permission from the store to the expression, but only the effective permission is moved, as we saw in the definition for
 identifiers before. This causes problems later when introducing assignment statements: They check the maximum permissions.
 What should happen here is that we also take away the maximum permission of the owner, preventing any future re-assignment
-and restoration of its effective permissions (that's a TODO).
+and restoration of its effective permissions .\label{sec:address-of}
 
 
 The next operation is `<-E`, the channel receive operation. The expression `E` is a channel, and the next value in it
@@ -378,7 +376,7 @@ The slice expression `A[L:H:M]` (where `L`, `H`, `M` are optional) is simply eva
     \langle A[L:H:M], s \rangle &\leadsto (P_a, o_m, d_m, s_m[= d_l \cup d_h \cup d_m \cup \{o_l, o_h, o_m\}])
 \end{align*}
 
-This is overly pessimistic: All owners and dependencies are only released at the end, they could be released earlier (TODO).
+This is overly pessimistic: All owners and dependencies are only released at the end, they could be released earlier.\label{sec:slice}
 
 
 ##### Selector expression
@@ -450,7 +448,7 @@ Now, $selectOne$ is tricky. Field values are simple, with one complication: Poin
              (s', o', d') &:= moc(s, In, R, o, d)
 \end{align*}
 
-Method values and method expressions also exist on named types, but named types do not have an equivalent permission yet, and therefore, they are not implemented for these types. Introducing a permission equivalent to named types would have caused significant changes in the abstract interpreter and it was too late for that. An alternative would have been to associate method sets from named types with the permissions for their underlying types (for example, a pointer to struct). It is unclear how they would have to be handled on assignments, though. Can they be just ignored? More work is needed here. TODO
+Method values and method expressions also exist on named types, but named types do not have an equivalent permission yet, and therefore, they are not implemented for these types. Introducing a permission equivalent to named types would have caused significant changes in the abstract interpreter and it was too late for that. An alternative would have been to associate method sets from named types with the permissions for their underlying types (for example, a pointer to struct). It is unclear how they would have to be handled on assignments, though. Can they be just ignored? More work is needed here.
 
 
 #### Composite Literals

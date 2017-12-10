@@ -1,6 +1,71 @@
 # Evaluation
 
-## Testing the implementation
+## Completeness
+The implementation is unfortunately not complete.
+
+We only have support for checking expressions and statements (including function literals), but we don't have support for declaring global variables, functions, or importing other packages.
+Adding support for global declarations requires handling global state. While we could just create a "package" permission holding permissions for all objects declared in it, and make the current package a store, it is unclear how any mutable global state should interact with functions.
+There does not seem to be a safe solution for global mutable state: If two functions want to access the same global, mutable, variable, how do we handle that? Marking each function's closure as mutable is not enough: Their closure is the same. Two solutions might be possible: Identify groups of functions with the same closure and only allow one of them to be used at a time, or just forbid two functions from using the same global mutable variable; essentially making global mutable state function-specific.
+
+The support for expressions and statements is slightly incomplete as well:
+Type assertion, conversion between named types and interfaces, and type switches are missing. These require gathering a set of methods for a given named type. But
+we don't have an equivalent to named types in permissions, and adding it does not seem feasible anymore, as it would require substantial changes in the
+interpreter. An alternative would be to simply attach a list of methods to the unnamed permissions, and when converting, take the left set of methods. When a
+conversion to an interface is required, we could just build an interface out of these methods, and check if that interface is assignable to the interface.
+
+Also as mentioned in \fref{sec:index-string}, strings can be indexed, but we don't support it - strings are just base permissions, but should be their
+own permission kind. This seems easily solvable however.
+
+## Correctness
+The implementation is _shallow_: When looking at the requirements for operands, it only looks at the base permission of the operands. So if an expression requires an
+operand to be readable, we only check whether its base permission contains the $r$ bit. That should be fine so far, as we ensure consistency at some point in the program
+by converting each permission to its own base permission, and thus a readable object can't have unreadable members. But it falls short if we actually want to allow
+it. There might be an option: Instead of checking if $r \in base(A)$ we can check if $ass_{mov}(A, ctb(A, r))$, that is, we create a new structure where all base
+permissions are replaced with $\{r\}$ and then we can check if the value is movable to it, which recursively checks that each base permission is movable to $\{r\}$.
+
+As shown in \fref{sec:address-of}}, taking the address of a pointer does not modify the store, except for the evaluation of the pointer, of course. As mentioned there,
+this is wrong: Taking the address of a pointer should (usually) consume the maximum permission of the owner. Let's look at an example: Let's say we have a variable `a`
+that is `om * om`, and we take a pointer to it: `p = &a` - p is now `om * om * om`. But `a` can be reassigned: `a = a new pointer` and regain its effective permission,
+meaning we now have two usable references to `a`. This happens because assignment checks against the maximum permission, and thus, taking the maximum permission away
+instead of the effective permission would solve the issue.
+
+
+## Preciseness
+The implementation is _coarse_: If I borrow anything uniquely referred to by a variable, then the entire variable is marked as unusable, rather than just the part
+of the permission that was borrowed. A solution to this problem would be to collect a path from a variable to an object (like, select field x, select field y), when
+evaluating an expression - then we could create a new permission where the borrowed part is replaced by an unusable permission. But this then leads to the shallowness
+problem mentioned above.
+
+The implementation is _ambiguous_: Permissions for types and values are stored in the same namespace. This is not a real problem, though, as Go ensures that we can't
+use type in value contexts and vice versa.
+
+As seen in \fref{sec:visitIdent}, moving a value out of the store also happens for non-linear values. This is overly broad: If a value is not linear, it should be
+copyable. Therefore it might make sense to leave that out.
+
+We have seen in \fref{sec:index-map} that indexing a map also moves the key into the map (its dependencies are forgotten) if the map has unowned keys (the map
+is unowned). This might break some code that should actually work.
+
+In \fref{sec:slice} we saw that slicing only releases the permissions of the slice arguments after they have all been evaluated, which is overly coarse. It prevents
+a call like `a[x:x]` for some linear `x`. Instead, slicing should release each argument's dependencies as soon as it has been evaluated - the result will be an
+integer and its dependencies thus do not matter.
+
+## Usability
+Usability is bad, really bad. The structured permissions are incredibly powerful, but this power comes at a price: Error messages are not readable. There are two
+reasons for that: First of all, there can be a lot of nesting and a lot of wide permissions (like structs with a lot of elements), leading to long and hard to
+read permissions. Secondly, there can be cycles, and the cycles do not always appear at the same stage: For example a permission "A = om * A" could be stored
+as $A = om * A$ or it could be stored as $A' = om * om * A$ - they are still compatible. This makes it hard to figure out the actual error when two permissions
+are incompatible.
+
+
+## Compatibility
+On the semantic front, if a Lingo program compiles it will behave exactly like a Go program.
+This is a side effect of going with comment-based annotations and a simple checker that does not generate a modified program.
+
+On the actual use part, while interfacing with legacy code could be made possible simply by using $n$ permissions for parameters, and $om$ or $orw$
+for return values, this seems a bit unsafe. Permissions should be annotated with an unsafe bit, and conversions between unsafe permissions and safe
+permissions should produce a warning. There should also be a way to annotate that a certain conversion is safe.
+
+## Code coverage / Unit testing
 The implementation, since the beginning, has been subject to rigorous unit testing with continuous integration on [travis-ci.org](https://travis-ci.org/julian-klode/lingolang) and code coverage reports on [codecov.io](https://codecov.io/gh/julian-klode/lingolang).
 
 ![code coverage chart](coverage-chart.png)
@@ -161,27 +226,3 @@ the other stuff to be tested were single functions with lots of cases; the store
 
 #### Abstract expression interpretation
 #### Abstract statement interpretation
-
-## Known issues
-The implementation is _coarse_: If I borrow anything uniquely referred to by a variable, then the entire variable is marked as unusable, rather than just the part
-of the permission that was borrowed. A solution to this problem would be to collect a path from a variable to an object (like, select field x, select field y), when
-evaluating an expression - then we could create a new permission where the borrowed part is replaced by an unusable permission. But this leads to another problem:
-
-The implementation is _shallow_: When looking at the requirements for operands, it only looks at the base permission of the operands. So if an expression requires an
-operand to be readable, we only check whether its base permission contains the $r$ bit. That is fine so far, as we ensure consistency at some point in the program
-by converting each permission to its own base permission, and thus a readable object can't have unreadable members. But it falls short if we actually want to allow
-it. Luckily, there is an option: Instead of checking if $r \in base(A)$ we can check if $ass_{mov}(A, ctb(A, r))$, that is, we create a new structure where all base
-permissions are replaced with $\{r\}$ and then we can check if the value is movable to it, which recursively checks that each base permission is movable to $\{r\}$.
-
-The implementation is _ambiguous_: Permissions for types and values are stored in the same namespace. This is not a real problem, though, as Go ensures that we can't
-use type in value contexts and vice versa.
-
-It is also _incomplete_: We only have support for checking expressions and statements (including function literals), but we don't have support for declaring global
-variables, functions, or importing other packages. These can be "hacked" in easily: A package could have a "package" permission holding permissions for all objects
-declared in it, and the current package is simply a store, mapping types and values to their permissions. There are some problems with global mutable state, though:
-We cannot really borrow objects in the package - it has multiple om functions.
-
-Type assertion, conversion between named types and interfaces, and type switches are missing. These require gathering a set of methods for a given named type. But
-we don't have an equivalent to named types in permissions, and adding it does not seem feasible anymore, as it would require substantial changes in the
-interpreter. An alternative would be to simply attach a list of methods to the unnamed permissions, and when converting, take the left set of methods. When a
-conversion to an interface is required, we could just build an interface out of these methods, and check if that interface is assignable to the interface.
