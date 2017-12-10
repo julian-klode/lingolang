@@ -642,14 +642,17 @@ Then merging functions is:
 
 #### Theorem: $merge_\mu$ is commutative for commutative $\mu$.
 
-An interesting property of $merge_\mu$ is that it is commutative if $\mu$ is commutative. This follows directly from the structural definitions given
-above - they just recursively call $\merge_\mu$ until they reach a base case for which $\mu$ can be called. Therefor no complete proof will be shown.
-But let's pick an example:
+An interesting property of $merge_\mu$ is that it is commutative if $\mu$ is commutative, that is for
+the intersection $\cap$ and the union $\cup$.
+
+This follows directly from the structural definitions given above - they just recursively call $\merge_\mu$ until they reach a base case for which $\mu$ can be called. For example, for channels:
 \begin{align*}
     merge_\mu(a \textbf{ chan } A, b \textbf{ chan } B)  &=  merge_\mu(a, b) \textbf{ chan } merge_\mu(A, B)  \\
                                                          &= merge_\mu(b, a) \textbf{ chan } merge_\mu(B, A) \\
                                                          &= merge_\mu(b \textbf{ chan } B, a \textbf{ chan } A)
 \end{align*}
+
+The other cases are trivial as well, and therefor no complete proof will be shown.\qed
 
 ## Creating a new permission from a type
 \label{sec:new-from-type}
