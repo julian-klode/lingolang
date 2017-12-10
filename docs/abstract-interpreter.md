@@ -17,9 +17,9 @@ The store has several operations:
 1. `GetEffective`, written $S[v]$, returns the effective permission of $v$ in $S$.
 1. `GetMaximum`, written $S[\overline{v}]$, returns the maximum permission of $v$ in $S$.
 1. `Define`, written $S[v := p]$, is a new store where a new $v$ is defined if none is in the current block, otherwise, it's the same as $S[v = p]$.
-1. `SetEffective`, written $S[v = p]$, is a new store where $v$'s effective permission is set to $merge_{\cap}(p, S[\overline{v}])$
+1. `SetEffective`, written $S[v = p]$, is a new store where $v$'s effective permission is set to $merge_{\cap}(S[\overline{v}], p)$
 1. `SetMaximum`, written $S[v \overset{\wedge}{=} p]$, is a new store where $v$'s maximum permission is set to $p$. It also performs $S[v = merge_{\cap}(p, S[\overline{v}])]$ to ensure that the effective permission is weaker than the maximum permission.
-1. `Release`, written $S[=D]$, where $D$ is a set of tuples $V \times {\cal P}$ is the same as setting the effective permissions of all $(v, p) \in D$ in S. We call that _releasing_ D.
+1. `Release`, written $S[=D]$, where $D$ is a set of tuples $V \times {\cal P}$ is the same as setting the effective permissions of all $(v, p) \in D$ in S. We call that _releasing_ D, because $D$ will be a set of dependencies we borrowed from the store.
 1. `BeginBlock`, written $S[+]$, is a store where a new block has begun
 1. `EndBlock`, written $S[-]$, is S with the most recent block removed
 1. `Merge`, written $S \cap S'$, where S and S' have the same length and variables in the same order, is the result of intersecting all permissions in S with the ones at the same position in S'.
@@ -39,13 +39,13 @@ such a block marker is identified by checking if the name field is empty. When e
 
 
 ## Expressions
-The interpreter's function `func (i *Interpreter) VisitExpr(st Store, e ast.Expr) (permission.Permission, Owner, []Borrowed, Store)` visits an expression in a store, yielding a new permission, an owner, a set of variables borrowed by the expression, and a new store.
+The interpreter's function $\leadsto : Expr \times Store \to Permission \times (Variable, Permission) \times \text{set of } (Variable, Permission) \times Store$ (also called `VisitExpr` in the code) visits an expression in a store, yielding a new permission, an owner, a set of variables borrowed by the expression, and a new store. It takes care of abstractly interpreting the expression and checking the permissions.
 
-The types `Borrowed` and `Owner` are pairs of a variable name and a permission. The owner of an expression is the variable of which the expression is a part of; for example, the owner of `&array[1]` is `array`. Dependencies represented by `Borrowed` are other values that have been borrowed. For example, in the composite literal `T {a, b}`, `a` and `b` could be dependencies. There is a special `NoOwner` value of type `Owner` that represents that no owner exists for a particular expression.
+The types `Borrowed` and `Owner` are pairs of a variable name and a permission. The owner of an expression is the variable of which the object the expression evaluates to is a part of; for example, the owner of `&array[1]` is `array`. Dependencies represented by `Borrowed` are other values that have been borrowed. For example, in the composite literal `T {a, b}`, the variables `a` and `b` could be dependencies. There is a special `NoOwner` value of type `Owner` that represents that no owner exists for a particular expression.
 
 The `Owner` vs `Borrowed` distinction is especially important with deferred function calls and the go statement. We will later see that the owner is the function (which may be a closure with a bound receiver), while any owners and dependencies of the arguments are forgotten.
 
-Since the code is a bit long too read, it makes sense to provide a short, and hopefully more readable abstraction of it. The function `VisitExpr` essentially becomes the relation $\leadsto : Expr \times Store \to Permission \times (Variable, Permission) \times \text{set of } (Variable, Permission) \times Store$.
+Since the code is a bit long too read, it makes sense to provide a short, and hopefully more readable abstraction of it. The function `VisitExpr` essentially becomes the relation .
 
 There also is a sister function, `VisitExprOwnerToDeps` which does not return a owner, but instead inserts the owner into the list of dependencies. This is helpful in places where the owner is not interesting (it's not used in the formal notation, but will be seen in some code excerpts later).
 
@@ -54,10 +54,12 @@ In the following, we will look at the individual expressions and check how they 
 
 #### Identifier: `id`
 
-If the identifier is `nil`, a `nil` permission is returned.
-If it is `true` or `false`, the permission `om` is returned. Otherwise, the effective permission $e$ for the entry with the same name in the store is returned, and replaced
-by $ctb(effective, \{n\})$. The owner of $e$ is $(identifier, e)$ - if code is done using the value referred to
-by the identifier, it can "put it back" in the store:
+There are three cases of identifies:
+
+1. `nil` evaluates to the `nil` permission, it was created just for `nil` literals, since nil literals can be assigned to any nilable value (\fref{sec:ass-nil}).
+2. `true` and `false` evaluate to the `om` permission, since they are just primitive values. They could just as well evaluate to any other (readable) base permission, but `om` is the strongest one, so to speak.
+3. Any other identifier $id$ evaluates to the effective permission $e$ in the store. The effective permission in the store is replaced with an unusable one (converted to `n`), and the owner becomes $(id, e)$. The owner can later be released when
+   the variable is no longer needed.
 
 \begin{align*}
     \langle \textbf{nil}, s \rangle &\leadsto (nil, NoOwner, \emptyset, s) & \text{(P-Nil)}\\
@@ -67,8 +69,6 @@ by the identifier, it can "put it back" in the store:
 \end{align*}
 
 For a comparison, the code implementing this is shown in listing \ref{visitIdent}.
-
-
 
 ```{#visitIdent .go caption="Abstract interpreter for identifiers" float=t frame=tb}
 func (i *Interpreter) visitIdent(st Store, e *ast.Ident) (permission.Permission, Owner, []Borrowed, Store) {
@@ -96,16 +96,22 @@ TODO: Currently, the moving also happens for non-linear values. This seems rathe
 
 
 #### Star Expression: `*E`
-
-If `expr` has a pointer permission, the result is the same as evaluating the pointer, with the permission in the
-result replaced by the result's target permission:
+The star expression dereferences a pointer. Therefore we must evaluate the expression `E` and then dereference
+the permission it returns, that is, return the target permission, for example:
+```go
+// E has permission om * l
+*E  // permission l
+```
 
 \begin{align*}
-    \frac{\langle E, s \rangle \leadsto (a * A, o, d, s') \text{ for some } a \subset {\cal R}, A \in {\cal P}}{\langle *E, s \rangle \leadsto (A, o, d, s')} && \text{(P-Star)}
+    \frac{
+        \langle E, s \rangle \leadsto (a * A, o, d, s') \text{ for some } a \subset {\cal R}, A \in {\cal P}}
+    {
+        \langle *E, s \rangle \leadsto (A, o, d, s')} && \text{(P-Star)
+    }
 \end{align*}
 
 #### Binary expression: `A op B`
-
 First a is evaluated in $s$, yielding $(P_a, o_a, d_a, s_a)$. The borrowed objects in $o_a$ and $d_a$ are released, yielding $s_a'$, and then b is evaluated in $s_a'$, yielding: $(P_b, o_b, d_b, s_b)$.
 Its dependencies and owner are released as well, yielding $s_b'$.
 
@@ -125,9 +131,21 @@ For other operators, that is $op \not\in \{\text{\lstinline/&&/}, \text{\lstinli
 
 In both cases, the result has no owner and no dependencies, and the permission `om`, as all binary operators produce primitive values, either boolean or numeric.
 
+Examples:
+
+```go
+5 + 5       // om, no owner
+a + b       // om, no owner
+```
 
 
 #### Index expression: `A[B]`
+The index operator indexes an array, a slice, or a map (by the key type of the map). It can appear on the left-hand side of an assignment expression,
+and it is also addressable (except for maps): It's legal to take it's address with the `&` operator. Having it appear on the left-hand side means that
+a map expression must move or copy the key into the map - we are storing a new value after all.
+```go
+someMap[someKey] = someValue        // someKey is either moved or copied into the map, as is someValue
+```
 
 We first evaluate the left side, then the index. If the left side is an array or a slice, the right side is a primitive value, so we can release its owner
 and dependency if any (it's just an offset into an array), and then return the permission for the elements in the array or slice, with `A` being the owner
@@ -149,12 +167,11 @@ and dependency if any (it's just an offset into an array), and then return the p
     } && \text{(P-AIdx)} \\
 \end{align*}
 
+In order to handle indexing maps, we need to take care of the left-hand-side situation mentioned above: The key must be copied or moved into the map. Since
+we do not know whether the expression is on a left-hand or right-hand side, we must be conservative and assume it is on the left-hand side.
 
-If the left-hand side is a map, the right-hand side might be more complicated. Since this expression may appear on the left-hand side of an assignment, that is,
-when writing a value into the map, and the key might be arbitrarily complicated, we need to treat this as if we are assigning the key to somewhere.
-
-
-For cases of assigning things, we can define a helper function, called `moveOrCopy` (listing \ref{moveOrCopy}), or short $moc$ (cases checked in order, top to bottom):
+We can define a helper function, called `moveOrCopy` (listing \ref{moveOrCopy}), or short $moc$ (cases checked in order, top to bottom). $moc$ tries to
+copy first, and then falls back to moving it or (in case of assigning an object of mutable linear permission to a non-linear one), making it immutable and then copying the value.
 
 \begin{align*}
     moc(st, F, T, o, d) := \begin{cases}
@@ -184,7 +201,7 @@ Explanations for each case:
 ```{#moveOrCopy .go caption="The essential \lstinline|moveOrCopy| helper function" float=!hbt frame=tb}
 func (i *Interpreter) moveOrCopy(e ast.Node, st Store, from, to permission.Permission, owner Owner, deps []Borrowed) (Store, Owner, []Borrowed, error) {
     switch {
-    // If the value can be copied into the caller, we don't need to borrow it
+    // If the value can be copied into the caller, we do not need to borrow it
     case permission.CopyableTo(from, to):
         st = i.Release(e, st, []Borrowed{Borrowed(owner)})
         st = i.Release(e, st, deps)
@@ -215,7 +232,8 @@ func (i *Interpreter) moveOrCopy(e ast.Node, st Store, from, to permission.Permi
 }
 ```
 
-With $moc$ defined, we are able to define $\leadsto$ for indexing maps:
+With $moc$ defined, we are able to define $\leadsto$ for indexing maps. After evaluating the map and the key, we use $moc$
+to copy or move the key into the map, and the permission for values of the map is returned (and the owner is the map).
 \begin{align*}
     \frac{
         \langle A, s \rangle \leadsto (p_a \textbf{map}[K] V, o_a, d_a, s_a)
@@ -236,8 +254,8 @@ probably deserve their own permission type.
 We have already seen one unary expression, the star expression. For unknown reasons, it is its own category of syntax node
 in Go, while all the other unary expressions share a common type.
 
-The first unary expression to discuss is `&E`, the _address-of_ operator. Taking the address of `E` constructs a pointer to it.
-At the moment, this is done like that:
+The first unary expression to discuss is `&E`, the _address-of_ operator. Taking the address of `E` constructs a pointer to it,
+currently simply by wrapping it in an `om *`.
 \begin{align*}
     \frac{
         \langle E, s \rangle \leadsto (P_e, o_e, d_e, s_e)
@@ -253,8 +271,9 @@ and restoration of its effective permissions (that's a TODO).
 
 
 The next operation is `<-E`, the channel receive operation. The expression `E` is a channel, and the next value in it
-is to be retrieved. We can immediately release any owner and dependencies of `E` once we got the value, after all, the
-value is not owned by the channel, it's owned by the receiver:
+is to be retrieved. The owner and the dependencies of the channel are essentially irrelevant: The value received from
+the channel is not owned by the channel, but its owned by whatever is receiving it; the owner and dependencies can
+thus be released immediately after evaluating the expression.
 
 \begin{align*}
     \frac{
@@ -266,7 +285,7 @@ value is not owned by the channel, it's owned by the receiver:
 
 
 Finally we have the "boring" case of other unary operators, like plus and minus. These are just working on primitive values, so
-we can just return a new primitive owned mutable permission:
+we can just return a new primitive owned mutable permission `om` and have no owner, since these construct new primitive values.
 \begin{align*}
     \frac{
         \langle E, s \rangle \leadsto (P_e, o_e, d_e, s_e)
@@ -392,7 +411,7 @@ Now, $selectOne$ is tricky. Field values are simple, with one complication: Poin
          &:= (recvToParams(A_{idx}), NoOwner, \emptyset, s[= d \cap \{o\}]) \\
          \text{where } & recvToParams(a (R) \textbf{ func } (P_0, \ldots, P_n) (R_0, \ldots, R_r)) \\
             &:= a \textbf{ func } (R, P_0, \ldots, P_n) (R_0, \ldots, R_r) \\
-\intertext{For method values, we reuse the $moc$ function defined earlier to move or copy the lhs into the receiver. If we are binding an unowned receiver, the bound method value will be unowned too, to ensure we don't store an unowned value in an owned function value, as they have different lifetimes.}
+\intertext{For method values, we reuse the $moc$ function defined earlier to move or copy the lhs into the receiver. If we are binding an unowned receiver, the bound method value will be unowned too, to ensure we do not store an unowned value in an owned function value, as they have different lifetimes.}
     selectOne&(s, \overbrace{a \textbf{ interface } \{A_0, \ldots, A_n\}}^{= In}, idx, \text{\lstinline|MethodVal|}, o, d) \\
          &:= (stripRecv(maybeUnowned(A_{idx})), o', d', s') \\
          \text{where } & stripRecv(a (R) \textbf{ func } (P_0, \ldots, P_n) (R_0, \ldots, R_r)) \\
@@ -453,11 +472,11 @@ The second option is applicable, with the change that instead of returning one v
 1. a new store, with the changes the statement made
 2. an indicator of how the block was left (in this implementation, it is either nil or a pointer to the `ReturnStmt` or `BranchStmt` (`goto`, `break`, `continue`, `falltrough`))
 
-Most statements return just one such pair, but if control flow is involved, there might be multiple, representing the individual pathes.
+Most statements return just one such pair, but if control flow is involved, there might be multiple, representing the individual paths.
 
 Evaluating statements also needs access to the current function's permission. As such, we evaluate triplets of statement, store, and a function permission. The following sections refer to the statement evaluation function as
 
-$$\rightarrow : Stmt \times Store \times FuncPermission \to \text{ set of } Store \times Stmt \cup \{nil\}.$$
+$$\rightarrow : Stmt \times Store \times \underbrace{FuncPermission}_\text{active function} \to \text{ set of } (\underbrace{Store}_\text{resulting store} \times \underbrace{(Stmt \cup \{nil\})}_{\text{jump/return, if any}}).$$
 
 Some parts (assignments, blocks, and loops) are not easily to define in such a formal notation. They are explained as Go functions in literate programming style.
 
@@ -471,7 +490,7 @@ An expression statement simply evaluates the expressions, releases owners and de
     }   && \text{(P-ExprStmt)}
 \intertext{An increase/decrease statement like \lstinline|E++| needs read and write permissions for the expression \lstinline|E|. It evaluates \lstinline|E|, then releases the owner and dependencies.}
     \frac{
-        \langle E, s \rangle \leadsto (P, o, d, s') \qquad r, w \in E
+        \langle E, s \rangle \leadsto (P, o, d, s') \qquad r, w \in base(E)
     } {
         \langle E++, s, f \rangle, \langle E--, s, f \rangle \rightarrow \{(s'[= d \cup \{o\}], nil)\}
     } && \text{(P-IncDecStmt)}
@@ -491,7 +510,7 @@ There are essentially two forms of assignment and declarations:
 1. Assign statements: `a := b` and `a = b` (the former defines the variable if not defined in the current block)
 2. Declaration statement: `var a = b`, `var a` (the latter creates zero values)
 
-Both of them share most of the implementation in the form of two functions: `defineOrAssign` which handles a single LHS and a single RHS, and `defineOrAssignMany` which takes care of defining or assigning multiple (or zero) RHS to one or more LHS values.
+Both of them share most of the implementation in the form of two functions: `defineOrAssign` which handles a single LHS expression[^lhs-expression] and a single RHS permission, and `defineOrAssignMany` which takes care of defining or assigning multiple (or zero) RHS to one or more LHS values.
 
 The function `defineOrAssign` is the core function responsible for evaluating definitions and assignment.
 The function starts by checking that the left-hand side is an identifier and defining it as necessary (or, if the identifier is `_`, by returning). Afterwards it evaluates the left-hand side (which is now defined), and then performs a move-or-copy from the right permission to the left.
@@ -504,9 +523,9 @@ func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs 
 	// Ensure we can do the assignment. If the left-hand side is an identifier, this should always be
 	// true - it's either Defined to the same value, or set to something less than it in the previous block.
 
-	perm, _, _ := i.visitExprOwnerToDeps(st, lhs) // We just need to know permission, don't care about borrowing.
+	perm, _, _ := i.visitExprOwnerToDeps(st, lhs) // We just need to know permission, do not care about borrowing.
 	if !allowUnowned {
-		i.Assert(lhs, perm, permission.Owned) // Make sure it's owned, so we don't move unowned to it.
+		i.Assert(lhs, perm, permission.Owned) // Make sure it's owned, so we do not move unowned to it.
 	}
 
 	// Input deps are nil, so we can ignore them here.
@@ -520,6 +539,8 @@ func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs 
 	return st, owner, deps
 }
 ```
+
+[^lhs-expression]: While the abstract syntax tree just has expressions in general on the left-hand side of an assignment, only certain expressions are allowed in practice (variables, indexing, field access, pointer dereference, wildcard).
 
 The code handling defining or assigning the permission of the lhs first handles the underscore case, and then handles the define or assign:
 ```go
@@ -566,7 +587,7 @@ if ann, ok := i.AnnotatedPermissions[ident]; ok {
 }
 ```
 
-Otherwise, we just set the effective permission to either the maximum permission the variable can hold (if it can be copied to it) or to the RHS permission (limited by the maximum permission, see \fref{sec:store}). The maximum case allows us to add permissions when copying, which is a property copying was designed to have (see \fref{sec:assign}).
+Otherwise, when assigning rather than defining, we just set the effective permission to either the maximum permission the variable can hold (if it can be copied to it) or to the RHS permission (limited by the maximum permission, see \fref{sec:store}). The maximum case allows us to add permissions when copying, which is a property copying was designed to have (see \fref{sec:assign}).
 ```go
 <<set value>>=
 if permission.CopyableTo(rhs, st.GetMaximum(ident.Name)) {
@@ -576,9 +597,12 @@ if permission.CopyableTo(rhs, st.GetMaximum(ident.Name)) {
 }
 ```
 
-This allows us to do 1:1 definitions and assignments, that is, cases where we have one value and one variable. There are more cases though: Tuples representing multiple return values can be unpacked, and there might simply be no values at all when defining (which would create zero values for their respective type, like `null` for a pointer type).
+The function `defineOrAssign` allows us to do 1:1 definitions and assignments, that is, cases where we have one value and one variable. There are more cases though: Tuples representing multiple return values can be unpacked, and there might simply be no values at all when defining (which would create zero values for their respective type, like `null` for a pointer type).
 
-The function `defineOrAssignMany` takes care of that. It takes multiple LHS expressions and multiple RHS expressions, and then unpacks the RHS expressions into a list of permissions and a list of dependencies. It then fills up the RHS with zero values to handle the zero value case mentioned above, and finally calls `defineOrAssign` to do the actual definitions or assignments:
+The function `defineOrAssignMany` takes care of that. It takes multiple LHS expressions and multiple RHS expressions, and then unpacks the RHS expressions into a list of permissions and a list of dependencies.
+If there are less RHS expressions than LHS expressions, the missing ones are substituted with permissions for zero values, so we can handle cases like `var x int` where no values are specified.
+Finally, `defineOrAssign` is called for each pair of LHS expression and `RHS` permissions.
+
 ```go
 func (i *Interpreter) defineOrAssignMany(st Store, stmt ast.Stmt, lhsExprs []ast.Expr, rhsExprs []ast.Expr, isDefine bool, allowUnowned bool) Store {
 	var deps []Borrowed
@@ -604,7 +628,7 @@ func (i *Interpreter) defineOrAssignMany(st Store, stmt ast.Stmt, lhsExprs []ast
 }
 ```
 
-Unpacking a tuple is simple: We evaluate the single RHS expression, and then take the tuple elements as the RHS dependencies. Since a tuple is the result of a function call (you might have noticed that is the only evaluation that can cause a tuple permission to be created) we don't really need to care about owners or dependencies, so we just collect them for releasing later.
+Unpacking a tuple is simple: We evaluate the single RHS expression, and then take the tuple elements as the RHS dependencies. Since a tuple is the result of a function call (you might have noticed that is the only evaluation that can cause a tuple permission to be created) we do not really need to care about owners or dependencies, so we just collect them for releasing later.
 ```go
 <<unpack tuple>>=
 // These really can't have owners.
@@ -618,7 +642,7 @@ deps = append(deps, rdeps...)
 rhs = tuple.Elements
 ```
 
-When unpacking multiple RHS expressions, the idea is that all RHS values are asssigned to a temporary variable, and the temporary variables are assigned to the final ones later. The reason for that is that an operation like `a, b = b, a` swaps the variables, rather than making both be `b` afterwards.
+When unpacking multiple RHS expressions, the idea is that all RHS values are asssigned to a temporary variable, and the temporary variables are assigned to the final ones later. The reason for that is that an operation -- like `a, b = b, a` (or `(a,b) = (b,a)` in languages with more syntax) -- swaps the variables, rather than making both be `b` afterwards.
 ```go
 <<unpack multiple>>=
 for _, expr := range rhsExprs {
@@ -642,7 +666,7 @@ for _, expr := range rhsExprs {
 }
 ```
 
-Finally, we fill up missing elements on the right with default permissions for their type - these will be zero values.
+Finally, we fill up missing elements on the right with default permissions for their type - these will be zero values, as mentioned before.
 ```go
 <<fill rhs up with zero values>>=
 // Fill up the RHS with zero values if it has less elements than the LHS. Used for var x, y int; for example.
@@ -650,7 +674,7 @@ for elem := len(rhs); elem < len(lhsExprs); elem++ {
     var perm permission.Permission
 
     perm = i.typeMapper.NewFromType(i.typesInfo.TypeOf(lhsExprs[elem]))
-    perm = permission.ConvertToBase(perm, perm.GetBasePermission()|permission.Owned) //FIXME
+    perm = permission.ConvertToBase(perm, perm.GetBasePermission()|permission.Owned)
 
     rhs = append(rhs, perm)
 
