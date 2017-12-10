@@ -17,6 +17,7 @@ header-includes:
  - \usepackage{lstgolang}
  - \usepackage{xcolor}
  - \usepackage{fancyref}
+ - \usepackage{ stmaryrd }
  - \lstset{language=Go,basicstyle=\small\ttfamily,commentstyle=\ttfamily\itshape\color{gray},columns=fullflexible,keepspaces=true,breaklines=true,basewidth={0.5em,0.5em},frame=tb}
 links-as-notes: true
 toc: true

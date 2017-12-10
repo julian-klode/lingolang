@@ -195,6 +195,8 @@ var testcasesMerge = []mergeTestCase{
 	{mergeConversion, "om * om", "or", "or * or", ""},
 	{mergeConversion, "om * om", "ol", "ol * om", ""},
 	{mergeConversion, "om * om", "ol", "ol * om", ""},
+	{mergeConversion, "om * om", "r", "r * r", ""},
+	{mergeConversion, "om * om", "rw", "rw * r", ""},
 	{mergeConversion, "or * a", "or", "or * oa", ""},
 	{mergeConversion, "or * r", "or", "or * or", ""},
 	{mergeConversion, "r * or", "r", "r * r", ""},

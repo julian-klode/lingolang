@@ -390,30 +390,44 @@ $$
 \begin{samepage}
 The rules for converting a pointer permission to a base permission are therefore a bit complicated:
 \begin{align*}
-    &&ctb(a * A, b)                  :&= a' * ctb(A, t_2)\\
-    &&\quad \text { where }  a' &= ctb(a, b) \\
-    &&                       t_0 &= (base(A) \setminus \{o\}) \cup (a' \cap \{o\}) \\
-    &&                       t_1 &= \begin{cases}
-                                    t_0 \setminus \{w, W\} & \text{if } R \not\in a' \text{ and } t_0 \supset \{w,W\} \\
-                                    t_0 & \text{else} \\
-                                    \end{cases} \\
-    &&                       t_2 &= \begin{cases}
-                                    t_1 \setminus \{R\} & \text{if } R \not\in a' \text{ and } t_1 \supset \{r, R\} \\
-                                    t_1 & \text{else} \\
+    &&ctb(a * A, b)                  :&= a' * ctb(A, t \setminus X)\\
+    &&\quad \text { where }  a' &= ctb(a, b) (= b)\\
+    &&                       t &= (base(A) \setminus \{o\}) \cup (a' \cap \{o\}) \\
+    &&                       X &= \begin{cases}
+                                    \{R, w, W\} & \text{if } R \not\in a' \text{ and } t \supset \{r, R, w,W\} \\
+                                    \{w, W\} & \text{else if } R \not\in a' \text{ and } t \supset \{w,W\} \\
+                                    \{R\} & \text{else if } R \not\in a' \text{ and } t \supset \{r, R\} \\
+                                    \emptyset & \text{else} \\
                                     \end{cases} \\
     &&ctb_{strict}(a * A, b)   :&= ctb_{strict}(a, b) * ctb_{strict}(A, ctb_{strict}(a, b)) \\
-\end{align*}
+\end{align*}\label{sec:ctb-ptr}
 \end{samepage}
-The steps $t_0, t_1, t_2$ do the following:
 
-0. The owned flag from the old target base permission is replaced with the owned flag from the given base permission. This is needed to ensure that we don't accidentally convert `om * om` to `m * om`. Keeping ownership the same throughout pointers also simplifies some other aspects in later code.
-1. If the new base permission has no exclusive read right, but the new target has exclusive write and write flags (is linearly writeable), these flags are dropped.
-2. If the new base permission has no exclusive read right, but the new target has exclusive read and read flags (is linearly readable), the exclusive read flag is dropped.
+$t$ replaces the owned permission bit from the old target with the owned flag from the given base permission. This is needed to ensure that we don't accidentally convert `om * om` to `m * om`. Keeping ownership the same throughout pointers also simplifies some other aspects in later code. $X$ ensures consistency: If our new target is not linear, we strip any linearity from the target; thus only a linear permission can have linear inner permissions.
 
-Steps 1 and 2 make it consistent: Without them, we could have a non-linear pointer pointing to a linear target. Since the target could only have one reference, but the pointer appears to be copyable (it is not, as the assignability rules also work recursively), we get the impression that we could have two pointers for the same target. It also allows us to just gather linearity info from the outside: If the base permission of a value is non-linear, it cannot contain linear values - this can be used to simplify some checks.
+#### Pointer examples
+
+Assuming we have a function that accepts a pointer:
+
+```go
+func foo(*int) {
+    ...
+}
+```
+
+The default pointer permission here would be `m * m`. With the rules defined, we can write an incomplete annotation and get good results for the useful cases:
+
+1. `@perm func(om)` pointer is now `om * om` (case else)
+1. `@perm func(r)` pointer is now `r * r` (case 1)
+
+Some cases are weird, though. Converting it to `rw` yields a non-linear writable pointer with a readonly target (but that's the only _safe_ choice, really). Converting
+it to `l` only makes the pointer `linear` but does not modify the target.
+
+1. `@perm func(rw)` pointer is now `rw * r` (case 1) - sure we could do `rw * rw` instead, but if we then assigned a `om * om` value to it, it could end up with multiple write references.
+1. `@perm func(l)` pointer is now `l * m` (case else) - this probably makes no real sense.
 
 #### Theorem: $ctb_b(A) = ctb(A, b)$ is idempotent
-_Theorem:_ Conversion to base, $ctb$ is idempotent, or rather $ctb_b(A) = ctb(A, b)$ is. That is, for all $A \in {\cal P}, b \subset {\cal R}$: $ctb_b(A) = ctb(A, b) = ctb(ctb(A, b), b) = ctb_b(ctb_b(A))$.
+_Theorem:_ Conversion to base, $ctb$ is idempotent, or rather $ctb_b(A) = ctb(A, b)$ is. That is, for all $A \in {\cal P}, b \in 2^{\cal R}$: $ctb_b(A) = ctb(A, b) = ctb(ctb(A, b), b) = ctb_b(ctb_b(A))$.
 
 _Background:_ This theorem is important because we generally assume that $ctb(A, base(A)) = A$ for all $A \in {\cal P}$ that have been converted once (what is called consistent, and is the case for
 all permissions the static analysis works with).
@@ -447,47 +461,56 @@ _Proof._ This only proves $ctb()$, not $ctb_{strict}()$, but the only difference
     \end{align*}
 1. Pointers are more complicated:
 
-    Let $ctb(a * A, b) = a' * ctb(A, t_2)$ with $a' = ctb(a,b)$ and a $t_2$ according to the definition. And  $ctb(ctb(a * A, b), b) = ctb(a' * ctb(A, t_2), b) = a'' * ctb(A, t_2')$. We have to show that $a' = a''$ and $t_2 = t_2'$.
-
-    We can write $$t_2 = t_0 \setminus X = \overbrace{base(A) \setminus \{o\} \cup (a' \cap \{o\})}^{= t_0} \setminus X   \qquad\qquad \text{(short } t_2 \text{)}$$ for some set $X \in \{\{R\}, \{w, W\}, \{R, w, W\}\}$; depending on the value of A, and likewise for $t_2'$.
-
-    Given that $a' = a''$, it follows that:
-
+    Recall that $ctb(a, b) = b$ for all $a, b \in 2^{\cal R}$. Thus for all $A \in {\cal P}, b \in 2^{\cal R}$, it follows that
     \begin{align*}
-        t_0' &= ( \underbrace{base(ctb(A, t_2)}_{= t_2}) \setminus \{o\}) \cup (\underbrace{a''}_{= a'} \cap \{o\}) \\
-            &= ( t_2 \setminus \{o\}) \cup (a' \cap \{o\}) \\
-            &=  t_2 & \text{(short } t_2 \text{)}
+        ctb(a * A, b) &= b * ctb(A, t \setminus X) \\
+        ctb(ctb(a * A, b), b) &= ctb(b * ctb(A, t \setminus X), b) = b * ctb(ctb(A, t \setminus X), t' \setminus X')
+    \end{align*}
+    where $t, X$ and $t', X'$ are the helper variables for these equations as defined in \fref{sec:ctb-ptr}.
+
+    For $t$ and $t'$ it follows that (directly replaced $a'$ with $b$ in the definition for readability)
+    \begin{align*}
+        t  &\overset{def}= (base(A) \setminus \{o\}) \cup (b \cap \{o\}) \\
+        t' &\overset{def}=  (base(ctb(A, t \setminus X)) \setminus \{o\}) \cup (b \cap \{o\}) \\
+                         &= (t \setminus X) \setminus \{o\}) \cup (b \cap \{o\}) \\
+                         &= ((base(A) \setminus \{o\}) \cup (b \cap \{o\}) \setminus X) \setminus \{o\}) \cup (b \cap \{o\}) \\
+                         &\overset{o \not\in X}= ((base(A) \setminus X) \setminus \{o\}) \cup (b \cap \{o\}) \\
+                         &\overset{o \not\in X}= ((base(A)) \setminus \{o\}) \cup (b \cap \{o\}) \setminus X \\
+                         &\overset{o \not\in X}= t \setminus X \\
     \end{align*}
 
-    Now, let's look at $t_1'$ and $t_2'$. There are two variants each: $t_i = t_{i-1}$ and $t_i = t_{i-1} \setminus X$ for some $X$ if  $R \not\in a'$ and some other condition holds. Therefore, for $R \in a'$,
-    it trivially follows that $t_0 = t_1 = t_2$ and $t_0' = t_1' = t_2'$. Let's assume $R \not\in a'$. For $t_1'$, this means:
-    \begin{align*}
-                            t_1' &= \begin{cases}
-                                        t_0' \setminus \{w, W\} & \text{if } R \not\in a'' \text{ and } t_0' \supset \{w,W\} \\
-                                        t_0' & \text{else} \\
-                                        \end{cases} \\
-                                    &= \begin{cases}
-                                        t_0' \setminus \{w, W\} & \text{if } t_0' \supset \{w,W\} \\
-                                        t_0' & \text{else} \\
-                                        \end{cases}
-    \end{align*}
-    The first case cannot happen: If $t_0' \supset \{w, W\} \Rightarrow t_2 \supset \{w, W\} \xRightarrow{t_2 \subset t_1} t_1 \supset \{w, W\} \Rightarrow t_0 \supset \{w,W\} \Rightarrow t_1 = t_0 \setminus \{w, W\} \Rightarrow t_1 \not\supset \{w, W\}$ - a contradication.
-    Thus $t_1' = t_0' = t_2$.
+    If we show that $X' \subset X$, then we know that $t' \setminus X' = (t \setminus X) \setminus X' = t \setminus X$, and thus it would follow that:
 
-    Now consider $t_2'$:
     \begin{align*}
-                            t_2' &= \begin{cases}
-                                        t_1' \setminus \{R\} & \text{if } R \not\in a'' \text{ and } t_1' \supset \{r,R\} \\
-                                        t_1' & \text{else} \\
-                                        \end{cases} \\
-                                    &= \begin{cases}
-                                        t_1' \setminus \{R\} & \text{if } t_1' \supset \{r,R\} \\
-                                        t_1' & \text{else} \\
-                                        \end{cases}
+        ctb(ctb(a * A, b), b) = \ldots &= b * ctb(ctb(A, t \setminus X), t' \setminus X') \\
+                                       &= b * ctb(ctb(A, t \setminus X), t \setminus X) & \text{due to } X' \subset X \\
+                                       &= b * ctb(A, t \setminus X) &\text{due to base case} \\
+                                       &= ctb(a * A, b) &\text{per definition}
     \end{align*}
-    And again, the first case cannot happen, it leads to a contradiction: If $t_1' = t_2 \supset \{r, R\} \Rightarrow t_1 \supset \{r, R\} \Rightarrow t_2 = t_1 \setminus \{R\} \Rightarrow t_2 \not\supset \{r, R\}$.
+    Substituting $t$ for $t \setminus X$ and $a$ for $b$ in the definition of $X$ yields $X'$:
+    \begin{align*}
+     X' &= \begin{cases}
+                                    \{R, w, W\} & \text{if } R \not\in b \text{ and } t \setminus X \supset \{r, R, w,W\} \\
+                                    \{w, W\} & \text{else if } R \not\in b \text{ and } t \setminus X \supset \{w,W\} \\
+                                    \{R\} & \text{else if } R \not\in b \text{ and } t \setminus X \supset \{r, R\} \\
+                                    \emptyset{} & \text{else} \\
+                                    \end{cases} \\
+    \end{align*}
 
-    Therefore, $t_2' = t_1' = t_0' = t_2$, and thus $ctb(ctb(a * A, b), b) = ctb(a * A, b)$.
+    To show that $X' \subset X$, let's first exclude $R \in b$. If $R \in b$, then $X' = \emptyset$ and thus $X' \subset X$. Now,
+    assuming $R \not\in b$. We actually will show that $X'=\emptyset$, by proof by contradiction for the other cases:
+
+    \begin{enumerate}
+        \item Assume that $t \setminus X \supset \{r, R, w,W\}$.
+            $$\Rightarrow t \supset \{r, R, w, W\} \xRightarrow{\text{def. } X} X = \{r, w, W\}  \Rightarrow t \setminus X \not\supset \{r, R, w, W\} \lightning$$
+        \item Assume that $t \setminus X \supset \{w, W\}$.
+            $$\Rightarrow t \supset \{w, W\} \xRightarrow{\text{def. } X} X = \{w, W\} \text{ or } X \{R, w, W\}  \Rightarrow t \setminus X \not\supset \{w, W\} \lightning$$
+        \item Assume that $t \setminus X \supset \{r, R\}$.
+            $$\Rightarrow t \supset \{r, R\} \xRightarrow{\text{def. } X} X = \{R\} \text{ or } X \{R, w, W\}  \Rightarrow t \setminus X \not\supset \{r, R\} \lightning$$
+        \item Therefore, the else case applies and $X' = \emptyset.$
+    \end{enumerate}
+
+    Thus $ctb(ctb(a * A, b), b) = ctb(a * A, b)$.
 
 In conclusion, $ctb(ctb(A, b), b) = ctb(A, b)$ for all $A \in {\cal P}, b \subset {\cal R}$, as was to be shown. It also follows that
 $ctb_{strict}(ctb_{strict}(A, b), b) = ctb_{strict}(A, B)$ because the functions are the same, except for the diverging
