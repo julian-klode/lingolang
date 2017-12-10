@@ -1,34 +1,41 @@
 # Introduction
-Consider the following code: A function takes a channel (a thread-safe queue) of pointers to integers,
-and two pointers to integers. Then it sends one pointer through the channel -- an idiom emphasised by the proverb
-"Don't communicate by sharing memory, share memory by communicating." (Rob Pike), and writes through the other.
+Strong, static typing is a great thing: It prevents a whole class of errors. But there still are errors other
+than type errors. For example, consider the following Go program:
+
 ```go
-func sendAPointer(aChannelOfIntPointers chan *int,
-                  anIntPointer *int,
-                  anotherIntPointer *int) {
+func sendAPointer(aChannelOfIntPointers chan *int, anIntPointer *int) {
     aChannelOfIntPointers <- anIntPointer
-    *anotherIntPointer = 5
 }
 ```
-Seems harmless, right? But what if `anotherIntPointer` and `anIntPointer` point to the same value, are _aliases_?
-We just sent the pointer to that integer somewhere, but then modified it - a _use-after-send_ issue, if you want
-to call it that.
-This does not seem to be the intention of the code and in a concurrent program, it could lead to a race condition:
-If one thread executes this function, and another reads from the channel, it's not clear whether the other thread will
-see the target as `5` or the old value; or first the old and then the new value.
+It sends a pointer through a channel to another thread. Now, if both threads have write access to the pointer
+target, there could be race condition. It would be nice to detect and prevent such race conditions.
 
-Aliases can occur naturally in various parts of the code, and sometimes it is not clear which variables alias each
-other in a complex code base.
-As such, it is not possible to reliably tell which effect writing through such an alias has: In the worst case, it
-could affect any other variable with the same type.
+A first useful step would be to introduce read-only permissions:
+```go
+// Requires: anIntPointer points to read-only memory
+func sendAPointer(aChannelOfIntPointers chan *int, anIntPointer *int) {
+    aChannelOfIntPointers <- anIntPointer
+}
+```
+But what if another pointer points to the same location, but writable?
 
-If we can annotate variables that have no aliases, we can safely write through them and rest assured that the write
-only changed that variable, and not any other.
+This generally boils down to aliasing: If we can ensure that the value we are sending over the channel does
+not have any aliases, we can implement a solution that _moves_ the value through the channel, rather than
+copying. We need something that says this:
 
-But that's only half of the story. We also need a way to mark objects as constant; that is, a guarantee that while
-other aliases exist, at least none of them can write to it.
+```
+// Requires: anIntPointer must not have any aliases
+// Ensures: anIntPointer cannot be used afterwards
+func sendAPointer(aChannelOfIntPointers chan *int, anIntPointer *int) {
+    aChannelOfIntPointers <- anIntPointer
+}
+```
 
-Go is particularly useful to look at because it only contains writeable values, and is designed for use in concurrent
-applications, with sharing memory by communicating as shown above - since memory is shared by communicating, we can
-conceptually move the value to the other process, instead of sharing it, and thus prevent two threads having access
-to the same writeable object at the same time.
+This thesis discusses an approach of linear types, in the sense of types that can only have a single (active)
+reference to them. It implements linear types as a general form of permissions like read, write, exclusive read,
+and some others.
+
+This thesis is structured as follows:
+Chapter 2 will give an introduction to Go and linear types, chapter 3 will introduce an approach to permissions
+for Go, and chapter 4 will introduce an abstract interpreter that statically checks a Go program for permission violations.
+Finally, chapters 5 and 6 discuss how the implementation was tested, and what the issues are.
