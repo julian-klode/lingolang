@@ -559,11 +559,11 @@ permission (a chan, func, interface, map, nil, pointer, or slice permission) yie
     merge_\mu(\_, B)    &:= \_ &&& merge_\mu(A, \_)     &:= \_ \\
     merge_\mu(N, nil)   &:= N   &&& merge_\mu(nil, N)   &:= N  & \text{ for all nilable } N \in {\cal P} \text{ and } N = nil
 \end{align*}\label{sec:merge-nil}
-Regarding the soundness of the merging nils with nilable permissions:
+Regarding the soundness of the merging nils with nilable permissions for non-conversion modes:
 
-* For union, the question is: Can $merge_{\cup}(N, nil)$ be used in place of both $N$ and $nil$? Technically the answer is no, because $N$ cannot be used where $nil$ is expected. But nil permissions are only ever
-  used for $nil$ literals (they cannot even be specified, there is no syntax for them), so we never reach that situation.
-* For intersection, the question is: Can values of $N$ or $nil$ be assigned to $merge_{\cap}(N, nil)$. Yes, they can be, $nil$ is assignable to every pointer, and $p$ is assignable to itself.
+* For union, the question is: Can $merge_{\cup}(N, nil) = N$ be used in place of both $N$ and $nil$? Technically the answer is no, because $N$ cannot be used where $nil$ is expected. But nil permissions are only ever
+  used for $nil$ literals (they cannot even be specified, there is no syntax for them), so we never reach that situation. $N$ can of course be used where $N$ can be used.
+* For intersection, the question is: Can values of $N$ or $nil$ be assigned to $merge_{\cap}(N, nil) = N$. Yes, they can be, $nil$ is assignable to every pointer, and $N$ is assignable to itself (at least if readable, but it makes no sense otherwise)
 
 Otherwise, the base case for a merge is merging primitive values, and the rules for that are quite simple:
 \begin{align*}
@@ -611,7 +611,8 @@ Pointers, channels, arrays, slices, maps, tuples, structs, and interfaces are tr
 \end{align*}
 
 Functions are more difficult: An intersection of a function requires union for closure, receivers, and parameters, because just like with subtyping (in languages that have it), parameters and receivers are contravariant:
-If one function expects `orw` and another expects `or` a place that needs either of those functions (an intersection) needs a function that accepts $orw \cup or = orw$ - because passing a writeable object to a function only needing a read-only one would work, but passing a read-only value to a function that needs a writeable one would not be legal.
+If we have a `func(orw)` and a `func(or)`, a place (like a function (parameter)) that needs to accept functions of both permissions, needs to accept `func(orw \cup or) = func(orw)`
+- passing a writeable object to a function only needing a read-only one would work, but passing a read-only value to a function that needs a writeable one would not be legal.
 
 For that, let
 $$
