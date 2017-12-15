@@ -81,7 +81,7 @@ const typed int = 2           // int
 const bar2 someType = typed   // error: int cannot be assigned to someType
 ```
 
-`UntypedNil` is critical because it needs special handling later, for example, in \fref{sec:untyped-nil}, \fref{sec:ass-nil}, and \fref{sec:merge-nil}.
+`UntypedNil` is critical because it needs special handling later, for example, in \fref{sec:untyped-nil}, \fref{sec:ass-nil}, and \fref{sec:merge-nil}.\label{sec:untyped-nil-intro}
 
 #### Interfaces and 'objects'
 As mentioned before, interfaces are a set of methods.
@@ -114,7 +114,7 @@ There are some restrictions on valid receiver types; for example, while a named 
 Go provides three primary statements for control flow: `if`, `switch`, and `for`.
 The statements are fairly similar to their equivalent in other C-like languages, with some exceptions:
 
-* There are no parentheses around conditions, so it's `if a == b {}`, not `if (a == b) {}`. The braces are mandatory.
+* There are no parentheses around conditions, so it is `if a == b {}`, not `if (a == b) {}`. The braces are mandatory.
 * All of them can have initialisers, like this
 
     ```if result, err := someFunction(); err == nil { // use result }```
@@ -176,7 +176,7 @@ func myFunc(someFile io.ReadCloser) {
 }
 ```
 
-It is of course possible to use function literals as the function to call, and any variables can be used as usually when writing the call.
+It is of course possible to use function literals as the function to call, and any variables can be used as usual when writing the call.
 
 #### Error handling
 Go does not provide exceptions or structured error handling. Instead, it handles errors by returning them in a second or later return value:
@@ -201,10 +201,10 @@ if err != nil {
 ```
 
 There are two functions to quickly unwind and recover the call stack, though: `panic()` and `recover()`.
-When `panic()` is called, the call stack is unwound, and any deferred functions are run as normally.
+When `panic()` is called, the call stack is unwound, and any deferred functions are run as usual.
 When a deferred function invokes `recover()`, the unwinding stops, and the value given to `panic()` is returned.
 If we are unwinding normally and not due to a panic, `recover()` simply returns `nil`.
-In the example below, a function is deferred and any `error` value that was given to `panic()` is recovered and stored in an error return value.
+In the example below, a function is deferred and any `error` value that is given to `panic()` will be recovered and stored in an error return value.
 Libraries sometimes use that approach to make highly recursive code like parsers more readable, while still maintaining the usual error return value for public functions.
 
 ```go
@@ -242,7 +242,7 @@ slice = append(slice, arrayOrSlice...)
 Slices are also used internally to represent variable parameters in variable length functions.
 
 ##### Maps
-Maps are simple key value stores and support indexing and assigning. They are *not* thread-safe.
+Maps are simple key-value stores and support indexing and assigning. They are *not* thread-safe.
 
 ```go
 someValue := someMap[someKey]
@@ -256,7 +256,7 @@ Functional programming is a form of programming in which side effects do not exi
 That is, there is no such things as mutable data structures, or even I/O operations; only pure
 transformations from one data structure to another.
 
-We will take a look at two approaches to dealing with mutability: Monads[@launchbury1995state], made popular by Haskell, and Linear Types, which are increasingly becoming more popular in mainstream programming with the Rust programming language.
+We will take a look at two approaches to dealing with mutability: Monads[@launchbury1995state], made popular by Haskell, and Linear Types, which are becoming increasingly more popular in mainstream programming with the Rust programming language.
 
 Linear Types are usually defined per language, and the different languages might have slightly different semantics for the same name or different names for the same semantics. We will consider two generalisations of linear types: 'Capabilities for Sharing' [@Boyland:2001:CSG:646158.680004] and fractional permissions [@Boyland:2003:CIF:1760267.1760273]. The former attemps to be a framework for describing type linearity very generically, whereas the latter is a more limited (or focused) approach on read-only vs writable values.
 
@@ -275,7 +275,7 @@ class Monad m where
 a function which expects a raw value and returns a new value in the monad, yielding the new
 value in the monad.
 
-Monads solve the problem of referential transparency: A function with the same input will
+Monads solve the problem of _referential transparency_: A function with the same input will
 produce the same output (a function operating on a monad produces a new monad describing any
 computations to be made, and is thus pure). They have one major drawback however: They are not
 easily combinable: As soon as you have more than one monad, you need to 'lift' monad operations into
@@ -309,12 +309,12 @@ With such a notation, we immediately reach a level where the code basically just
 There are various names describing the same or fairly similar concepts as this: linear [@Baker:1995:LVL:199818.199860], unique [@achten1993high][@boyland2001alias], free [@hogg1991islands][@noble1998flexible], or unsharable[@minsky1996towards].
 
 One programming language using linear types is Rust ([^Rust]). In Rust, the input/output annotation is basically the only variant - it looks and works like an imperative language. Linear values can be created and 'borrowed' for passing them to
-another function, for example. Rust has no garbage collector, but a system of life times where each function parameter can be associated a named life time and the result can then refer to the names of the parameters. This allows it to be used even without a heap, at least in theory. Rust does not use linear types for I/O which is a bit unfortunate.
+another function, for example. Rust has no garbage collector, but a system of lifetimes where each function parameter can be associated a named lifetime and the result can then refer to the names of the parameters. This allows it to be used even without a heap, at least in theory. Rust does not use linear types for I/O which is a bit unfortunate.
 
 [^Rust]: <https://www.rust-lang.org>
 
 ### Capabilities for Sharing
-The several implementations of linear types in different programming languages, are all slightly incompatible with each other, which is why 'Capabilities for Sharing' [@Boyland:2001:CSG:646158.680004] tried to introduce a common system for describing linearity.
+The several implementations of linear types in different programming languages are all slightly incompatible with each other, which is why 'Capabilities for Sharing' [@Boyland:2001:CSG:646158.680004] introduces a common system for describing linearity.
 
 It describes a simple reference based language with objects containing fields. A _capability_ is a pair of an address and a permission - a set of the following flags:
 
@@ -327,7 +327,7 @@ It describes a simple reference based language with objects containing fields. A
 * $O$ - ownership
 
 Exclusive read and write do not imply their non-exclusive counter parts; for example, an object $R\overline{W}$ prevents others from writing, but cannot write itself - it is essentially a read-only object.
-Permissions also must be asserted: Other capabilities can have their conflicting access rights stripped at run-time.
+Permissions also must be asserted: Other capabilities can have their conflicting access rights stripped at run-time (or it can be ensured statically that there are no conflicting access rights).
 Asserting the exclusive permissions of an unowned capability strips away incompatible permissions from other unowned capabilities, but asserting on an owned capability strips away all incompatible permissions on all other capabilities
 - so for example, if there are two capabilities $A$ and $B$ for the location $x$, both with $R\overline{W}$, asserting the permissions one one will strip away the permission from the other.
 If not asserted, exclusive permissions mean nothing: There could be multiple capabilities with exclusive reads for the same object in the program.
@@ -346,10 +346,10 @@ Given four objects `a`, `b`, `x`, `y`, with `a`, `b` each having a field `x` ref
     1. $(B, X) \rightarrow (X, \text{permissions for } X \text{ in } B)$
     1. $(X, Y) \rightarrow (Y, \text{permissions for } Y \text{ in } X)$
 
-This means that while `a` and `b` can have different _views_ on `x`, they must have the same one for `y`.
-It's unclear if this was intended to keep things simple, or if it was not considered that it might be useful to have different permissions for `y`.
+This means that while `a` and `b` can have different views of `x`, they must have the same one for `y`.
+It is unclear if this was intended to keep things simple, or if it was not considered that it might be useful to have different permissions for `y`.
 
-Permissions might also be overly flexible: Should we really care about exclusive identity, or values that have no permission at all? There are 7 flags with two values each, so for a primitive value we end up with $2^7 = 128$ possible permissions.
+Permissions might also be overly flexible: Should we really care about exclusive identity, or values that have no permission at all? There are 7 flags with two values each, so we end up with $2^7 = 128$ possible permissions.
 
 ### Fractional permissions
 Another approach to linear values is fractional permissions [@Boyland:2003:CIF:1760267.1760273] and fractional permissions without fractions [@Heule:2011:FPW:2076674.2076675]. Fractional permissions are of course, only permissions, they need to be associated with values somehow, compared to capabilities which also abstract away the object.
@@ -357,7 +357,7 @@ In the fractional permission world, an object starts out with a permission of 1,
 
 Fractional permissions have one advantage over the permission approach outline in the previous section: They can be recombined.
 They are also less flexible, offering only linear writeable and non-linear read-only kinds of values, rather than $2^7$ possible combinations,
-which might be an advantage or not, depending on what they are to be used for.
+which might be an advantage or not, depending on what the requirements are.
 
 It seems possible to extend fractional permissions with some non-linear writeable object: Introduce infinity as a valid value, and define fractions
 of infinity as infinity; and defining a writeable object as having a permission $\ge 1$, rather than equal to 1. This way, there could be an infinite

@@ -1,5 +1,5 @@
 # Conclusion
-While the project did not reach it's ultimate conclusion, it has shown that it makes sense to add permission-based linearity to Go.
+While the project did not reach its ultimate conclusion, it has shown that it makes sense to add permission-based linearity to Go.
 
 It also shows that the implementation of permissions with a few primitive rules can be used to construct static analysers for permissions in programs, even though the abstract interpreter is not fully capable yet.
 

@@ -68,6 +68,11 @@ In \fref{sec:slice} we saw that slicing only releases the permissions of the sli
 a call like `a[x:x]` for some linear `x`. Instead, slicing should release each argument's dependencies as soon as it has been evaluated - the result will be an
 integer and its dependencies thus do not matter.
 
+In \fref{sec:two-moves} we saw that there should actually be two types of move operations, and \fref{sec:two-moves-func} showed that, because we only have the
+one definition that requires the source to be readable, functions with parameters of permission `n` can not be assigned elsewhere. Also, \fref{sec:two-moves-ptr}
+showed that we have similar problems for pointers: A `ol * om` cannot be passed to function expecting an `om * om` pointer, although this would be harmless - both
+are linear pointers, and the target is the same in both cases.
+
 ## Usability
 Usability is bad, really bad. The structured permissions are incredibly powerful, but this power comes at a price: Error messages are not readable. There are two
 reasons for that: First of all, there can be a lot of nesting and a lot of wide permissions (like structs with a lot of elements), leading to long and hard to
@@ -91,7 +96,7 @@ The implementation, since the beginning, has been subject to rigorous unit testi
 
 The code coverage chart shows that it started out slightly below 100% line coverage, eventually reaching 100%, only to drop again - when the interpreter started coming together - there are quite a few places in the interpreter code that are unreachable conditions and would require constructing a lot of illegal AST objects to test.
 
-Unfortunately, the Go tools only provide line coverage, and not branch or path coverage. This is somewhat problematic: For example, if we have an `if` statement without an `else` part, we can test if the if has been taken, but we usually cannot check whether it's not been taken: The if statement would eventually fall out of its block and back into the parent block, and thus all lines are executed.
+Unfortunately, the Go tools only provide line coverage, and not branch or path coverage. This is somewhat problematic: For example, if we have an `if` statement without an `else` part, we can test if the if has been taken, but we usually cannot check whether it has not been taken: The if statement would eventually fall out of its block and back into the parent block, and thus all lines are executed.
 
 ### Testing the permissions package
 The permissions package contains the parser and the rules for permissions described in the section _[Permissions for Go](#permissions-for-go)_. Coverage is 100%.
@@ -143,7 +148,7 @@ But the line coverage is also misleading: The code uses `Expect(tokenType, token
 the error checking is not represented in additional lines, so there could of course be errors lingering somewhere.
 
 There are two slight issues with this specific table: First, a map has no order; and second, the tests have no names. The first is a bit annoying to deal with,
-especially if you have logging to the code being tested, but it's not a real problem: Even if tests fail, the function running the tests executes all of them:
+especially if you have logging to the code being tested, but it is not a real problem: Even if tests fail, the function running the tests executes all of them:
 ```go
 func TestParser(t *testing.T) {
 	for input, expected := range testCasesParser {

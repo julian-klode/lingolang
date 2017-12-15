@@ -30,7 +30,7 @@ could copy it to $b$, creating two references to each linear element, which is n
     var a /* @perm orR [] owW * owW */ = make([]int)
     var b = a
 ```
-We will see later that this actually would not be a problem, as the checks are recursive and would prevent such an object from being copied, but it makes no real sense to have an object marked as non-linear contain a linear one - it would be nothing more than a lie.
+We will see later that this actually would not be a problem, as the checks are recursive and would prevent such an object from being copied, but it makes no real sense to have an object marked as non-linear contain a linear one - it would be confusing to the reader, as it does not convey anything useful.
 
 Ownership plays an interesting role with linear objects: It determines whether a reference is _moved_ or _borrowed_ (temporarily moved). For example, when passing a linear map to a function expecting an owned map, the map will be moved inside the function; if the parameter is unowned, the map will be borrowed instead. Coming back to the analogy with in and out parameters, owned parameters are both in and out, whereas unowned parameters are only in.
 
@@ -57,11 +57,11 @@ These structured permissions consist of a base permission and permissions for ea
 
 There is one problem with the approach of one base permission and one permission per child: Reference types like maps or functions actually need two base permissions:
 The permission of the reference (as in, "can I assign a different map to this variable") and the permission of the referenced value (as in, "can I insert something into this map").
-We will see later that this causes some issues.
+We will see later in \fref{sec:two-base-permission-ctb} that this causes some issues.\label{sec:two-base-permission-intro}
 
 Apart from primitive and structured permissions, there are also some special permissions:
 
-* The untyped nil permission, representing the `nil` literal. \label{sec:untyped-nil}
+* The untyped nil permission, representing the `nil` literal (following \fref{sec:untyped-nil-intro}). \label{sec:untyped-nil}
 * The wildcard permission, written `_`. It is used in permission annotations whenever the default permission for a type should be used.
 
 There also are some shortcuts for some common combinations:
@@ -89,10 +89,7 @@ denoted by uppercase characters like $P \in {\cal R}$.
 In the implementation, base permissions are stored as bitfields and structured permissions are structs matching the abstract syntax. Permission annotations are stored in comments attached to functions, and declarations of variables. A comment line introducing a permission annotation starts with `@perm`, for example:
 
 ```go
-// @perm om * om
-var pointerToInt *int
-
-var pointerToInt *int // @perm om * om
+var pointerToInt /* @perm om * om */ *int
 ```
 
 Go's excellent built-in AST package (located in `go/ast`) provides native support for associating comments to nodes in the syntax tree in a understandable and reusable way. We can simply walk the AST, and map each node to an existing annotation or `nil`.
@@ -102,7 +99,7 @@ The permission specification itself is then parsed using a hand-written scanner 
 * `func (sc *Scanner) Scan() Token` returns the next token in the token stream
 * `func (sc *Scanner) Unscan(tok Token)` returns the last token returned from `Scan()` to the stream
 * `func (sc *Scanner) Peek() Token` is equivalent to `Scan()` followed by `Unscan()`
-* `func (sc *Scanner) Accept(types ...TokenType) (tok Token, ok bool)` takes a list of acceptable token types and returns the next token in the token stream and whether it matched. If the token did not match the expected token type, `Unscan()` is called before returning it.
+* `func (sc *Scanner) Accept(types ...TokenType) (tok Token, ok bool)` takes a list of acceptable token types and returns the next token in the token stream and whether it matched. If the token did not match the expected token types, `Unscan()` is called before returning it.
 * `func (sc *Scanner) Expect(types ...TokenType) Token` is like `Accept()` but errors out if the token does not match.
 
 Error handling is not done by the usual approach of returning error values, because that made the parser code hard to read. Instead, when an error occurs, the built-in `panic()` is called with a `scannerError` object as an argument. This makes the scanner not very friendly to use outside the package, but it simplifies the parser, which calls `recover` in its outer `Parse()` method to recover any such error and return it as an error value.
@@ -140,7 +137,7 @@ func (p *Parser) parsePointer(bp BasePermission) Permission {
 
 Internally the scanner is implemented by a set of functions:
 
-* `func (sc *Scanner) readRune() rune` returns the next Unicode run from the input string
+* `func (sc *Scanner) readRune() rune` returns the next Unicode rune from the input string
 * `func (sc *Scanner) unreadRune()` moves on rune back in the input stream
 * `func (sc *Scanner) scanWhile(typ TokenType, acceptor func(rune) bool) Token` creates a token by reading and appending runes as long as the given acceptor returns true.
 
@@ -191,7 +188,7 @@ var x /* @perm om */ = 0  // this was or before (!!!)
 var y = &x   // have to move x, otherwise y and x both reach x
 var z = y    // have to move the pointer from y to z, otherwise both reach x
 ```
-(Though we are moving the permissions, not the values in `&x` - the value is still stored in the location of `x`)
+(Though, since we do not modify the semantics of Go, we actually just pretend to move stuff and just mark the original value as unusable afterwards.)
 
 In the following, the function $ass_\mu: P \times P \to bool$ describes whether a value of the left permission can be assigned to a location of the right permission. $\mu$ is the mode, it can be either
 $cop$ for copy, $ref$ for reference, or $mov$ for move.
@@ -207,7 +204,7 @@ The base case for assigning is base permissions. For copying, the only requireme
 \end{align*}\label{sec:assign}
 
 The $r \in a \text{ or } a = b =  \emptyset$ requirement for $mov$ is not entirely correct. There really should be two kind of move operations: Moving a value (which needs to read the value), and
-moving a reference to something as $b \subset a$ (like moving a pointer `om * om` does not require reading the `om` target). The latter is essentially similar to a subtype relationship if permissions were types.
+moving a reference to something as $b \subset a$ (like moving a pointer `om * om` does not require reading the `om` target). The latter is essentially similar to a subtype relationship if permissions were types.\label{sec:two-moves}
 
 In the code, the function is implemented like in listing \ref{assignabilitybase}:
 ```{#assignabilitybase caption="Base case of assignability, in code form" float=t frame=tb}
@@ -260,7 +257,7 @@ Channels, slices, and maps are reference types. They behave like value types, ex
     \end{cases}
 \end{align*}
 
-Interfaces work the same, but methods are looked up by name:
+Interfaces work the same, but methods are looked up by name.
 \begin{align*}
     \begin{aligned}
         ass_\mu(&a \textbf{ interface } \{ A_0; \ldots; A_n \}, \\
@@ -279,7 +276,7 @@ A mutable function is thus a function that can have different results for the sa
 The receiver of a function, its parameters, and the closure are essentially parameters of the function,
 and parameters are contravariant: I can pass a mutable object when a read-only object is expected, but I
 can't pass a read-only object to a mutable object. For the closure, ownership is the exception: An owned function can be assigned to an
-unowned function, but not vice versa:
+unowned function, but not vice versa.
 \begin{align*}
     \begin{aligned}
         ass_\mu(&a\ (R) \textbf{ func } ( P_0 \ldots, P_n ) (R_0, \ldots, R_m), \\
@@ -300,10 +297,10 @@ unowned function, but not vice versa:
 \end{align*}
 
 $mov$ is used for the receiver, parameters, and return values, due to containing the sub-permission-of semantic. That it also contains the
-read requirements was unintended, and can cause some issues here: A function with an unreadable argument cannot be copied (usually, unless both
-source and target parameter permissions are simply $n$), for example.
+read requirements was unintended, and can cause some issues here as hinted before in \fref{sec:two-moves}: A function with an unreadable argument cannot be copied (usually, unless both
+source and target parameter permissions are simply $n$), for example.\label{sec:two-moves-func}
 
-Pointers are another special case: When a pointer is copied, the pointer itself is copied, but the target is referenced (as we now have two pointers to the same target):
+Pointers are another special case: When a pointer is copied, the pointer itself is copied, but the target is referenced (as we now have two pointers to the same target).
 \begin{align*}
     ass_\mu(a * A, b * B) &:\Leftrightarrow \begin{cases}
         ass_\mu(a, b) \text{ and } ass_{ref}(A, B)    & \mu = cop \\
@@ -311,9 +308,9 @@ Pointers are another special case: When a pointer is copied, the pointer itself 
     \end{cases}
 \end{align*}
 There is one minor deficiency with this approach: A pointer `a` with permission `ol * om` cannot be moved into a pointer `b` with permission `om * om`, due to the rule about not adding any permissions. But that's not
-always correct, which brings us back to the moving values vs moving references: `b = a` should be possible, but it should not be possible to assign a pointer to `a` (e.g. `om * ol * om`) to a pointer to b (e.g. `om * om * om`) - now we could access b with more permissions than we created it with. This issue means that a function should probably accept `ol * om` pointers rather than `om * om`, but that seems a minor issue.
+always correct, which brings us back to the moving values vs moving references: `b = a` should be possible, but it should not be possible to assign a pointer to `a` (e.g. `om * ol * om`) to a pointer to b (e.g. `om * om * om`) - now we could access b with more permissions than we created it with. This issue means that a function should probably accept `ol * om` pointers rather than `om * om`, but that seems a minor issue.\label{sec:two-moves-ptr}
 
-Finally, we have some special cases: The wildcard and nil. The wildcard is not assignable, it is only used when writing permissions to mean "default". The `nil` permission is assignable to itself, to pointers, and permissions for reference and reference-like types.
+Finally, we have some special cases: The wildcard and `nil`. The wildcard is not assignable, it is only used when writing permissions to mean "default". The `nil` permission is assignable to itself, to pointers, and permissions for reference and reference-like types.
 \begin{align*}
         ass_\mu(\textbf{\_}, B)  &:\Leftrightarrow \text{ false } \\
         ass_\mu(\textbf{nil}, a * B)  &:\Leftrightarrow \text{ true } & ass_\mu(\textbf{nil}, a \textbf{ chan } B)  &:\Leftrightarrow \text{ true } \\
@@ -329,7 +326,7 @@ Converting a given permission to a base permission essentially replaces all base
 ```go
 var x /* @perm om */ *int
 ```
-It's a pointer, but the permission is only for a base. We can convert the default permission for the type (we'll discuss type default permissions later in \fref{sec:new-from-type}) to `om`, giving us a complete permission. And in the next section, we'll extend conversion to arbitrary prefixes of a permission.
+It is a pointer, but the permission is only for a base. We can convert the default permission for the type (we'll discuss type default permissions later in \fref{sec:new-from-type}) to `om`, giving us a complete permission. And in the next section, we'll extend conversion to arbitrary prefixes of a permission.
 
 Another major use case is ensuring consistency of rules, like:
 
@@ -341,11 +338,20 @@ Another major use case is ensuring consistency of rules, like:
 
 As every specified permission will be converted to its base type, we can ensure that every permission is consistent, and we don't end up with inconsistent permissions like `or * om` - a pointer that could be copied, but pointing to a linear object.
 
-The function $ctb : {\cal P} \times 2^{\cal R} \to {\cal P}$ is the convert-to-base function. It's simple cases are:
+The function $ctb : {\cal P} \times 2^{\cal R} \to {\cal P}$ is the convert-to-base function. Its simple cases are conversions from a base permission or wildcard, yielding the target base permission, and conversions from nil, yielding nil.
 \begin{align*}
     ctb(a, b) &:= b \\
     ctb(\_, b) &:= b \\
-    ctb(nil, b) &:= nil \\
+    ctb(nil, b) &:= nil
+\end{align*}
+For comparison, this is how the first case looks in the reference implementation:
+```go
+func (perm BasePermission) convertToBaseBase(perm2 BasePermission) BasePermission {
+	return perm2
+}
+```
+Otherwise, apart from functions, interfaces, and pointers, ctb is just applied recursively.
+\begin{align*}
     ctb(a \textbf{ chan } A, b) &:= ctb(a, b) \textbf{ chan } ctb(A, ctb(a, b)) \\
     ctb(a \textbf{ } []A, b) &:= ctb(a, b) \textbf{ } []ctb(A, ctb(a, b))       \\
     ctb(a \textbf{ } [\_]A, b) &:= ctb(a, b) \textbf{ } [\_]ctb(A, ctb(a, b))   \\
@@ -354,20 +360,15 @@ The function $ctb : {\cal P} \times 2^{\cal R} \to {\cal P}$ is the convert-to-b
     ctb(a\ ( A_0; \ldots; A_n), b) &:= ctb(a, b)\ ( ctb(A_0, ctb(a, b)); \ldots; ctb(A_n, ctb(a, b)) )
 \end{align*}\label{sec:ctb-nil}
 
-For comparison, this is how the first case looks in the reference implementation:
-```go
-func (perm BasePermission) convertToBaseBase(perm2 BasePermission) BasePermission {
-	return perm2
-}
-```
+
 
 The rules are problematic in some sense, though: All children have the same base permission as their parent. This kind of makes sense for non-reference
 values like structs containing integers - after all, they are in one memory location; but for reference types, it is somewhat confusing: For example, a struct
-cannot have both a mutable (`om map...`) and a read-only map (`or map...`) as their base permissions are different. As mentioned before, these really need
+cannot have both a mutable (`om map...`) and a read-only map (`or map...`) as their base permissions are different. As mentioned before in \fref{sec:two-base-permission-intro}, these really need
 a second base permission for the object being referenced (like a pointer, see below). Then both maps could be (linear) read-only references, one referencing
-a mutable map, one referencing a read-only map.
+a mutable map, one referencing a read-only map.\label{sec:two-base-permission-ctb}
 
-Functions and interfaces are special, again: methods, and receivers, parameters, results of functions are converted to their own base permission:
+Functions and interfaces are special, again: methods, and receivers, parameters, results of functions are converted to their own base permission.
 \begin{align*}
     ctb(a\ (R) \textbf{ func } ( P_0, \ldots, P_n ) (R_0, \ldots, R_m), b) &:=&&  ctb(a, b)\ (ctb(R, base(R))) \textbf{ func }  \\
                                                                              &&&  ( ctb(P_0, base(P_0)), \ldots, ctb(P_n, base(P_n)) )  \\
@@ -396,7 +397,7 @@ $$
 y = x \Leftrightarrow  ass_\mu(perm(x), ctb_{strict}(perm(typeof(x)), base(perm(x)) \text { and } ass_\mu(base(x), base(y))
 $$
 \begin{samepage}
-The rules for converting a pointer permission to a base permission are therefore a bit complicated:
+The rules for converting a pointer permission to a base permission are therefore a bit complicated -- basically, if the base permission becomes non-linear, the target becomes non-linear as well.
 \begin{align*}
     &&ctb(a * A, b)                  :&= a' * ctb(A, t \setminus X)\\
     &&\quad \text { where }  a' &= ctb(a, b) (= b)\\
@@ -407,11 +408,10 @@ The rules for converting a pointer permission to a base permission are therefore
                                     \{R\} & \text{else if } R \not\in a' \text{ and } t \supset \{r, R\} \\
                                     \emptyset & \text{else} \\
                                     \end{cases} \\
-    &&ctb_{strict}(a * A, b)   :&= ctb_{strict}(a, b) * ctb_{strict}(A, ctb_{strict}(a, b)) \\
+    &&ctb_{strict}(a * A, b)   :&= ctb_{strict}(a, b) * ctb_{strict}(A, ctb_{strict}(a, b))
 \end{align*}\label{sec:ctb-ptr}
+In the formal notation, $t$ replaces the owned permission bit from the old target with the owned flag from the given base permission. This is needed to ensure that we don't accidentally convert `om * om` to `m * om`. Keeping ownership the same throughout pointers also simplifies some other aspects in later code. $X$ ensures consistency: If our new target is not linear, we strip any linearity from the target; thus only a linear permission can have linear inner permissions.
 \end{samepage}
-
-$t$ replaces the owned permission bit from the old target with the owned flag from the given base permission. This is needed to ensure that we don't accidentally convert `om * om` to `m * om`. Keeping ownership the same throughout pointers also simplifies some other aspects in later code. $X$ ensures consistency: If our new target is not linear, we strip any linearity from the target; thus only a linear permission can have linear inner permissions.
 
 #### Pointer examples
 
@@ -440,7 +440,7 @@ _Theorem:_ Conversion to base, $ctb$ is idempotent, or rather $ctb_b(A) = ctb(A,
 _Background:_ This theorem is important because we generally assume that $ctb(A, base(A)) = A$ for all $A \in {\cal P}$ that have been converted once (what is called consistent, and is the case for
 all permissions the static analysis works with).
 
-_Proof._ This only proves $ctb()$, not $ctb_{strict}()$, but the only difference is the pointer case, which can be proven like channels below.
+_Proof._ This only shows the proof for $ctb()$, not $ctb_{strict}()$, but the only difference is the pointer case, which can be proven like channels below.
 
 1. Simple cases:
     \begin{align*}
@@ -562,7 +562,7 @@ argument.
 
 
 The wildcard exists just as a placeholder for annotation purposes, so merging it with anything should yield the other value. For nil permissions, merging them with a nilable
-permission (a chan, func, interface, map, nil, pointer, or slice permission) yields the other permission:
+permission (a chan, func, interface, map, nil, pointer, or slice permission) yields the other permission.
 \begin{align*}
     merge_\mu(\_, B)    &:= \_ &&& merge_\mu(A, \_)     &:= \_ \\
     merge_\mu(N, nil)   &:= N   &&& merge_\mu(nil, N)   &:= N  & \text{ for all nilable } N \in {\cal P} \text{ and } N = nil
@@ -573,7 +573,7 @@ Regarding the soundness of the merging nils with nilable permissions for non-con
   used for $nil$ literals (they cannot even be specified, there is no syntax for them), so we never reach that situation. $N$ can of course be used where $N$ can be used.
 * For intersection, the question is: Can values of $N$ or $nil$ be assigned to $merge_{\cap}(N, nil) = N$. Yes, they can be, $nil$ is assignable to every pointer, and $N$ is assignable to itself (at least if readable, but it makes no sense otherwise)
 
-Otherwise, the base case for a merge is merging primitive values, and the rules for that are quite simple:
+Otherwise, the base case for a merge is merging primitive values: Just call $\mu$.
 \begin{align*}
     merge_\mu(a, b)     &:= \mu(a,b) = \begin{cases}
                             ctb(a,b) & \text{if } \mu = ctb \text{ or } \\
@@ -585,7 +585,7 @@ Otherwise, the base case for a merge is merging primitive values, and the rules 
 
 In the code, this is implemented as a function on some special `mergeState` type (listing \ref{mergebase}). This state happens to record the mode
 of operation for the merge function, so the recursion does not need to be duplicated for each of them. It also has another
-use case, to which we will get back later, at the end of the chapter. The fu
+use case, to which we will get back later, at the end of the chapter.
 ```{#mergebase caption="Base case of merge, in code form" float=htb frame=tb}
 func (state *mergeState) mergeBase(p1, p2 BasePermission) BasePermission {
 	switch state.action {
@@ -600,7 +600,7 @@ func (state *mergeState) mergeBase(p1, p2 BasePermission) BasePermission {
 }
 ```
 
-Pointers, channels, arrays, slices, maps, tuples, structs, and interfaces are trivial (structs and interfaces must have same number of members / methods):
+Pointers, channels, arrays, slices, maps, tuples, structs, and interfaces are trivial (structs and interfaces must have same number of members / methods) - $merge_\mu$ just recurses.
 \begin{align*}
     merge_\mu(a * A, b * B)     &:= merge_\mu(a, b) * merge_\mu(A, B) \\
     merge_\mu(a \textbf{ chan } A, b \textbf{ chan } B)  &:= merge_\mu(a, b) \textbf{ chan } merge_\mu(A, B) \\
@@ -645,18 +645,18 @@ Then merging functions is:
 An interesting property of $merge_\mu$ is that it is commutative if $\mu$ is commutative, that is for
 the intersection $\cap$ and the union $\cup$.
 
-This follows directly from the structural definitions given above - they just recursively call $\merge_\mu$ until they reach a base case for which $\mu$ can be called. For example, for channels:
+This follows directly from the structural definitions given above - they just recursively call $merge_\mu$ until they reach a base case for which $\mu$ can be called. For example, for channels:
 \begin{align*}
     merge_\mu(a \textbf{ chan } A, b \textbf{ chan } B)  &=  merge_\mu(a, b) \textbf{ chan } merge_\mu(A, B)  \\
                                                          &= merge_\mu(b, a) \textbf{ chan } merge_\mu(B, A) \\
                                                          &= merge_\mu(b \textbf{ chan } B, a \textbf{ chan } A)
 \end{align*}
 
-The other cases are trivial as well, and therefor no complete proof will be shown.\qed
+The other cases are trivial as well, and therefore no complete proof will be shown.\qed
 
 ## Creating a new permission from a type
 \label{sec:new-from-type}
-Since permissions have a similar shape as types and Go provides a well-designed types package, we can easily navigate type structures and create structured permissions for them with some defaults. Currently, it just places maximum `m`
+Since permissions have a shape similar to types and Go provides a well-designed types package, we can easily navigate type structures and create structured permissions for them with some defaults. Currently, it just places maximum `m`
 permissions in all base permission fields. And the interpreter, discussed in the next section, converts to owned as needed, using $ctb()$.
 
 One special case exists: If a type is not understood, we try to create the permission from it is _underlying type_. For example, `type Foo int` is a named type, but we don't support named types, so we use the underlying type, `int`, for creating the permission.
@@ -717,7 +717,7 @@ permission to a base-permission and then calling `convertBase` instead. This avo
 We have introduced:
 
 * the set of base permission bits ${\cal R} = \{o,r,w,R,W\}$
-* and the set of permissions ${\cal P}$ consisting of $2^{\cal R}$ and structured permissions like $a * A$ ($a \in 2^{\cal R}, A \in {\cal P}$)
+* the set of permissions ${\cal P}$ consisting of $2^{\cal R}$ and structured permissions like $a * A$ ($a \in 2^{\cal R}, A \in {\cal P}$)
 
 We also defined operations for
 

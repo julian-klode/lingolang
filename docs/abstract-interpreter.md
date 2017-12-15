@@ -11,20 +11,20 @@ In the `github.com/julian-klode/lingolang` reference implementation, the permiss
 The abstract interpreter acts on a store which maps variables to permissions. Evaluating an expressions in a store yields a permission for the object returned by the expression,
 a new store, and an _owner_ and _dependencies_ - these two deserve some explanation:
 
-An _owner_ here means the variable from which the object the evaluation evaluates to has been reached, and it's effective permission at the time it was reached. When an identifier is evaluated,
+An _owner_ here means the variable from which the object the evaluation evaluates to has been reached, and its effective permission at the time it was reached. When an identifier is evaluated,
 the variable and its effective permission become the owner, and the original variable is rendered unusable (by converting it to `n`).
 The owner will be important in some places later on. For example, when a part of an object is made immutable, we also want to make the whole object - the owner - immutable (or more specifically, we would
 like to note that the part is now immutable, but we need the owner anyway).
 Not every expression has an owner: For example, an addition never has an owner: The returned value is freshly created, it is not part of another value.
 
-A _dependency_ is similar to an owner. It's another variable that has been used in the expression, alongside its effective permission. A list of dependencies could also contain owners: For example, in `a[b]`,
+A _dependency_ is similar to an owner. It is another variable that has been used in the expression, alongside its effective permission. A list of dependencies could also contain owners: For example, in `a[b]`,
 the owners and dependencies of `b` would be some of the dependencies of the complete expression (the others are the dependencies of `a`).
 
 Owners and dependencies can be released back to the store when they are no longer needed. For example, when `a + b` is evaluated, the owners and dependencies for `a` and `b` can be released
 after `a + b` has been evaluated. Sometimes, a value is moved, then its owner and dependencies are not released - they become consumed by the operation, so to speak.
 
-The abstract interpreter for statements evaluates the statement in a store and a current function, the latter is needed for some lookups, like return values. Multiple branches are handled by
-multiple return values, that is, instead of returning a single store, a collection of stores is returned. Statements also have early exits like `return` statements. We handle these by including
+The abstract interpreter for statements evaluates the statement in a store and a current function -- the latter is needed for some lookups, like return values. Multiple branches are handled by
+returning a set of stores, rather than just one. Statements also have early exits like `return` statements. We handle these by including
 the statement that abnormally terminated a statement alongside the store. For example, a `return` statement would have one _exit_: a pair of its store and itself. A block statement with a `return`
 statement would have the exit of the `return` statement, and maybe others.\label{sec:exit-0}
 
@@ -42,7 +42,7 @@ The store has several operations:
 
 1. `GetEffective`, written $S[v]$, returns the effective permission of $v$ in $S$.
 1. `GetMaximum`, written $S[\overline{v}]$, returns the maximum permission of $v$ in $S$.
-1. `Define`, written $S[v := p]$, is a new store where a new $v$ is defined if none is in the current block, otherwise, it's the same as $S[v = p]$.
+1. `Define`, written $S[v := p]$, is a new store where a new $v$ is defined if none is in the current block, otherwise, it is the same as $S[v = p]$.
 1. `SetEffective`, written $S[v = p]$, is a new store where $v$'s effective permission is set to $merge_{\cap}(S[\overline{v}], p)$
 1. `SetMaximum`, written $S[v \overset{\wedge}{=} p]$, is a new store where $v$'s maximum permission is set to $p$. It also performs $S[v = merge_{\cap}(p, S[\overline{v}])]$ to ensure that the effective permission is weaker than the maximum permission.
 1. `Release`, written $S[=D]$, where $D$ is a set of tuples $V \times {\cal P}$ is the same as setting the effective permissions of all $(v, p) \in D$ in S. We call that _releasing_ D, because $D$ will be a set of dependencies we borrowed from the store.
@@ -73,7 +73,7 @@ The `Owner` vs `Borrowed` distinction is especially important with deferred func
 
 Since the code is a bit long too read, it makes sense to provide a short, and hopefully more readable abstraction of it. The function `VisitExpr` essentially becomes the relation .
 
-There also is a sister function, `VisitExprOwnerToDeps` which does not return a owner, but instead inserts the owner into the list of dependencies. This is helpful in places where the owner is not interesting (it's not used in the formal notation, but will be seen in some code excerpts later).
+There also is a sister function, `VisitExprOwnerToDeps` which does not return a owner, but instead inserts the owner into the list of dependencies. This is helpful in places where the owner is not interesting (it is not used in the formal notation, but will be seen in some code excerpts later).
 
 In the following, we will look at the individual expressions and check how they evaluate. The rules are written similar to typing rules in "Types and Programming Languages" by Benjamin C. Pierce [@tapl].
 
@@ -166,14 +166,14 @@ a + b       // om, no owner
 
 #### Index expression: `A[B]`
 The index operator indexes an array, a slice, or a map (by the key type of the map). It can appear on the left-hand side of an assignment expression,
-and it is also addressable (except for maps): It's legal to take it's address with the `&` operator. Having it appear on the left-hand side means that
+and it is also addressable (except for maps): It is legal to take its address with the `&` operator. Having it appear on the left-hand side means that
 a map expression must move or copy the key into the map - we are storing a new value after all.
 ```go
 someMap[someKey] = someValue        // someKey is either moved or copied into the map, as is someValue
 ```
 
 We first evaluate the left side, then the index. If the left side is an array or a slice, the right side is a primitive value, so we can release its owner
-and dependency if any (it's just an offset into an array), and then return the permission for the elements in the array or slice, with `A` being the owner
+and dependency if any (it is just an offset into an array), and then return the permission for the elements in the array or slice, with `A` being the owner
 (as `A[B]` is part of A).
 \begin{align*}
     \frac{
@@ -347,7 +347,7 @@ Given:
     \end{cases}
 \end{align*}\label{sec:functioncall}
 
-One seemingly odd result of the rules is that an argument is moved into a deferred call or go call even if the parameter is unowned. Under normal circumstances binding an argument to an unowned parameter would just temporarily borrow it. But with a deferred call or go call, there is no clear point at which the call ends, hence it's not possible to release them again:
+One seemingly odd result of the rules is that an argument is moved into a deferred call or go call even if the parameter is unowned. Under normal circumstances binding an argument to an unowned parameter would just temporarily borrow it. But with a deferred call or go call, there is no clear point at which the call ends, hence it is not possible to release them again:
 
 ```go
 // Case 1: deferred function call or go statement
@@ -545,11 +545,11 @@ func (i *Interpreter) defineOrAssign(st Store, stmt ast.Stmt, lhs ast.Expr, rhs 
     <<define or assign lhs>>
 
 	// Ensure we can do the assignment. If the left-hand side is an identifier, this should always be
-	// true - it's either Defined to the same value, or set to something less than it in the previous block.
+	// true - it is either Defined to the same value, or set to something less than it in the previous block.
 
 	perm, _, _ := i.visitExprOwnerToDeps(st, lhs) // We just need to know permission, do not care about borrowing.
 	if !allowUnowned {
-		i.Assert(lhs, perm, permission.Owned) // Make sure it's owned, so we do not move unowned to it.
+		i.Assert(lhs, perm, permission.Owned) // Make sure it is owned, so we do not move unowned to it.
 	}
 
 	// Input deps are nil, so we can ignore them here.
@@ -588,7 +588,7 @@ if ident, ok := lhs.(*ast.Ident); ok {
 }
 ```
 
-Handling the underscore case is simple: An assignment to `_` would be equivalent to just executing the expression on the right-hand side, that is, we can release owner and dependencies - it's not going to be moved anywhere.
+Handling the underscore case is simple: An assignment to `_` would be equivalent to just executing the expression on the right-hand side, that is, we can release owner and dependencies - it is not going to be moved anywhere.
 ```go
 <<handle _>>=
 if ident.Name == "_" {
@@ -1092,7 +1092,7 @@ An if statement is evaluated as follows:
 
 1. Create a new block
 1. Evaluate the initializing statement. It must produce one exit (the syntax does not allow more, this simplifies thing)
-1. Evaluate the condition expression. It must be readable, and it's owner and dependencies are released.
+1. Evaluate the condition expression. It must be readable, and its owner and dependencies are released.
 1. Evaluate body and else part in the store that resulted from evaluating the condition.
 1. Combine the exits of body and else to form the result, but remove the block we started at the beginning from their stores.
 
