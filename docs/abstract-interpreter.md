@@ -44,13 +44,13 @@ The store has several operations:
 1. `GetMaximum`, written $S[\overline{v}]$, returns the maximum permission of $v$ in $S$.
 1. `Define`, written $S[v := p]$, is a new store where a new $v$ is defined if none is in the current block, otherwise, it is the same as $S[v = p]$.
 1. `SetEffective`, written $S[v = p]$, is a new store where $v$'s effective permission is set to $merge_{\cap}(S[\overline{v}], p)$
-1. `SetMaximum`, written $S[v \overset{\wedge}{=} p]$, is a new store where $v$'s maximum permission is set to $p$. It also performs $S[v = merge_{\cap}(p, S[\overline{v}])]$ to ensure that the effective permission is weaker than the maximum permission.
+1. `SetMaximum`, written $S[\overline{v} = p]$, is a new store where $v$'s maximum permission is set to $p$. It also performs $S[v = merge_{\cap}(p, S[\overline{v}])]$ to ensure that the effective permission is weaker than the maximum permission.
 1. `Release`, written $S[=D]$, where $D$ is a set of tuples $V \times {\cal P}$ is the same as setting the effective permissions of all $(v, p) \in D$ in S. We call that _releasing_ D, because $D$ will be a set of dependencies we borrowed from the store.
 1. `BeginBlock`, written $S[+]$, is a store where a new block has begun
 1. `EndBlock`, written $S[-]$, is S with the most recent block removed
 1. `Merge`, written $S \cap S'$, where S and S' have the same length and variables in the same order, is the result of intersecting all permissions in S with the ones at the same position in S'.
 
-In the code, the store is a slice of structs where each struct contains a name, an effective permission, a maximal permission, and the number of times the variable has been referenced so far. Defining a new variable or beginning a new block scope prepends to the store.
+In the code, the store is a slice of structs where each struct contains a name, an effective permission, a maximum permission, and the number of times the variable has been referenced so far. Defining a new variable or beginning a new block scope prepends to the store.
 
 ```go
 type Store []struct {
@@ -65,25 +65,23 @@ such a block marker is identified by checking if the name field is empty. When e
 
 
 ## Expressions
-The interpreter's function $\leadsto : Expr \times Store \to Permission \times (Variable, Permission) \times \text{set of } (Variable, Permission) \times Store$ (also called `VisitExpr` in the code) visits an expression in a store, yielding a new permission, an owner, a set of variables borrowed by the expression, and a new store. It takes care of abstractly interpreting the expression and checking the permissions.
+The function $\leadsto : Expr \times Store \to Permission \times (Variable, Permission) \times \text{set of } (Variable, Permission) \times Store$ (also called `VisitExpr` in the code)  abstractly interprets an expression in a store, checking permissions. It yields a new permission, an owner, a set of variables borrowed by the expression, and a new store.
 
 The types `Borrowed` and `Owner` are pairs of a variable name and a permission, as mentioned before. There is a special `NoOwner` value of type `Owner` that represents that no owner exists for a particular expression.
 
 The `Owner` vs `Borrowed` distinction is especially important with deferred function calls and the go statement. We will later see that the owner is the function (which may be a closure with a bound receiver), while any owners and dependencies of the arguments are forgotten.
 
-Since the code is a bit long too read, it makes sense to provide a short, and hopefully more readable abstraction of it. The function `VisitExpr` essentially becomes the relation .
-
 There also is a sister function, `VisitExprOwnerToDeps` which does not return a owner, but instead inserts the owner into the list of dependencies. This is helpful in places where the owner is not interesting (it is not used in the formal notation, but will be seen in some code excerpts later).
 
-In the following, we will look at the individual expressions and check how they evaluate. The rules are written similar to typing rules in "Types and Programming Languages" by Benjamin C. Pierce [@tapl].
+In the following, we will look at the individual expressions and check how they evaluate.
 
 
 #### Identifier: `id`
 
-There are three cases of identifies:
+There are three cases of identifiers:
 
-1. `nil` evaluates to the `nil` permission, it was created just for `nil` literals, since nil literals can be assigned to any nilable value (\fref{sec:ass-nil}).
-2. `true` and `false` evaluate to the `om` permission, since they are just primitive values. They could just as well evaluate to any other (readable) base permission, but `om` is the strongest one, so to speak.
+1. `nil` evaluates to the `nil` permission, it was created just for `nil` literals, since nil literals can be assigned to any nilable value (compare \fref{sec:ass-nil}).
+2. `true` and `false` evaluate to the `om` permission, since they are just primitive values. They could just as well evaluate to any other (readable) base permission, but `om` has all bits set, making it the "strongest" one.
 3. Any other identifier $id$ evaluates to the effective permission $e$ in the store. The effective permission in the store is replaced with an unusable one (converted to `n`), and the owner becomes $(id, e)$. The owner can later be released when
    the variable is no longer needed.
 
@@ -122,7 +120,7 @@ func (i *Interpreter) visitIdent(st Store, e *ast.Ident) (permission.Permission,
 
 #### Star Expression: `*E`
 The star expression dereferences a pointer. Therefore we must evaluate the expression `E` and then dereference
-the permission it returns, that is, return the target permission, for example:
+the permission it returns, that is, return the target permission. For example:
 ```go
 // E has permission om * l
 *E  // permission l
@@ -331,14 +329,14 @@ Here, no permissions are released, and the owner and the dependencies of the fun
 This is needed: For deferred statement, the arguments are bound in place of the statement, but the function is only executed when unwinding the call stack,
 hence these parameters need to be unreachable in the function where the statement is located. The Go statement is similar, except that execution is not
 done when the stack unwinds, but on a different goroutine.
+We define $\leadsto_{go/defer}$ for these cases, which is identical to $\leadsto$, except for the call expression, as specified below.
 
-Given:
 \begin{align*}
     \langle E, s \rangle &\leadsto (e \textbf{ func } (P_0, \ldots, P_n) (R_0, \ldots, R_r), o, d, s_{-1}) \\
     \langle A_i, s_{i-1} \rangle &\leadsto (P_{A_i}, o'_{i}, d'_{i}, s'_{i})   \\
     s_{i}, o_i, d_i &= moc(s'_{i}, P_{A_i}, P_i, o'_i, d'_i) \\
-    \intertext{Then:}
-    \langle E(A_0, \ldots, A_n), s \rangle &\leadsto (results, o, d, s_{n})  & \text{if deferred or go}  \\
+    \hline
+    \langle E(A_0, \ldots, A_n), s \rangle &\leadsto_{go/defer} (results, o, d, s_{n})  & \text{if deferred or go}  \\
     \langle E(A_0, \ldots, A_n), s \rangle &\leadsto (results, NoOwner, \emptyset, rel(s_{n}))  & \text{else} \\
     \text{where } rel(s) &= s\left[= \{o\} \cup d \cup \bigcup\limits_{i=0}^{n} (d_i \cup \{o_i\})\right] \\
      results &= \begin{cases}
@@ -362,7 +360,7 @@ function(arg)     // arg is linear and not copyable
 ```
 
 #### Slice expressions
-The slice expression `A[L:H:M]` (where `L`, `H`, `M` are optional) is simply evaluated left to right. For the purpose of this definition, let us assume that they all are specified. If either are unspecified, their owner would be `NoOwner`, their dependencies empty, and the store identical to the left-hand-side store.
+The slice expression `A[L:H:M]` (where `L` - low, `H` - high, `M` - maximum (capacity of the slice) are optional) is simply evaluated left to right. For the purpose of this definition, let us assume that they all are specified. If either are unspecified, their owner would be `NoOwner`, their dependencies empty, and the store identical to the left-hand-side store.
 
 \begin{align*}
 \intertext{Therefore, if:}
@@ -412,8 +410,8 @@ $$\langle E, s \rangle \leadsto (P_{-1}, o_{-1}, d_{-1}, s_{-1})$$
 And next, can, for each step $i \ge 0$ in the path, perform a selection:
 
 \begin{align*}
-    (P_i, o_i, d_i, s_i) :&= selectOne(s_{i-1}, P_{i-1}, index_{i}, kind, o_{i-1}, d_{i-1}) \\
-    \text{where } kind &= \begin{cases}
+    (P_i, o_i, d_i, s_i) :&= selectOne(s_{i-1}, P_{i-1}, index_{i}, kind_i, o_{i-1}, d_{i-1}) \\
+    \text{where } kind_i &= \begin{cases}
         selectionKind    & \text{if } i == n - 1 \\
         \text{\lstinline|FieldVal|}         & \text{else (as explained before)}
     \end{cases} \\
@@ -457,23 +455,21 @@ A composite literal `T {E_0, ..., E_n}` is fairly similar to a function calls. A
 
 There is one complication: The individual expressions may also be key-value expressions. Let's just assume that we have two functions $index(E_i)$ returning the index in the generated struct (which is $i$ if it is not a key-value expression, and $value(E_i)$ representing the permission of the value of the expression (which is just $E_i$ if it is not a key-value expression). These functions can be trivially implemented by looking at the type information provided by the `go/types` package.
 
-Then it follows that, if:
+The final algorithm looks like this:
+
+1. Evaluate the type
+2. Evaluate each argument, and move it to the corresponding position in the struct
+3. Return the type's permission, with dependencies collected from the parameters.
+
 \begin{align*}
     \langle T, s \rangle          &\leadsto (\overbrace{a \textbf{ struct } \{ A_0, \ldots, A_k \}}^{= P}, o_{-1}, d_{-1}, s_{-1})  \qquad k \ge n\\
-    \langle value(E_i), s'_{i-1} \rangle &\leadsto (P_i, o_i, d_i, s_i)
-\end{align*}
-that:
-\begin{align*}
+    \langle value(E_i), s'_{i-1} \rangle &\leadsto (P_i, o_i, d_i, s_i) \\
+\hline
     \langle T \{ E_0, \ldots, E_n\}, s \rangle &\leadsto \left(P, NoOwner, \bigcup\limits_{i=0}^{i \le n} d'_i \cup \{o'_i\}, s'_{n} \right) \\
         \text{where } (s'_{-1}, o'_{-1} d'_{-1}) &= (s_{-1}[= d_{-1} \cup \{o_{-1}\}], NoOwner, \emptyset) \\
                       (s'_i, o'_i, d'_i) &= moc(s_i, P_i, A_{index(E_i)}, o_i, d_i)
 \end{align*}
 
-Or in short:
-
-1. Evaluate the type
-2. Evaluate each argument, and move it to the corresponding position in the struct
-3. Return the type's permission, with dependencies collected from the parameters.
 
 An alternative approach that was considered is to construct the struct permission simply using the arguments, without the type info - just evaluate each argument and make a list of their permissions, essentially. This fails in two ways however: A composite literal may be incomplete, so the struct would have less fields then expected, and would thus not be assignable to the permission for the real type. Also, key-value expressions could not be handled without type info: It would not be clear where to put the permissions in the struct permission.
 
@@ -666,7 +662,7 @@ deps = append(deps, rdeps...)
 rhs = tuple.Elements
 ```
 
-When unpacking multiple RHS expressions, the idea is that all RHS values are asssigned to a temporary variable, and the temporary variables are assigned to the final ones later. The reason for that is that an operation -- like `a, b = b, a` (or `(a,b) = (b,a)` in languages with more syntax) -- swaps the variables, rather than making both be `b` afterwards.
+When unpacking multiple RHS expressions, the idea is that all RHS values are asssigned to a temporary variable, and the temporary variables are assigned to the final ones later. The reason for that is that an operation like `a, b = b, a` -- or `(a,b) = (b,a)` in languages with more syntax -- swaps the variables, rather than making both be `b` afterwards.
 ```go
 <<unpack multiple>>=
 for _, expr := range rhsExprs {
@@ -707,7 +703,7 @@ for elem := len(rhs); elem < len(lhsExprs); elem++ {
 
 Now, as for the actual statements:
 
-Assign and define (`=` and `:=`) are equivalent to `defineOrAssignMany`. It sets the `isDefine` paramater to true if the token of the statement was `:=`, otherwise it is false. Unowned values are not allowed.
+Assign and define (`=` and `:=`) are equivalent to `defineOrAssignMany`. They set the `isDefine` parameter to true if the token of the statement was `:=`, otherwise it is false. Unowned values are not allowed.
 
 ```go
 func (i *Interpreter) visitAssignStmt(st Store, stmt *ast.AssignStmt) []StmtExit {
@@ -715,7 +711,7 @@ func (i *Interpreter) visitAssignStmt(st Store, stmt *ast.AssignStmt) []StmtExit
 }
 ```
 
-Declaration statements of the form `var x, y = a, b` or just `var x, y` are more complicated. The declaration has a list of specifications,and each specification has a list of names and values. We therefore need to call `defineOrAssignMany` once per specification (there could also be other specifications). Unowned values are not allowed, and `isDefine` is always true.
+Declaration statements of the form `var x, y = a, b` or just `var x, y` are more complicated. The declaration has a list of specifications, and each specification has a list of names and values. We therefore need to call `defineOrAssignMany` once per specification (there could also be other specifications). Unowned values are not allowed, and `isDefine` is always true.
 ```go
 func (i *Interpreter) visitDeclStmt(st Store, stmt *ast.DeclStmt) []StmtExit {
     <<boring setup code>>
@@ -765,12 +761,12 @@ This is legal because any unowned parameter will still be usable when the functi
 
 \begin{align*}
 \frac{
-    \langle E(A_0, \ldots, A_n), s \rangle \leadsto (P, o, d, s')
+    \langle E(A_0, \ldots, A_n), s \rangle \leadsto_{go/defer} (P, o, d, s')
 } {
     \langle \textbf{go } E(A_0, \ldots, A_n), s, f \rangle \rightarrow \{(s', nil)\}
 }   && \text{(P-GoStmt)} \\
 \frac{
-    \langle E(A_0, \ldots, A_n), s \rangle \leadsto (P, o, d, s')
+    \langle E(A_0, \ldots, A_n), s \rangle \leadsto_{go/defer} (P, o, d, s')
 } {
     \langle \textbf{defer } E(A_0, \ldots, A_n), s, f \rangle \rightarrow \{(s'[= \{(v, p) \in d | o \not\in p\}], nil)\}
 }   && \text{(P-DeferStmt)}
@@ -826,7 +822,9 @@ func (i *Interpreter) visitStmtList(initStore Store, stmts []ast.Stmt, isASwitch
 ```
 The `<<post>>` part usually splits the list of statement exits into exits of the block we are evaluating and further work, which gets added to the work stack (if not seen already). This means that it will evaluate the block for all possible inputs: For example, if we are evaluating a block with a conditional jump back to the beginning, it will follow the jump back and evaluate the block again for the state of the store before the jump. Since only unseen entries are added, the code will also terminate eventually.
 
-The `<<setup>>` part just exits with the initial store if it there are no statements to execute. If it is a switch/select statement, the entry point is added as an exit, and each statement (which corrrespond to case clauses) is added to the work state. If it is just a normal block, we enter statement 0 in the block. We also collect all labels, building a map of strings to indices in the statement list.
+Details:
+
+The `<<setup>>` part just exits with the initial store if it there are no statements to execute. If it is a switch/select statement, the entry point is added as an exit, and each statement (which corrrespond to case clauses) is added to the work state. If it is just a normal block, we enter statement 0 in the block. We also collect all labels, building a map of strings to indices in the statement list:
 ```go
 if len(stmts) == 0 {
     return []StmtExit{{initStore, nil}}
@@ -1117,7 +1115,7 @@ A switch statement `switch INIT; TAG { BODY }`, where `BODY` is a list of case c
 
 1. Create a new scoping block
 1. Evaluate the initializing statement.
-1. For each possible exit: Evaluate tag in the exit's store and the body (with the cases being not entered, and entered for each case clause) in the store resulting from evaluating the tag.
+1. For each possible exit: Evaluate the tag in the exit's store, and the body (with the cases being not entered, and entered for each case clause) in the store resulting from evaluating the tag.
 1. For each exit of the body: Release the dependencies of the tag, and undo the block from the start.
 
 \begin{align*}
@@ -1129,7 +1127,7 @@ A switch statement `switch INIT; TAG { BODY }`, where `BODY` is a list of case c
     }
     {
         \cfrac{
-            (s'_i, BODY, true) \xrightarrow{visitStmtList} exits'_i
+            (s'_i, BODY, true) \xrightarrow{visitStmtList} exits'_i \quad
             exits_i := \{(s[= d_i \cup \{o_i\}][-], e) | (s, e) \in exits'_i \}
         }{
             \langle \textbf{switch } INIT; TAG \{ BODY \}, s, f \rangle \rightarrow \bigcup\limits_{0 \le i \le n} exits_i
@@ -1201,10 +1199,10 @@ The easiest channel statement is the send statement. Given a writable channel, a
 }    && \text{(P-SendStmt)}
 \end{align*}
 
-There is arguably a bug here. I can send to a unowned channel containing unowned values, and the dependencies would be released. A channel containing unowned values should not exist in the first place, though, but sadly, it is entirely possible to define one at the moment.
+There is arguably a bug here. We can send to a unowned channel containing unowned values, and the dependencies would be released. A channel containing unowned values should not exist in the first place, though, but sadly, it is entirely possible to define one at the moment.
 
 
-The `select` statement allows waiting for non-blocking send/receive availability on a set of channels. It is thus similar to (and probably named after) the `select(2)` system call from 4.2BSD and POSIX.1-2001. The resulting exits will be the initial store (for the not entered case), and those gained by jumping into each of the comm clauses in the body from the store (which is what `visitStmtList` does).
+The `select` statement allows waiting for non-blocking send/receive availability on a set of channels. It is thus similar to (and probably named after) the `select(2)` system call from 4.2BSD and POSIX.1-2001. The resulting exits will be the initial store (for the not-entered case), and those gained by jumping into each of the comm clauses in the body from the store (which is what `visitStmtList` does).
 
 \begin{align*}
 \cfrac{
