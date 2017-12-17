@@ -252,7 +252,7 @@ someMap[someKey] = someValue
 
 ## Approaches to dealing with mutability
 
-Functional programming is a form of programming in which side effects do not exist.
+Purely functional programming is a form of programming in which side effects do not exist.
 That is, there is no such things as mutable data structures, or even I/O operations; only pure
 transformations from one data structure to another.
 
