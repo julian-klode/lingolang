@@ -22,23 +22,23 @@ Coverage
 ## Completeness
 The implementation is unfortunately not complete.
 
-We only have support for checking expressions and statements (including function literals), but we don't have support for declaring global variables, functions, or importing other packages.
+We only have support for checking expressions and statements (including function literals), but we do not have support for declaring global variables, functions, or importing other packages.
 Adding support for global declarations requires handling global state. While we could just create a "package" permission holding permissions for all objects declared in it, and make the current package a store, it is unclear how any mutable global state should interact with functions.
 There does not seem to be a safe solution for global mutable state: If two functions want to access the same global, mutable, variable, how do we handle that? Marking each function's closure as mutable is not enough: Their closure is the same. Two solutions might be possible: Identify groups of functions with the same closure and only allow one of them to be used at a time, or just forbid two functions from using the same global mutable variable; essentially making global mutable state function-specific.
 
 The support for expressions and statements is slightly incomplete as well:
 Type assertion, conversion between named types and interfaces, and type switches are missing. These require gathering a set of methods for a given named type. But
-we don't have an equivalent to named types in permissions, and adding it does not seem feasible anymore, as it would require substantial changes in the
+we do not have an equivalent to named types in permissions, and adding it does not seem feasible anymore, as it would require substantial changes in the
 interpreter. An alternative would be to simply attach a list of methods to the unnamed permissions, and when converting, take the left set of methods. When a
 conversion to an interface is required, we could just build an interface out of these methods, and check if that interface is assignable to the interface.
 
-Also as mentioned in \fref{sec:index-string}, strings can be indexed, but we don't support it - strings are just base permissions, but should be their
+Also as mentioned in \fref{sec:index-string}, strings can be indexed, but we do not support it - strings are just base permissions, but should be their
 own permission kind. This seems easily solvable however.
 
 ## Correctness
 The implementation is _shallow_: When looking at the requirements for operands, it only looks at the base permission of the operands. So if an expression requires an
 operand to be readable, we only check whether its base permission contains the $r$ bit. That should be fine so far, as we ensure consistency at some point in the program
-by converting each permission to its own base permission, and thus a readable object can't have unreadable members. But it falls short if we actually want to allow
+by converting each permission to its own base permission, and thus a readable object cannot have unreadable members. But it falls short if we actually want to allow
 it. There might be an option: Instead of checking if $r \in base(A)$ we can check if $ass_{mov}(A, ctb(A, r))$, that is, we create a new structure where all base
 permissions are replaced with $\{r\}$ and then we can check if the value is movable to it, which recursively checks that each base permission is movable to $\{r\}$.
 
@@ -55,7 +55,7 @@ of the permission that was borrowed. A solution to this problem would be to coll
 evaluating an expression - then we could create a new permission where the borrowed part is replaced by an unusable permission. But this then leads to the shallowness
 problem mentioned above.
 
-The implementation is _ambiguous_: Permissions for types and values are stored in the same namespace. This is not a real problem, though, as Go ensures that we can't
+The implementation is _ambiguous_: Permissions for types and values are stored in the same namespace. This is not a real problem, though, as Go ensures that we cannot
 use type in value contexts and vice versa.
 
 As seen in \fref{sec:visitIdent}, moving a value out of the store also happens for non-linear values. This is overly broad: If a value is not linear, it should be
@@ -141,7 +141,7 @@ var testCasesParser = map[string]Permission{
 }
 ```
 As can be seen, the map starts with some error cases, followed by base permissions, and then followed by more complex permissions (with error cases again).
-Due to the parser being recursive descent, we don't have to test every possible base permission combination at every level, but testing it once is enough,
+Due to the parser being recursive descent, we do not have to test every possible base permission combination at every level, but testing it once is enough,
 so the test for structured permissions can just pick any base permission and are still representative.
 Combined with 100% line coverage (and no short circuiting logic operators in the code), that means that we can parse all valid permissions.
 But the line coverage is also misleading: The code uses `Expect(tokenType, tokenType, ...)` and `Accept(tokenType, tokenType)`, so

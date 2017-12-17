@@ -11,7 +11,7 @@ and certain operations that will be useful to build a static analyser that check
 
 In the `github.com/julian-klode/lingolang` reference implementation, the permissions and operations are provided in the `permission` package.
 
-The reasons for going with a capabilities-derived approach are simple: Monads don't work in Go, as Go does not
+The reasons for going with a capabilities-derived approach are simple: Monads do not work in Go, as Go does not
 have generic types; and fractional permissions are less powerful, and we also need to deal with legacy code and perhaps could use some other permissions for describing Go-specific operations, like a permission for allowing a function to be executed as a goroutine.
 
 ## Structure of permissions
@@ -193,7 +193,7 @@ var z = y    // have to move the pointer from y to z, otherwise both reach x
 In the following, the function $ass_\mu: P \times P \to bool$ describes whether a value of the left permission can be assigned to a location of the right permission. $\mu$ is the mode, it can be either
 $cop$ for copy, $ref$ for reference, or $mov$ for move.
 
-The base case for assigning is base permissions. For copying, the only requirement is that the source is readable (or it and target are empty). A move additionally requires that no more permissions are added - this is needed: If I move a pointer to a read-only object, I can't move it to a pointer to a writeable object, for example. When referencing, the same no-additional-permissions requirement persists, but both sides may not be linear - a linear value can only have one reference, so allowing to create another would be wrong.
+The base case for assigning is base permissions. For copying, the only requirement is that the source is readable (or it and target are empty). A move additionally requires that no more permissions are added - this is needed: If I move a pointer to a read-only object, I cannot move it to a pointer to a writeable object, for example. When referencing, the same no-additional-permissions requirement persists, but both sides may not be linear - a linear value can only have one reference, so allowing to create another would be wrong.
 \begin{align*}
     ass_\mu(a, b) &:\Leftrightarrow \begin{cases}
         r \in a \text{ or } a = b =  \emptyset                                           & \text{if } \mu = cop \\
@@ -275,7 +275,7 @@ The base permission here essentially indicates the permission of (elements in) t
 A mutable function is thus a function that can have different results for the same immutable parameters.
 The receiver of a function, its parameters, and the closure are essentially parameters of the function,
 and parameters are contravariant: I can pass a mutable object when a read-only object is expected, but I
-can't pass a read-only object to a mutable object. For the closure, ownership is the exception: An owned function can be assigned to an
+cannot pass a read-only object to a mutable object. For the closure, ownership is the exception: An owned function can be assigned to an
 unowned function, but not vice versa.
 \begin{align*}
     \begin{aligned}
@@ -336,7 +336,7 @@ Another major use case is ensuring consistency of rules, like:
 
 (That is, while unwriteable objects cannot contain writeable objects directly, they can point to them as long as linearity is respected)
 
-As every specified permission will be converted to its base type, we can ensure that every permission is consistent, and we don't end up with inconsistent permissions like `or * om` - a pointer that could be copied, but pointing to a linear object.
+As every specified permission will be converted to its base type, we can ensure that every permission is consistent, and we do not end up with inconsistent permissions like `or * om` - a pointer that could be copied, but pointing to a linear object.
 
 The function $ctb : {\cal P} \times 2^{\cal R} \to {\cal P}$ is the convert-to-base function. Its simple cases are conversions from a base permission or wildcard, yielding the target base permission, and conversions from nil, yielding nil.
 \begin{align*}
@@ -410,7 +410,7 @@ The rules for converting a pointer permission to a base permission are therefore
                                     \end{cases} \\
     &&ctb_{strict}(a * A, b)   :&= ctb_{strict}(a, b) * ctb_{strict}(A, ctb_{strict}(a, b))
 \end{align*}\label{sec:ctb-ptr}
-In the formal notation, $t$ replaces the owned permission bit from the old target with the owned flag from the given base permission. This is needed to ensure that we don't accidentally convert `om * om` to `m * om`. Keeping ownership the same throughout pointers also simplifies some other aspects in later code. $X$ ensures consistency: If our new target is not linear, we strip any linearity from the target; thus only a linear permission can have linear inner permissions.
+In the formal notation, $t$ replaces the owned permission bit from the old target with the owned flag from the given base permission. This is needed to ensure that we do not accidentally convert `om * om` to `m * om`. Keeping ownership the same throughout pointers also simplifies some other aspects in later code. $X$ ensures consistency: If our new target is not linear, we strip any linearity from the target; thus only a linear permission can have linear inner permissions.
 \end{samepage}
 
 #### Pointer examples
@@ -659,7 +659,7 @@ The other cases are trivial as well, and therefore no complete proof will be sho
 Since permissions have a shape similar to types and Go provides a well-designed types package, we can easily navigate type structures and create structured permissions for them with some defaults. Currently, it just places maximum `m`
 permissions in all base permission fields. And the interpreter, discussed in the next section, converts to owned as needed, using $ctb()$.
 
-One special case exists: If a type is not understood, we try to create the permission from it is _underlying type_. For example, `type Foo int` is a named type, but we don't support named types, so we use the underlying type, `int`, for creating the permission.
+One special case exists: If a type is not understood, we try to create the permission from it is _underlying type_. For example, `type Foo int` is a named type, but we do not support named types, so we use the underlying type, `int`, for creating the permission.
 
 ## Handling cyclic permissions
 So far, we have only looked at permissions without cycles. In the real world, permissions can have cycles, because types can have cycles too,

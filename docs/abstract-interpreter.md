@@ -651,7 +651,7 @@ func (i *Interpreter) defineOrAssignMany(st Store, stmt ast.Stmt, lhsExprs []ast
 Unpacking a tuple is simple: We evaluate the single RHS expression, and then take the tuple elements as the RHS dependencies. Since a tuple is the result of a function call (you might have noticed that is the only evaluation that can cause a tuple permission to be created) we do not really need to care about owners or dependencies, so we just collect them for releasing later.
 ```go
 <<unpack tuple>>=
-// These really can't have owners.
+// These really cannot have owners.
 rhs0, rdeps, store := i.visitExprOwnerToDeps(st, rhsExprs[0])
 st = store
 tuple, ok := rhs0.(*permission.TuplePermission)
