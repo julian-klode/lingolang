@@ -1134,7 +1134,7 @@ A switch statement `switch INIT; TAG { BODY }`, where `BODY` is a list of case c
             \langle \textbf{switch } INIT; TAG \{ BODY \}, s, f \rangle \rightarrow \bigcup\limits_{0 \le i \le n} exits_i
         }
     }
-} && \text{(P-SwitchStmt)}
+} \\ \text{(P-SwitchStmt)}
 \end{align*}
 
 It might be more readable in code form, as shown in listing \ref{visitSwitchStmt}.
@@ -1210,7 +1210,7 @@ The `select` statement allows waiting for non-blocking send/receive availability
     (s[+], BODY, true) \xrightarrow{visitStmtList} exits
 } {
     \langle \textbf{select } \{ BODY \}, s, f \rangle \rightarrow \cup \{(s[-], e) for (s, e) \in exits\})\}
-}
+}    && \text{(P-SelectStmt)}
 \end{align*}
 
 
@@ -1222,5 +1222,5 @@ A comm clause has the form `case STMT: BODY` for some statements `STMT` and `BOD
     exits := \bigcup\limits_{e \in exits_0} visitStmtList(store(e), BODY, false)
 } {
     \langle \textbf{case } STMT: BODY, s, f \rangle \rightarrow exits
-}
+}  \\ \text{(P-CommClause)}
 \end{align*}

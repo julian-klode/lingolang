@@ -354,13 +354,11 @@ other is the return after it:
 				{"nil", "om * om"},
 				{"main", "om func (om * om) om * om"},
 			},
-			"func main(a *int) *int { if a != nil { return a }; return nil }",
+			"func main(a *int) *int { ifa != nil{ return a }; return nil}",
 			[]exitDesc{
 				{[]storeItemDesc{{"a", "n * r"}}, 54},
 				{[]storeItemDesc{{"a", "om * om"}}, 66},
 			},
-			"",
-		},
+			""},
 ```
-
 Every implemented statement is tested, again not for all possible cases.

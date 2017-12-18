@@ -252,8 +252,8 @@ Channels, slices, and maps are reference types. They behave like value types, ex
         ass_\mu(a, b) \text{ and } ass_\mu(A, B)    & \text{else}
     \end{cases} \\
     ass_\mu(a \textbf{ map }[A_0] A_1, b \textbf{ map }[B_0] B_1) &:\Leftrightarrow \begin{cases}
-        ass_{ref}(a, b) \text{ and } ass_{ref}(A_0, B_0) \text{ and } ass_{ref}(A_1, B_1)    & \mu = cop \\
-        ass_\mu(a, b) \text{ and } ass_\mu(A_0, B_0) \text{ and } ass_\mu(A_1, B_1)    & \text{else} \\
+        ass_{ref}(a, b) \text{ and } ass_{ref}(A_0, B_0) \\ \text{ and } ass_{ref}(A_1, B_1)    & \mu = cop \\
+        ass_\mu(a, b) \text{ and } ass_\mu(A_0, B_0) \\ \text{ and } ass_\mu(A_1, B_1)    & \text{else} \\
     \end{cases}
 \end{align*}
 
@@ -461,11 +461,11 @@ _Proof._ This only shows the proof for $ctb()$, not $ctb_{strict}()$, but the on
 1. Functions and interfaces convert their child permissions to their own bases. We can proof the property for the special case of an interface with one method without loosing genericity, since these are structured the same.
     \begin{align*}
         &ctb(ctb(a \textbf{ interface } \{ A_0 \}, b), b) \\
-        =& ctb(ctb(a, b) \textbf{ interface } \{  ctb(A_0, base(A_0))  \}, b) & \text{by definition}  \\
-        =& \underbrace{ctb(ctb(a, b), b)}_{= ctb(a, b)} \textbf{ interface } \{ ctb(ctb(A_0, base(A_0)), \underbrace{base(ctb(A_0, base(A_0))))}_{= base(A_0) \text{(trivial)}} \}  & \text{by definition}\\
+        =& ctb(ctb(a, b) \textbf{ interface } \{  ctb(A_0, base(A_0))  \}, b) &\text{(def)}  \\
+        =& \underbrace{ctb(ctb(a, b), b)}_{= ctb(a, b)} \textbf{ interface } \{ ctb(ctb(A_0, base(A_0)), \underbrace{base(ctb(A_0, base(A_0))))}_{= base(A_0) \text{(trivial)}} \}  &\text{(def)}\\
         =& ctb(a, b) \textbf{ interface } \{  \underbrace{ctb(ctb(A_0, base(A_0)), base(A_0))}_{\text{case of $ctb(ctb(A, b), b)$}} \} \\
         =& ctb(a, b) \textbf{ interface } \{ ctb(A_0, base(A_0)) \} \\
-        =& ctb(a \textbf{ interface } \{ A_0 \}, b) & \text{by definition}
+        =& ctb(a \textbf{ interface } \{ A_0 \}, b) &\text{(def)}
     \end{align*}
 1. Pointers are more complicated:
 
@@ -606,16 +606,21 @@ Pointers, channels, arrays, slices, maps, tuples, structs, and interfaces are tr
     merge_\mu(a \textbf{ chan } A, b \textbf{ chan } B)  &:= merge_\mu(a, b) \textbf{ chan } merge_\mu(A, B) \\
     merge_\mu(a [\_] A, b [\_] B)  &:= merge_\mu(a, b) [\_] merge_\mu(A, B) \\
     merge_\mu(a [] A, b [] B)  &:= merge_\mu(a, b) [] merge_\mu(A, B) \\
-    merge_\mu(a \textbf{ map}[A_0]\ A_1, b \textbf{ map}[B_0]\ B_1)  &:= merge_\mu(a, b) \textbf{ map}[merge_\mu(A_0, B_0)]\ merge_\mu(A_1, B_1) \\
-    merge_\mu(a ( A_0, \ldots, A_n ), b (B_0, \ldots, B_n ) ) &:= merge_\mu(a, b) (merge_\mu(A_0, B_0), \ldots, merge_\mu(A_n, B_n) ) \\
+    merge_\mu(a \textbf{ map}[A_0]\ A_1, b \textbf{ map}[B_0]\ B_1)  &:= merge_\mu(a, b) \textbf{ map}[merge_\mu(A_0, B_0)]\\
+         & \phantom{:= merge_\mu(a, b) \textbf{ map}} merge_\mu(A_1, B_1) \\
+    merge_\mu(a ( A_0, \ldots, A_n ), b (B_0, \ldots, B_n ) ) &:= merge_\mu(a, b) (merge_\mu(A_0, B_0),  \\
+        &\phantom{:= merge_\mu(a, b) (} \ldots, \\
+        &\phantom{:= merge_\mu(a, b) (} merge_\mu(A_n, B_n) ) \\
     merge_\mu(a \textbf{ struct } \{A_0, \ldots, A_n \}, \\
           \qquad b \textbf{ struct } \{B_0, \ldots, B_n \} )
-        &:= merge_\mu(a, b) \textbf{ struct } \{merge_\mu(A_0, B_0), \ldots,  \\
-                                           & \qquad merge_\mu(A_n, B_n) \} \\
+        &:= merge_\mu(a, b) \textbf{ struct } \{merge_\mu(A_0, B_0), \\
+                                           & \phantom{:= merge_\mu(a, b) \textbf{ struct } \{}   \ldots, \\
+                                           & \phantom{:= merge_\mu(a, b) \textbf{ struct } \{}merge_\mu(A_n, B_n) \} \\
     merge_\mu(a \textbf{ interface } \{A_0, \ldots, A_n \}, \\
           \qquad b \textbf{ interface } \{B_0, \ldots, B_n \} )
-        &:= merge_\mu(a, b) \textbf{ interface } \{merge_\mu(A_0, B_0), \ldots,  \\
-                                           & \qquad merge_\mu(A_n, B_n) \}
+        &:= merge_\mu(a, b) \textbf{ interface } \{merge_\mu(A_0, B_0),\\
+                                           & \phantom{:= merge_\mu(a, b) \textbf{ interface } \{} \ldots, \\
+                                           & \phantom{:= merge_\mu(a, b) \textbf{ interface } \{}  merge_\mu(A_n, B_n) \}
 \end{align*}
 
 Functions are more difficult: An intersection of a function requires union for closure, receivers, and parameters, because just like with subtyping (in languages that have it), parameters and receivers are contravariant:
@@ -632,6 +637,7 @@ mergeContra_\mu(A, B) := \begin{cases}
 $$
 be a helper function that merges contravariant things after swapping union and intersection modes.
 
+\begin{samepage}
 Then merging functions is:
 \begin{align*}
     merge_\mu(&a (R) \textbf{ func } (P_0, \ldots, P_n) (R_0, \ldots, R_n),  b (R') \textbf{ func } (P'_0, \ldots, P'_n) (R'_0, \ldots, R'_n)) \\
@@ -639,6 +645,7 @@ Then merging functions is:
           &\qquad (mergeContra_\mu(P_0, P'_0), \ldots, mergeContra_\mu(P_n, P'_n)) \\
           &\qquad (merge_\mu(R_0, R'_0), \ldots, merge_\mu(R_n, R'_n))
 \end{align*}
+\end{samepage}
 
 #### Theorem: $merge_\mu$ is commutative for commutative $\mu$.
 

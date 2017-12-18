@@ -362,11 +362,9 @@ which might be an advantage or not, depending on what the requirements are.
 It seems possible to extend fractional permissions with some non-linear writeable object: Introduce infinity as a valid value, and define fractions
 of infinity as infinity; and defining a writeable object as having a permission $\ge 1$, rather than equal to 1. This way, there could be an infinite
 number of references to a writeable object.
-
 Likewise, a linear read-only value could perhaps be introduced by introducing a special fraction that cannot be divided into smaller fractions.
 
 ## Summary
 We learned how Go looks and works, and what kinds of control structures it has. We also learned about Monads and linear types, and how to generalize
 linear types to capabilities (and their permissions) and fractional permissions.
-
 In the next chapter, we will discuss which of these approaches works for Go (hint: permissions), and adjust them to work with Go.

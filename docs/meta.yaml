@@ -8,7 +8,7 @@ subtitle: |
  \
  Master's Thesis
 documentclass: scrreprt
-#classoption: twoside
+classoption: BCOR=0.5cm
 secnumdepth: 2
 toc-depth: 1
 header-includes:
