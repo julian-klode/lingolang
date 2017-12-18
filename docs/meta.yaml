@@ -13,7 +13,7 @@ secnumdepth: 2
 toc-depth: 1
 header-includes:
  - \usepackage[]{graphicx}
- - \usepackage[english,ngerman]{babel}
+ - \usepackage[ngerman,english]{babel}
  - \usepackage{amsmath,amsthm,mathtools,amssymb}
  - \usepackage{lstgolang}
  - \usepackage{xcolor}
