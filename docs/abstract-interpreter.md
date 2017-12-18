@@ -216,7 +216,7 @@ Explanations for each case:
 2. The permission $F$ is not movable. This is an error case, all later cases require movability.
 3. The target permission is unowned. We are just temporarily borrowing the object, so we keep the owner and dependencies around
 4. We are moving a linear value to a non-linear value.
-   This means we need to "freeze" the value, and any object containing it, that is make them immutable and non-linear.
+   This means we need to "freeze" the value, and any object containing it, that is make them immutable and non-linear.\label{sec:coarse-part-move}
 5. We are doing any other kind of move. Since we handled copying in case 1, this means that we are moving a linear value to a linear value (a non-linear value
    would be copyable). Therefore, the owner and dependencies borrowed for $F$ will be forgotten, ensuring we cannot reach $F$
    via an alias once we moved it to $T$.
@@ -607,7 +607,7 @@ if ann, ok := i.AnnotatedPermissions[ident]; ok {
 }
 ```
 
-Otherwise, when assigning rather than defining, we just set the effective permission to either the maximum permission the variable can hold (if it can be copied to it) or to the RHS permission (limited by the maximum permission, see \fref{sec:store}). The maximum case allows us to add permissions when copying, which is a property copying was designed to have (see \fref{sec:assign}).
+Otherwise, when assigning rather than defining, we just set the effective permission to either the maximum permission the variable can hold (if it can be copied to it) or to the RHS permission (limited by the maximum permission, see \fref{sec:store}). The maximum case allows us to add permissions when copying, which is a property copying was designed to have (see \fref{sec:assign}).\label{sec:assign-set-value-max}
 ```go
 <<set value>>=
 if permission.CopyableTo(rhs, st.GetMaximum(ident.Name)) {
