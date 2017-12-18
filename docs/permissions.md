@@ -3,6 +3,7 @@
 In the previous chapter, we saw monads, linear types, and the two generalisations of linear types as capabilities
 and fractional permissions. This chapter introduces permissions for Go based on the concepts from 'Capabilities for Sharing'[@Boyland:2001:CSG:646158.680004],
 and certain operations that will be useful to build a static analyser that checks permissions on a Go program:
+\label{chap:permissions}
 
 1. Operations for checking whether certain types of assignments are allowed
 2. Operations for ensuring consistency and allowing to specify incomplete annotations for variables.

@@ -100,6 +100,9 @@ To be precise, the coverage for the permission package itself stayed at 100%, an
 
 Unfortunately, the Go tools only provide line coverage, and not branch or path coverage. This is somewhat problematic: For example, if we have an `if` statement without an `else` part, we can test if the if has been taken, but we usually cannot check whether it has not been taken: The if statement would eventually fall out of its block and back into the parent block, and thus all lines are executed.
 
+Like the code, this section is split in two parts: First, we will discuss how the permissions package was tested - the package includes the parser and the permission op
+erations discussed in \fref[plain]{chap:permissions}. Afterwards, we will discuss testing the implementations of the store and abstract interpreter described in \fref[plain]{chap:interpreter}.
+
 \clearpage
 
 ### Testing the permissions package
