@@ -29,8 +29,8 @@ author: |
  Philipps-Universität Marburg
 reference-section-title: References
 abstract: |
- Go is a programming language aimed at writing highly-concurrent software
- like web server  s. In concurrent programs, exchanging data between concurrent
+ Go is a programming language aimed at writing highly-concurrent software.
+ In concurrent programs, exchanging data between concurrent
  calculations (goroutines) is essential.
 
  Go embraces a culture of "Don't communicate by sharing memory, share memory
