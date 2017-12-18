@@ -95,10 +95,10 @@ var pointerToInt /* @perm om * om */ *int
 
 Go's excellent built-in AST package (located in `go/ast`) provides native support for associating comments to nodes in the syntax tree in a understandable and reusable way. We can simply walk the AST, and map each node to an existing annotation or `nil`.
 
-The permission specification itself is then parsed using a hand-written scanner and a hand-written recursive-descent parser. The scanner operates on a stream of runes, and represents a stream of tokens with a buffer of one token for look-ahead. It provides the following functions to the parser:
+The permission specification itself is then parsed using a hand-written scanner and a hand-written recursive-descent parser. The scanner operates on a stream of _runes_ (unicode code points), and represents a stream of tokens with a buffer of one token for look-ahead. It provides the following functions to the parser:
 
 * `func (sc *Scanner) Scan() Token` returns the next token in the token stream
-* `func (sc *Scanner) Unscan(tok Token)` returns the last token returned from `Scan()` to the stream
+* `func (sc *Scanner) Unscan(tok Token)` puts the last token back
 * `func (sc *Scanner) Peek() Token` is equivalent to `Scan()` followed by `Unscan()`
 * `func (sc *Scanner) Accept(types ...TokenType) (tok Token, ok bool)` takes a list of acceptable token types and returns the next token in the token stream and whether it matched. If the token did not match the expected token types, `Unscan()` is called before returning it.
 * `func (sc *Scanner) Expect(types ...TokenType) Token` is like `Accept()` but errors out if the token does not match.
@@ -119,7 +119,6 @@ func (p *Parser) Parse() (perm Permission, err error) {
 		}
 	}()
 	perm = p.parseInner()
-
 	// Ensure that the inner run is complete
 	p.sc.Expect(TokenEndOfFile)
 	return perm, nil
@@ -132,14 +131,14 @@ With these functions, it is easy to write a recursive descent parser. For exampl
 func (p *Parser) parsePointer(bp BasePermission) Permission {
 	p.sc.Expect(TokenStar)
 	rhs := p.parseInner()
-	return &PointerPermission{BasePermission: bp, Target: rhs}
+    return &PointerPermission{BasePermission: bp, Target: rhs}
 }
 ```
 
 Internally the scanner is implemented by a set of functions:
 
-* `func (sc *Scanner) readRune() rune` returns the next Unicode rune from the input string
-* `func (sc *Scanner) unreadRune()` moves on rune back in the input stream
+* `func (sc *Scanner) readRune() rune` returns the next Unicode code point from the input string
+* `func (sc *Scanner) unreadRune()` moves one rune back in the input stream
 * `func (sc *Scanner) scanWhile(typ TokenType, acceptor func(rune) bool) Token` creates a token by reading and appending runes as long as the given acceptor returns true.
 
 The main Scan() function calls `readRune` to read a rune and based on that rune decides the next step. For single character tokens, the token matching the rune is returned directly. If the rune is a character, then `unreadRune()` is called to put it back
