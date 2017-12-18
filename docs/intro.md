@@ -1,7 +1,7 @@
 # Introduction
 Go is a strongly statically typed programming language created by Google. It places a heavy emphasis on _goroutines_, a form of concurrent processes, ligthweight threads, that can commmunicate with each other via channels - a concurrent-safe queue.
 
-As a static programming language, Go can prevent certain type mismatches at compile time; for example,
+Being statically typed, Go can prevent certain type mismatches at compile time; for example,
 a pointer cannot be sent where a value is expected. Being strongly typed, it does not perform implicit conversions - a weak language could allow you to pass an integer where a string is expected, and implcitly convert the integer to a string.
 
 Go's support for static typing is very rudimentary: There are few primitive base types, structures, pointers, and interfaces - a collection of methods, essentially. Importantly, there is no support for read-only objects - all objects are writable.
