@@ -1,78 +1,57 @@
 # Introduction
-Strong, static typing is a great thing: It prevents a whole class of errors. But there still are errors other
-than type errors. For example, consider the following Go program:
+Go is a strongly statically typed programming language created by Google. It places a heavy emphasis on _goroutines_, a form of concurrent processes, ligthweight threads, that can commmunicate with each other via channels - a concurrent-safe queue.
+
+As a static programming language, Go can prevent certain type mismatches at compile time; for example,
+a pointer cannot be sent where a value is expected. Being strongly typed, it does not perform implicit conversions - a weak language could allow you to pass an integer where a string is expected, and implcitly convert the integer to a string.
+
+Go's support for static typing is very rudimentary: There are few primitive base types, structures, pointers, and interfaces - a collection of methods, essentially. Importantly, there is no support for read-only objects - all objects are writable.
+
+Placing a heavy emphasis on concurrency and communication between goroutines, one of Go's proverbs is "Don't communicate by sharing memory, share memory by communicating." (Rob Pike), meaning that instead of having a pointer that is visible to all goroutines, send the pointer via a channel. For example, given a channel of int pointers, we can send an int pointer on it:
 
 ```go
-func sendAPointer(aChannelOfIntPointers chan *int, anIntPointer *int) {
     aChannelOfIntPointers <- anIntPointer
-}
 ```
-It sends a pointer through a channel to another thread. Now, if both threads have write access to the pointer
-target, there could be race condition. It would be nice to detect and prevent such race conditions.
+
+But `anIntPointer` and its target are always writable. By sending the value to the channel, two goroutines can now have access to it, and there could be race conditions if we are not careful. It would be nice to be able to send values over channels without having to fear race conditions like that.
 
 A first useful step would be to introduce read-only permissions:
 ```go
-// Requires: anIntPointer points to read-only memory
-func sendAPointer(aChannelOfIntPointers chan *int, anIntPointer *int) {
+    // Requires: anIntPointer points to read-only memory
     aChannelOfIntPointers <- anIntPointer
-}
 ```
-But what if another pointer points to the same location, but writable?
+But how can we ensure that there is no other pointer pointing to the same location as `anIntPointer`, but writable? Restricting read-only pointers to be created only from read-only locations seems like a bad idea. Surely I want to be able to build a struct (for example) in a mutable fashion, but then return it as a read-only value.
 
-This generally boils down to aliasing: If we can ensure that the value we are sending over the channel does
-not have any aliases, we can implement a solution that _moves_ the value through the channel, rather than
+We could use monads, a concept introduced by Haskell, to encapsulate mutability of a specific value. But no, monads require generic types for implementation, and Go does not provide them, so we have to look for something different.
+
+So this seems to generally boil down to aliasing: If we can ensure that the value we are sending over the channel does
+not have any (writeable) aliases, we can implement a solution that _moves_ the value through the channel, rather than
 copying. We need something that says this:
 
 ```
-// Requires: anIntPointer must not have any aliases
-// Ensures: anIntPointer cannot be used afterwards
-func sendAPointer(aChannelOfIntPointers chan *int, anIntPointer *int) {
+    // Requires: anIntPointer must not have any aliases
+    // Ensures: anIntPointer cannot be used afterwards
     aChannelOfIntPointers <- anIntPointer
-}
 ```
 
-This thesis discusses an approach of linear types, types that can only have a single (active) reference to them,
-and implements them for Go in the form of a permission framework, where linearity is handled by exclusive read
-and write permissions.
+Linear types allow doing just that: We can declare that an object of a given type only has a single reference to it. We can easily check linearity at runtime if we use reference counting: When a linear value is expected, but the reference count is larger than 1, we throw a runtime error. But this seems like a bad choice: Go is statically typed, and if we can check linearity statically, we can prevent a lot of race conditions from even compiling, reducing the amount of bugs in a running program, even in the face of untested code paths.
 
-We thus want to make programs "safer", that is, allow programs to define linear types and have these checked statically,
-in order to prevent problems like above.
+The remaining chapters of the thesis are structured as follows:
+Chapter 2 will give an introduction to Go, monads, linear types, and some generalisations;
+chapter 3 will introduce an approach to permissions for Go;
+chapter 4 will introduce an abstract interpreter that statically checks a Go program for permission violations;
+and chapters 5 and 6 discuss how the implementation was tested, and what the issues are.
 
-\clearpage
 
-In order to evaluate the result, we can define some criteria:\label{sec:criteria}
+What properties should our implementation optimally achieve?:\label{sec:criteria}
 
-Completeness
+An important one is _completeness_: All syntactic constructs are tested. Or rather: An unknown syntactic construct should be rejected.
 
-: All syntactic constructs are tested
+Another is _correctness_: Only valid programs are allowed. That means that if something is wrong, the program should not be considered valid.
 
-Correctness
+There is also _preciseness_: We do not reject useful programs because our rules are too broad. As a non-Go example, a literal value of "1" should be able to be stored in all integer sizes, not just whatever type a literal has.
 
-: Only valid programs are allowed
+A further property is _usability_: Error messages should be understandable. If programmers do not understand the error, it makes it hard to fix it.
 
-Preciseness
+We should also consider _compatibility_ - A compiling Lingo program behaves the same as a Go program with all Lingo annotations are removed. By storing all annotations in comments, and just passing the program to the Go compiler after performing our checks, we can easily ensure that.
 
-: We do not reject useful programs because our rules are too broad.
-
-Usability
-
-: If there is a problem, is it understandable
-
-Compatibility
-
-: A Lingo program is a valid Go program without any semantic differences
-
-Coverage
-
-: The implementation should be well-tested with unit tests
-
-We will notice that it makes sense to introduce some rules, like, for example, that a linear object can only be part
-of other linear objects, not of non-linear ones (otherwise there could be multiple references, which defeats the
-purpose).
-
-The remainder is structured as follows:
-Chapter 2 will give an introduction to Go and linear types, chapter 3 will introduce an approach to permissions
-for Go, and chapter 4 will introduce an abstract interpreter that statically checks a Go program for permission violations.
-Finally, chapters 5 and 6 discuss how the implementation was tested, and what the issues are.
-
-There will even be a proof!
+Finally, the implementation should be well tested. As a useful metric we can use _code coverage_. Optimally, it should be 100%, but that might not be entirely realistic - sometimes unreachable code needs to be written to future proof code, for example, checking that a method returns true that currently always returns true but might eventually return false.

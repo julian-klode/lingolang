@@ -14,7 +14,7 @@ Usability
 : If there is a problem, is it understandable
 
 Compatibility
-: A Lingo program is a valid Go program without any semantic differences
+: A compiling Lingo program behaves the same as a Go program with all Lingo annotations are removed
 
 Coverage
 : The implementation should be well-tested with unit tests
