@@ -96,9 +96,7 @@ The implementation, since the beginning, has been subject to rigorous unit testi
 
 The code coverage chart shows that it started out slightly below 100% line coverage, eventually reaching 100%, only to drop again - when the interpreter started coming together - there are quite a few places in the interpreter code that are unreachable conditions and would require constructing a lot of illegal AST objects to test.
 
-We can also see this in the icicle graph below: The top is the entire project, the next level packages, the lowest level files. The left half is the interpreter (93% coverage), the right half the permission package (100% coverage). The interpreter is split into the interpreter (the big package), the store (the second biggest), and a helper.
-
-![coverage icicle](icicle.pdf)
+To be precise, the coverage for the permission package itself stayed at 100%, and the store also has 100% coverage, the interpreter, however only has about 92% coverage.
 
 Unfortunately, the Go tools only provide line coverage, and not branch or path coverage. This is somewhat problematic: For example, if we have an `if` statement without an `else` part, we can test if the if has been taken, but we usually cannot check whether it has not been taken: The if statement would eventually fall out of its block and back into the parent block, and thus all lines are executed.
 
