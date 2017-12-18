@@ -13,6 +13,7 @@ secnumdepth: 2
 toc-depth: 1
 header-includes:
  - \usepackage[]{graphicx}
+ - \usepackage[english,ngerman]{babel}
  - \usepackage{amsmath,amsthm,mathtools,amssymb}
  - \usepackage{lstgolang}
  - \usepackage{xcolor}
@@ -42,4 +43,26 @@ abstract: |
  linearity into Go programs, effectively allowing a programmer to state that
  a given memory location can only be referenced by exactly one reference, which
  can then be moved between goroutines as needed.
+
+ \begin{otherlanguage}{ngerman}
+  \vskip3cm
+   Auf Deutsch:
+
+   Go ist eine Programmiersprache, welche auf das Schreiben von nebenläufiger
+   Software abzielt. In nebenläufigen Programmen ist Datenaustausch zwischen
+   nebenläufigen Berechnungen (goroutine in Go) essenziell.
+
+   Eines von Go's Mottos ist "Don't communicate by sharing memory, share memory
+   by communicating." (Rob Pike), was so viel heißt wie: Pointer werden zwischen
+   den Berechnungen verschickt. Es gibt aber keine Möglichkeit auszuschließen,
+   dass es keine andere Referenz auf den gleichen Speicherbereich gibt, was dazu
+   führen kann das zwei goroutinen z.B. gleichzeitig auf den gleichen Speicherbereich
+   schreiben.
+
+   Diese Arbeit versucht das Problem anzugehen durch die Einführung von Annotationen
+   für Linearität in Go. Dies ermöglicht es einen Programmierer anzugeben, das ein
+   bestimmter Speicherbereich nur genau eine Referenz haben kann. Diese Referenzen
+   können verschoben werden, sodass die Kommunikation zwischen Goroutinen ermöglicht
+   wird.
+ \end{otherlanguage}
 ---
