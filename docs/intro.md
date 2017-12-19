@@ -2,7 +2,7 @@
 Go is a strongly statically typed programming language created by Google. It places a heavy emphasis on _goroutines_, a form of concurrent processes, ligthweight threads, that can commmunicate with each other via channels - a concurrent-safe queue.
 
 Being statically typed, Go can prevent certain type mismatches at compile time; for example,
-a pointer cannot be sent where a value is expected. Being strongly typed, it does not perform implicit conversions - a weak language could allow you to pass an integer where a string is expected, and implcitly convert the integer to a string.
+a integer cannot be passed where a string is expected. It is also strongly typed, that is there are no implicit conversions between incompatible types - a weakly typed language could allow you to pass an integer where a string is expected, and implicitly convert the integer to a string.
 
 Go's support for static typing is very rudimentary: There are few primitive base types, structures, pointers, and interfaces - a collection of methods, essentially. Importantly, there is no support for read-only objects - all objects are writable.
 
@@ -24,8 +24,8 @@ But how can we ensure that there is no other pointer pointing to the same locati
 We could use monads, a concept introduced by Haskell, to encapsulate mutability of a specific value. But no, monads require generic types for implementation, and Go does not provide them, so we have to look for something different.
 
 So this seems to generally boil down to aliasing: If we can ensure that the value we are sending over the channel does
-not have any (writeable) aliases, we can implement a solution that _moves_ the value through the channel, rather than
-copying. We need something that says this:
+not have any (writeable) aliases, we can implement a solution that _moves_ the value through the channel instead of
+copying it. We need something that says this:
 
 ```
     // Requires: anIntPointer must not have any aliases
@@ -36,13 +36,13 @@ copying. We need something that says this:
 Linear types allow doing just that: We can declare that an object of a given type only has a single reference to it. We can easily check linearity at runtime if we use reference counting: When a linear value is expected, but the reference count is larger than 1, we throw a runtime error. But this seems like a bad choice: Go is statically typed, and if we can check linearity statically, we can prevent a lot of race conditions from even compiling, reducing the amount of bugs in a running program, even in the face of untested code paths.
 
 The remaining chapters of the thesis are structured as follows:
-Chapter 2 will give an introduction to Go, monads, linear types, and some generalisations;
-chapter 3 will introduce an approach to permissions for Go;
-chapter 4 will introduce an abstract interpreter that statically checks a Go program for permission violations;
+Chapter 2 gives a more in-depth introduction to Go, monads, linear types, and some generalisations like capabilities and permissions;
+chapter 3 introduces an approach to permissions for Go;
+chapter 4 introduces an abstract interpreter for statically checking permissions;
 and chapters 5 and 6 discuss how the implementation was tested, and what the issues are.
 
 
-What properties should our implementation optimally achieve?:\label{sec:criteria}
+What properties should our implementation optimally achieve?\label{sec:criteria}
 
 An important one is _completeness_: All syntactic constructs are tested. Or rather: An unknown syntactic construct should be rejected.
 
