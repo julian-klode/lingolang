@@ -595,7 +595,7 @@ if ident.Name == "_" {
 }
 ```
 
-If we are evaluating a define statement, an annotation may be present. In that case, the actual RHS permission is converted (recall  \fref{sec:ctb} and \fref{sec:convert}) to the annotated permission to create the LHS permission. Otherwise, the LHS permission is the RHS permission (possibly subject to limits if the variable is already defined and we are in fact reassigning).
+If we are evaluating a define statement, an annotation may be present. In that case, the actual RHS permission is converted (recall  \fref{sec:ctb} and \fref{sec:convert}) to the annotated permission to create the LHS permission. Otherwise, the LHS permission is the RHS permission (possibly subject to limits if the variable is already defined and we are in fact reassigning).\label{sec:annotated-permissions}
 ```go
 <<define value>>=
 log.Println("Defining", ident.Name)
