@@ -6,7 +6,7 @@ the thesis is based on.
 ## The Go programming language
 \vskip-2cm \hfill\includegraphics[height=1.5cm]{gopherbw}
 
-Go[^Go] is an imperative programming language for concurrent programming created mainly developed by Google, initially mostly by Robert Griesemer, Rob Pike, and Ken Thompson.
+Go[^Go] is an imperative programming language for concurrent programming created at and mainly developed by Google, initially mostly by Robert Griesemer, Rob Pike, and Ken Thompson.
 Design of the language started in 2007, and an initial version was released in 2009; with the first stable version, 1.0 released in 2012 [@gofaq].
 
 
