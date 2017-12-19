@@ -56,8 +56,8 @@ abstract: |
    Software abzielt. In nebenläufigen Programmen ist Datenaustausch zwischen
    nebenläufigen Berechnungen (goroutine in Go) essenziell.
 
-   Eines von Go's Mottos ist "Don't communicate by sharing memory, share memory
-   by communicating." (Rob Pike), was so viel heißt wie: Pointer werden zwischen
+   Eines der Go Sprichwörter ist "`Don't communicate by sharing memory, share memory
+   by communicating."' (Rob Pike), was so viel heißt wie: Pointer werden zwischen
    den Berechnungen verschickt. Es gibt aber keine Möglichkeit auszuschließen,
    dass es keine andere Referenz auf den gleichen Speicherbereich gibt, was dazu
    führen kann das zwei goroutinen z.B. gleichzeitig auf den gleichen Speicherbereich
