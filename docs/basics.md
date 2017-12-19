@@ -308,7 +308,7 @@ With such a notation, we immediately reach a level where the code basically just
 
 There are various names describing the same or fairly similar concepts as this: linear [@Baker:1995:LVL:199818.199860], unique [@achten1993high][@boyland2001alias], free [@hogg1991islands][@noble1998flexible], or unsharable [@minsky1996towards].
 
-One programming language using linear types is Rust ([^Rust]). In Rust, the input/output annotation is basically the only variant - it looks and works like an imperative language. Linear values can be created and 'borrowed' for passing them to
+One programming language using linear types is Rust[^Rust]. In Rust, the input/output annotation is basically the only variant - it looks and works like an imperative language. Linear values can be created and 'borrowed' for passing them to
 another function, for example. Rust has no garbage collector, but a system of lifetimes where each function parameter can be associated a named lifetime and the result can then refer to the names of the parameters. This allows it to be used even without a heap, at least in theory. Rust does not use linear types for I/O which is a bit unfortunate.
 
 [^Rust]: <https://www.rust-lang.org>
