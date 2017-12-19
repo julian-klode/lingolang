@@ -283,15 +283,15 @@ unowned function, but not vice versa.
             &b\ (R') \textbf{ func } ( P'_0 \ldots, P'_n ) (R'_0, \ldots, R'_m))
     \end{aligned} &:\Leftrightarrow  \begin{cases}
         ass_{ref}(a \cap \{o\}, b \cap \{o\}) \\
-                     \quad\text{and } ass_{ref}(b \setminus \{o\}, a \setminus \{o\})  \\
-                     \quad\text{and } ass_{mov}(R', R) \\
-                     \quad\text{and } ass_{mov}(P'_i, P_i) \\
-                     \quad\text{and } ass_{mov}(R_j, R'_j)   & \mu = cop\\
+                     \text{ and } ass_{ref}(b \setminus \{o\}, a \setminus \{o\})  \\
+                     \text{ and } ass_{mov}(R', R) \\
+                     \text{ and } ass_{mov}(P'_i, P_i) \\
+                     \text{ and } ass_{mov}(R_j, R'_j)   & \mu = cop\\
         ass_\mu(a \cap \{o\}, b \cap \{o\}) \\
-                     \quad\text{and } ass_\mu(b \setminus \{o\}, a \setminus \{o\})  \\
-                     \quad\text{and } ass_{mov}(R', R) \\
-                     \quad\text{and } ass_{mov}(P'_i, P_i) \\
-                     \quad\text{and } ass_{mov}(R_j, R'_j)   & \text{else}\\
+                     \text{ and } ass_\mu(b \setminus \{o\}, a \setminus \{o\})  \\
+                     \text{ and } ass_{mov}(R', R) \\
+                     \text{ and } ass_{mov}(P'_i, P_i) \\
+                     \text{ and } ass_{mov}(R_j, R'_j)   & \text{else}\\
         \end{cases} \\
         & \qquad \ \text{ for all } 0 \le i \le n, 0 \le j \le m
 \end{align*}
@@ -350,13 +350,14 @@ func (perm BasePermission) convertToBaseBase(perm2 BasePermission) BasePermissio
 	return perm2
 }
 ```
-Otherwise, apart from functions, interfaces, and pointers, ctb is just applied recursively.
+Otherwise, apart from functions, interfaces, and pointers, $ctb$ is just applied recursively.
 \begin{align*}
     ctb(a \textbf{ chan } A, b) &:= ctb(a, b) \textbf{ chan } ctb(A, ctb(a, b)) \\
     ctb(a \textbf{ } []A, b) &:= ctb(a, b) \textbf{ } []ctb(A, ctb(a, b))       \\
     ctb(a \textbf{ } [\_]A, b) &:= ctb(a, b) \textbf{ } [\_]ctb(A, ctb(a, b))   \\
     ctb(a \textbf{ map} [A]B, b) &:= ctb(a, b) \textbf{ map} [ctb(A)]ctb(B, ctb(a, b))   \\
-    ctb(a \textbf{ struct } \{ A_0; \ldots; A_n \}, b) &:= ctb(a, b) \textbf{ struct }  \{ ctb(A_0, ctb(a, b)); \ldots; ctb(A_n, ctb(a, b)) \}   \\
+    ctb(a \textbf{ struct } \{ A_0; \ldots; A_n \}, b) &:= ctb(a, b) \textbf{ struct }  \{ ctb(A_0, ctb(a, b));  \ldots; \\
+                                                       & \phantom{:= ctb(a, b) \textbf{ struct }  \{ }ctb(A_n, ctb(a, b)) \}   \\
     ctb(a\ ( A_0; \ldots; A_n), b) &:= ctb(a, b)\ ( ctb(A_0, ctb(a, b)); \ldots; ctb(A_n, ctb(a, b)) )
 \end{align*}\label{sec:ctb-nil}
 
@@ -370,14 +371,12 @@ a mutable map, one referencing a read-only map.\label{sec:two-base-permission-ct
 
 Functions and interfaces are special, again: methods, and receivers, parameters, results of functions are converted to their own base permission.
 \begin{align*}
-    ctb(a\ (R) \textbf{ func } ( P_0, \ldots, P_n ) (R_0, \ldots, R_m), b) &:=&&  ctb(a, b)\ (ctb(R, base(R))) \textbf{ func }  \\
-                                                                             &&&  ( ctb(P_0, base(P_0)), \ldots, ctb(P_n, base(P_n)) )  \\
-                                                                             &&&  (ctb(R_0, base(R_0)), \ldots, ctb(R_m, base(R_m)))  \\
-    ctb(a \textbf{ interface } \{ A_0; \ldots; A_n \}, b) &:=&& ctb(a, b) \textbf{ interface } \{ \\
-                &&&\quad ctb(A_0, base(A_0)) \\
-                &&&\quad\ldots; \\
-                &&&\quad ctb(A_n, base(A_n)) \\
-                &&&\}
+    &ctb(a\ (R) \textbf{ func } ( P_0, \ldots, P_n ) (R_0, \ldots, R_m), b) \\
+     &:=  ctb(a, b)\ (ctb(R, base(R))) \textbf{ func }  \\
+     & \qquad ( ctb(P_0, base(P_0)), \ldots, ctb(P_n, base(P_n)) )  \\
+     & \qquad (ctb(R_0, base(R_0)), \ldots, ctb(R_m, base(R_m)))  \\
+     &ctb(a \textbf{ interface } \{ A_0; \ldots; A_n \}, b) \\
+     &:= ctb(a, b) \textbf{ interface } \{ ctb(A_0, base(A_0)) \ldots; ctb(A_n, base(A_n))  \}
 \end{align*}
 The reason for this is simple: Consider the following example:
 ```go
