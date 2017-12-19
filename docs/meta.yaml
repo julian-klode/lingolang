@@ -4,9 +4,9 @@ title:  |
  Linear Typing for Go
 date: 20.12.2017
 subtitle: |
- A loose adaption of capabilities for sharing. \
+ A loose adaption of capabilities for sharing \
  \
- Master's Thesis
+ Masterarbeit
 documentclass: scrreprt
 classoption: BCOR=0.5cm
 secnumdepth: 2
