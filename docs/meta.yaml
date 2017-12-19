@@ -32,6 +32,7 @@ author: |
  &nbsp;\
  Betreuer: Prof. Dr. Christoph Bockisch
 reference-section-title: References
+biblio-title: References,heading=bibintoc
 abstract: |
  Go is a programming language aimed at writing highly-concurrent software.
  In concurrent programs, exchanging data between concurrent
