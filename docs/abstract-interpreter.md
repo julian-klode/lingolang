@@ -1224,3 +1224,102 @@ A comm clause has the form `case STMT: BODY` for some statements `STMT` and `BOD
     \langle \textbf{case } STMT: BODY, s, f \rangle \rightarrow exits
 }  \\ \text{(P-CommClause)}
 \end{align*}
+
+
+#### Back to expressions: The function literal
+Now that we have introduced statements, it's time to come back to the function literal expression which we deferred to a later point at the end of the expression section.
+A function literal looks like a function, but without a name.
+
+The first step is to get the type of the function literal to look up things like parameter names, swapping the currently active function (represented by the third element in the formal notation),
+and then calling a helper function that builds a function.
+```go
+func (i *Interpreter) visitFuncLit(st Store, e *ast.FuncLit) (permission.Permission, Owner, []Borrowed, Store) {
+	oldCurFunc := i.curFunc
+	if i.typeMapper == nil {
+		i.typeMapper = permission.NewTypeMapper()
+	}
+	typ := i.typesInfo.TypeOf(e).(*types.Signature)
+	i.curFunc = i.typeMapper.NewFromType(typ).(*permission.FuncPermission)
+	defer func() {
+		i.curFunc = oldCurFunc
+	}()
+	return i.buildFunction(st, e, typ, e.Body)
+}
+```
+
+The helper function `buildFunction` has been extracted because it will also be useful with function declarations in a package. It defines receivers and parameters, interprets the function body,
+and then collects all captured variables and moves them "into" the closure, so they cannot be modified by the parent function. They are also added as dependencies, so the caller could still
+release them back - if we recall, that's what happens for unowned variables if a function literal is deferred.
+```go
+func (i *Interpreter) buildFunction(st Store, node ast.Node, typ *types.Signature, body *ast.BlockStmt) (permission.Permission, Owner, []Borrowed, Store) {
+	var deps []Borrowed
+	var err error
+	origStore := st
+	perm := i.typeMapper.NewFromType(typ).(*permission.FuncPermission)
+	perm.BasePermission |= permission.Owned
+
+	st = st.BeginBlock()
+	<<define stuff>>
+
+	exits := i.visitStmtList(st, body.List, false)
+	st = append(NewStore(), origStore...)
+	for _, exit := range exits {
+        <<collect captures>>
+	}
+
+	return perm, NoOwner, deps, st
+}
+```
+
+Defining receivers and parameters is a rather boring affair. This should actually also define any named return values, but that's not
+```
+<<define stuff>>=
+if len(perm.Receivers) > 0 {
+		for _, recv := range perm.Receivers {
+			st, err = st.Define(typ.Recv().Name(), recv)
+			if err != nil {
+				i.Error(node, "Cannot define receiver %s", err)
+			}
+		}
+	}
+
+	params := typ.Params()
+	for j := 0; j < params.Len(); j++ {
+		param := params.At(j)
+		st, err = st.Define(param.Name(), perm.Params[j])
+		if err != nil {
+			i.Error(node, "Cannot define parameter %d called %s: %s", j, param.Name(), err)
+		}
+	}
+```
+
+Collecting the captured variables is a rather simple affair. We just visit every variable in the exit store that has a higher
+use count than in the input store, and move it to the dependencies of the function permission. We also adjust the permission
+of the literal: If we capture an unowned variable, the function becomes unowned too so we have the same narrower life time
+(since unowned objects cannot be stored).
+```
+<<collect captures>>=
+		exit.Store = exit.Store.EndBlock()
+        <<verify that store has same length as before>>
+
+		for j := range exit.Store {
+            <<several safety checks>>
+			if exit.Store[j].uses <= origStore[j].uses {
+				continue
+			}
+			log.Printf("Borrowing %s = %s", st[j].name, exit.Store[j].eff)
+			deps = append(deps, Borrowed{ast.NewIdent(st[j].name), st[j].eff})
+			st[j].eff = permission.ConvertToBase(st[j].eff, 0)
+			log.Printf("Borrowed %s is now %s", st[j].name, st[j].eff)
+			st[j].uses = exit.Store[j].uses
+
+			if exit.Store[j].eff.GetBasePermission()&permission.Owned == 0 && perm.GetBasePermission()&permission.Owned != 0 {
+				log.Printf("Converting function to unowned due to %s", exit.Store[j].name)
+				perm = permission.ConvertToBase(perm, perm.GetBasePermission()&^permission.Owned).(*permission.FuncPermission)
+			}
+		}
+```
+
+The use counting actually happens in the store, but it is buggy: It only happens for definitions and assignments, not for
+read accesses (because the store is passed by value, and while we increase the count, that change is thus not visible outside
+the function doing the lookup).
