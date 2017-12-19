@@ -256,7 +256,7 @@ Purely functional programming is a form of programming in which side effects do 
 That is, there is no such things as mutable data structures, or even I/O operations; only pure
 transformations from one data structure to another.
 
-We will take a look at two approaches to dealing with mutability: Monads[@launchbury1995state], made popular by Haskell, and Linear Types, which are becoming increasingly more popular in mainstream programming with the Rust programming language.
+We will take a look at two approaches to dealing with mutability: Monads [@launchbury1995state], made popular by Haskell, and Linear Types, which are becoming increasingly more popular in mainstream programming with the Rust programming language.
 
 Linear Types are usually defined per language, and the different languages might have slightly different semantics for the same name or different names for the same semantics. We will consider two generalisations of linear types: 'Capabilities for Sharing' [@Boyland:2001:CSG:646158.680004] and fractional permissions [@Boyland:2003:CIF:1760267.1760273]. The former attemps to be a framework for describing type linearity very generically, whereas the latter is a more limited (or focused) approach on read-only vs writable values.
 
@@ -306,7 +306,7 @@ main(IO0, IO) :-
 ```
 With such a notation, we immediately reach a level where the code basically just looks like imperative code but with all the same guarantees of purely functional code. We can also make this the only notation, effectively gaining an imperative language with the same guarantees as a functional one.
 
-There are various names describing the same or fairly similar concepts as this: linear [@Baker:1995:LVL:199818.199860], unique [@achten1993high][@boyland2001alias], free [@hogg1991islands][@noble1998flexible], or unsharable[@minsky1996towards].
+There are various names describing the same or fairly similar concepts as this: linear [@Baker:1995:LVL:199818.199860], unique [@achten1993high][@boyland2001alias], free [@hogg1991islands][@noble1998flexible], or unsharable [@minsky1996towards].
 
 One programming language using linear types is Rust ([^Rust]). In Rust, the input/output annotation is basically the only variant - it looks and works like an imperative language. Linear values can be created and 'borrowed' for passing them to
 another function, for example. Rust has no garbage collector, but a system of lifetimes where each function parameter can be associated a named lifetime and the result can then refer to the names of the parameters. This allows it to be used even without a heap, at least in theory. Rust does not use linear types for I/O which is a bit unfortunate.
